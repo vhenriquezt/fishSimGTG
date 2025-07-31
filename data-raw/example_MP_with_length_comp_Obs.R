@@ -1,9 +1,9 @@
 rm(list=ls())
-devtools::install()
-#devtools::load_all()
+#devtools::install()
+devtools::load_all()
 library(ggplot2)
-library(fishSimGTG)
-#library(dplyr)
+#library(fishSimGTG)
+library(dplyr)
 
 # Create simple examples of each class to understand their structure
 lh <- new("LifeHistory")
@@ -273,12 +273,12 @@ runProjection(
   IndexObj = cpueB1,
   CatchObsObj = catch_obs1,
   customToCluster = "testMP",
-  wd = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole",
+  wd = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs",
   fileName = "test_run_MP_with_catch_obs",
   doPlot = TRUE
 )
 
-out1<-readProjection("P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole", "test_run_MP_with_catch_obs")
+out1<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG/outputs", "test_run_MP_with_catch_obs")
 out1$HCR$decisionData
 out1$HCR$decisionData$CPUE_1
 out1$HCR$decisionData$observed_catch
@@ -597,14 +597,14 @@ plotCatch_tibble <- function(tibble_data, save_plot = FALSE,
 
 p1 <- plotIndex_tibble(out1$HCR$decisionData,
                        save_plot = TRUE,
-                       filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/index_plot_CPUEB1.jpeg")
+                       filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/index_plot_CPUEB1.jpeg")
 
 p1
 
 
 p2 <- plotCatch_tibble (out1$HCR$decisionData,
                            save_plot = TRUE,
-                             filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/plot_catchobs1.jpeg")
+                             filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/plot_catchobs1.jpeg")
 p2
 
 #higer F in the projection period exaplain the increases in catchs
@@ -698,12 +698,12 @@ runProjection(
   IndexObj = cpueB2,
   CatchObsObj = catch_obs2,
   customToCluster = "testMP",
-  wd = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole",
+  wd = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs",
   fileName = "test_run_MP_with_catch_obs2",
   doPlot = TRUE
 )
 
-out2<-readProjection("P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole", "test_run_MP_with_catch_obs2")
+out2<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG/outputs", "test_run_MP_with_catch_obs2")
 out2$HCR$decisionData
 out2$HCR$decisionData$CPUE_1
 out2$HCR$decisionData$CPUE_2
@@ -714,13 +714,13 @@ out2$dynamics$Ftotal
 
 p1 <- plotIndex_tibble(out2$HCR$decisionData,
                        save_plot = TRUE,
-                       filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/index_plot_CPUEB2.jpeg")
+                       filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/index_plot_CPUEB2.jpeg")
 
 p1
 
 p2 <- plotCatch_tibble (out1$HCR$decisionData,
                         save_plot = TRUE,
-                        filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/plot_catchobs2.jpeg")
+                        filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/plot_catchobs2.jpeg")
 p2
 
 
@@ -801,12 +801,12 @@ runProjection(
   IndexObj = cpueB3,
   CatchObsObj = catch_obs3,
   customToCluster = "testMP",
-  wd = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole",
+  wd = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs",
   fileName = "test_run_MP_with_catch_obs3",
   doPlot = TRUE
 )
 
-out3<-readProjection("P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole", "test_run_MP_with_catch_obs3")
+out3<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG/outputs", "test_run_MP_with_catch_obs3")
 out3$HCR$decisionData
 
 out3$HCR$decisionData$CPUE_1
@@ -818,13 +818,13 @@ out3$HCR$decisionData$observed_catch_area_1
 
 p1 <- plotIndex_tibble(out3$HCR$decisionData,
                        save_plot = TRUE,
-                       filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/index_plot_CPUEB3.jpeg")
+                       filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/index_plot_CPUEB3.jpeg")
 
 p1
 
 p2 <- plotCatch_tibble (out3$HCR$decisionData,
                         save_plot = TRUE,
-                        filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/plot_catchobs3.jpeg")
+                        filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/plot_catchobs3.jpeg")
 p2
 
 
@@ -903,12 +903,12 @@ runProjection(
   IndexObj = cpueN4,
   CatchObsObj = catch_obs4,
   customToCluster = "testMP",
-  wd = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole",
+  wd = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs",
   fileName = "test_run_MP_with_catch_obs4",
   doPlot = TRUE
 )
 
-out4<-readProjection("P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole", "test_run_MP_with_catch_obs4")
+out4<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG/outputs", "test_run_MP_with_catch_obs4")
 out4$HCR$decisionData
 out4$HCR$decisionData$CPUE_1
 out4$HCR$decisionData$CPUE_2
@@ -918,12 +918,12 @@ out4$HCR$decisionData$observed_catch_area_2
 
 p1 <- plotIndex_tibble(out4$HCR$decisionData,
                        save_plot = TRUE,
-                       filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/index_plot_CPUEN4.jpeg")
+                       filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/index_plot_CPUEN4.jpeg")
 p1
 
 p2 <- plotCatch_tibble (out4$HCR$decisionData,
                         save_plot = TRUE,
-                        filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/plot_catchobs4.jpeg")
+                        filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/plot_catchobs4.jpeg")
 p2
 
 #---------------------------------------------------------------------------------------#
@@ -1040,12 +1040,12 @@ runProjection(
   IndexObj = SurveyB5,
   CatchObsObj = catch_obs5,
   customToCluster = "testMP",
-  wd = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole",
+  wd = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs",
   fileName = "test_run_MP_with_catch_obs5",
   doPlot = TRUE
 )
 
-out5<-readProjection("P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole", "test_run_MP_with_catch_obs5")
+out5<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG/outputs", "test_run_MP_with_catch_obs5")
 out5$HCR$decisionData
 out5$HCR$decisionData$Survey_1
 out5$HCR$decisionData$Survey_2
@@ -1055,12 +1055,12 @@ out5$HCR$decisionData$observed_catch_area_2
 
 p1 <- plotIndex_tibble(out5$HCR$decisionData,
                        save_plot = TRUE,
-                       filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/index_plot_SurveyB5.jpeg")
+                       filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/index_plot_SurveyB5.jpeg")
 p1
 
 p2 <- plotCatch_tibble (out5$HCR$decisionData,
                         save_plot = TRUE,
-                        filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/plot_catchobs5.jpeg")
+                        filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/plot_catchobs5.jpeg")
 p2
 
 
@@ -1163,12 +1163,12 @@ runProjection(
   IndexObj = mixed_biomass,
   CatchObsObj = catch_obs6,
   customToCluster = "testMP",
-  wd = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole",
+  wd = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs",
   fileName = "test_run_MP_with_mixed_index_and_catch_obs6",
   doPlot = TRUE
 )
 
-out6<-readProjection("P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole", "test_run_MP_with_mixed_index_and_catch_obs6")
+out6<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG/outputs", "test_run_MP_with_mixed_index_and_catch_obs6")
 out6$HCR$decisionData$CPUE_1
 out6$HCR$decisionData$Survey_2
 out6$HCR$decisionData$observed_catch
@@ -1177,12 +1177,12 @@ out6$HCR$decisionData$observed_catch
 
 p1 <- plotIndex_tibble(out6$HCR$decisionData,
                        save_plot = TRUE,
-                       filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/index_plot_mixedB6.jpeg")
+                       filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/index_plot_mixedB6.jpeg")
 p1
 
 p2 <- plotCatch_tibble (out6$HCR$decisionData,
                         save_plot = TRUE,
-                        filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/plot_catchobs6.jpeg")
+                        filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/plot_catchobs6.jpeg")
 p2
 
 
@@ -1369,12 +1369,12 @@ runProjection(
   CatchObsObj = catch_obs7,
   LengthCompObj = length_comp7,      # NEW: Length composition object
   customToCluster = "testMP",
-  wd = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole",
+  wd = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs",
   fileName = "test_run_MP_with_mixed_index_obs_catch_obs_length_obs",
   doPlot = TRUE
 )
 
-out7<-readProjection("P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole", "test_run_MP_with_mixed_index_obs_catch_obs_length_obs")
+out7<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG/outputs", "test_run_MP_with_mixed_index_obs_catch_obs_length_obs")
 out7$HCR$decisionData$CPUE_1
 out7$HCR$decisionData$Survey_2
 out7$HCR$decisionData$observed_catch
@@ -1386,12 +1386,12 @@ out7$HCR$decisionData$Survey_2_count_bin_18
 
 p1 <- plotIndex_tibble(out7$HCR$decisionData,
                        save_plot = TRUE,
-                       filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/index_plot_mixedB7.jpeg")
+                       filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/index_plot_mixedB7.jpeg")
 p1
 
 p2 <- plotCatch_tibble (out7$HCR$decisionData,
                         save_plot = TRUE,
-                        filename = "P:/Nature_Analytics_work/Simulation_obs_models1/data-test/Kole/plot_catchobs7.jpeg")
+                        filename = "P:/Fork_fish_Sim_GTG/fishSimGTG/outputs/plot_catchobs7.jpeg")
 p2
 
 
