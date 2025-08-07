@@ -489,13 +489,14 @@ solveD<-function(lh, sel, doFit = FALSE, F_in = NULL, D_type = NULL, D_in = NULL
     #----------------------------------------
     min.Depletion<-function(logFmort){
       Fmort<-exp(logFmort)
+      # survivorship eq equations
       N<-lapply(1:lh$gtg, FUN=function(x) {
         tmp<-dplyr::lag(cumprod(exp(-lh$LifeHistory@M/stepsPerYear - Fmort/stepsPerYear*sel$removal[[x]])), n=1, default = 1)*lh$recProb[x]
         tmp[totalSteps]<- tmp[totalSteps]/(1-exp(-lh$LifeHistory@M/stepsPerYear - Fmort/stepsPerYear*sel$removal[[x]][totalSteps]))
         tmp
       })
       SB<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
-      SPR<- SB / Wbar
+      SPR<- SB / Wbar # Equilibrium spawning biomass per recuit (fished)/ Equilibrium spawning biomass per recuit (unfished)
       D<-(4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1)
       if(D_type == "relB") return((D-D_in)^2)
       if(D_type == "SPR") return((SPR-D_in)^2)
@@ -504,11 +505,13 @@ solveD<-function(lh, sel, doFit = FALSE, F_in = NULL, D_type = NULL, D_in = NULL
     #---------------
     #Wbar
     #---------------
+    # Suvivorship - Unifished conditions
     N<-lapply(1:lh$gtg, FUN=function(x) {
       tmp<-dplyr::lag(cumprod(rep(exp(-lh$LifeHistory@M/stepsPerYear), totalSteps)), n=1, default = 1)*lh$recProb[x]
       tmp[totalSteps]<- tmp[totalSteps]/(1-exp(-lh$LifeHistory@M/stepsPerYear))
       tmp
     })
+    # Equilibrium spawning biomass per recuit (unfished) (phi unfished)
     Wbar<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
 
     #-------------
@@ -633,33 +636,7 @@ solveD<-function(lh, sel, doFit = FALSE, F_in = NULL, D_type = NULL, D_in = NULL
 #' @param D_in When doFit = TRUE, specifies value of equilibrium state. Must be SSB depletion or SPR both with value between 0 and 1
 #' @param doPlot Equilibrium length composition
 #' @param fleet_proportions Numeric vector specifying the proportion of total F allocated to each fleet. Must sum to 1. If NULL, equal proportions are used.
-#' @return A list containing:
-#' \itemize{
-#'   \item Feq: Total equilibrium fishing mortality across all fleets
-#'   \item D: Stock depletion level
-#'   \item SPR: Spawning potential ratio
-#'   \item Req: Equilibrium recruitment
-#'   \item B0: Unfished spawning biomass
-#'   \item SB: Spawning biomass
-#'   \item VB: Total vulnerable biomass (sum across fleets)
-#'   \item catchN: Total catch in numbers (sum across fleets)
-#'   \item catchB: Total catch in biomass (sum across fleets)
-#'   \item discN: Total discards in numbers (sum across fleets)
-#'   \item discB: Total discards in biomass (sum across fleets)
-#'   \item N: Abundance-at-age arrays by growth-type group
-#'   \item YPR: Total yield per recruit (sum across fleets)
-#'   \item nfleets: Number of fleets
-#'   \item F_by_fleet: Vector of fishing mortality by fleet
-#'   \item fleet_proportions: Proportions of total F by fleet
-#'   \item YPR_by_fleet: Yield per recruit by fleet
-#'   \item catchN_by_fleet: Catch in numbers by fleet
-#'   \item catchB_by_fleet: Catch in biomass by fleet
-#'   \item discN_by_fleet: Discards in numbers by fleet
-#'   \item discB_by_fleet: Discards in biomass by fleet
-#'   \item VB_by_fleet: Vulnerable biomass by fleet
-#'   \item sel_list: The input selectivity list
-#'   \item total_removal_sel_by_gtg: Total removal selectivity by growth-type group
-#' }
+#' @return A list containing a list containing equilibrium metrics for total population and individual fleets. See solveD() for standard outputs, plus fleet-specific results (F_by_fleet, catchB_by_fleet, etc.)
 #' @importFrom methods slot slotNames
 #' @import ggplot2  dplyr
 #' @importFrom stats optimize
@@ -770,6 +747,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
 
       # calc of equilibrium N - loops through each GTG (combined mortality for all fleets)
       # outer lapply through gtgs
+      # survivorship eq equations
       N<-lapply(1:lh$gtg, FUN=function(x) {
 
         # This is key for the multifleet approach
@@ -805,7 +783,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
       })
       # cals spawning biomas, spr, and depletion
       SB<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
-      SPR<- SB / Wbar #Wbar: unfished spawning biomass
+      SPR<- SB / Wbar #Equilibrium spawning biomass per recuit (fished)/ Equilibrium spawning biomass per recuit (unfished)
       #convert SPR to stock depletion using BH S-R
       D<-(4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1)
       #squared error for optimization
@@ -814,15 +792,16 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
     }
 
     #---------------
-    #Wbar: unfished spawning biomass calculation
+    #Wbar: Equilibrium spawning biomass per recuit (unfished)
     #---------------
     # Calculate abundance-at-age under no fishing (F = 0, only natural mortality)
+    # Suvivorship - Unifished conditions
     N<-lapply(1:lh$gtg, FUN=function(x) {
       tmp<-dplyr::lag(cumprod(rep(exp(-lh$LifeHistory@M/stepsPerYear), totalSteps)), n=1, default = 1)*lh$recProb[x]
       tmp[totalSteps]<- tmp[totalSteps]/(1-exp(-lh$LifeHistory@M/stepsPerYear))
       tmp
     })
-    # Unfished spawning biomass per recruit
+    #Equilibrium spawning biomass per recuit (unfished) (phi unfished)
     Wbar<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
 
     #-------------

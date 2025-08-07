@@ -33,33 +33,7 @@ solveD_multifleet(
 \item{fleet_proportions}{Numeric vector specifying the proportion of total F allocated to each fleet. Must sum to 1. If NULL, equal proportions are used.}
 }
 \value{
-A list containing:
-\itemize{
-\item Feq: Total equilibrium fishing mortality across all fleets
-\item D: Stock depletion level
-\item SPR: Spawning potential ratio
-\item Req: Equilibrium recruitment
-\item B0: Unfished spawning biomass
-\item SB: Spawning biomass
-\item VB: Total vulnerable biomass (sum across fleets)
-\item catchN: Total catch in numbers (sum across fleets)
-\item catchB: Total catch in biomass (sum across fleets)
-\item discN: Total discards in numbers (sum across fleets)
-\item discB: Total discards in biomass (sum across fleets)
-\item N: Abundance-at-age arrays by growth-type group
-\item YPR: Total yield per recruit (sum across fleets)
-\item nfleets: Number of fleets
-\item F_by_fleet: Vector of fishing mortality by fleet
-\item fleet_proportions: Proportions of total F by fleet
-\item YPR_by_fleet: Yield per recruit by fleet
-\item catchN_by_fleet: Catch in numbers by fleet
-\item catchB_by_fleet: Catch in biomass by fleet
-\item discN_by_fleet: Discards in numbers by fleet
-\item discB_by_fleet: Discards in biomass by fleet
-\item VB_by_fleet: Vulnerable biomass by fleet
-\item sel_list: The input selectivity list
-\item total_removal_sel_by_gtg: Total removal selectivity by growth-type group
-}
+A list containing a list containing equilibrium metrics for total population and individual fleets. See solveD() for standard outputs, plus fleet-specific results (F_by_fleet, catchB_by_fleet, etc.)
 }
 \description{
 Creates the necessary age-based vectors equilibrium abundance, biomass and catch for sub-cohorts
