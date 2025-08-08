@@ -84,6 +84,10 @@ result_multi1$B0
 result_multi1$SB
 result_multi1$VB
 
+
+
+
+
 # # Compare the results
 # tol <- 1e-10
 # feq_match1 <- abs(result_single1$Feq - result_multi1$Feq) < tol
@@ -340,4 +344,20 @@ combined_vul_by_gtg <- lapply(1:lh$gtg, function(x) {
   }
   combined_vul
 })
+
+
+
+
+###############
+#original
+result1 <- solveD_multifleet(lh, list(sel1, sel1), doFit = TRUE, D_type = "relB", D_in = 0.4,
+                                   fleet_proportions = c(0.7, 0.3))
+
+
+# Test effort-based
+result2 <- solveD_multifleet2(lh, list(sel1, sel2), doFit = TRUE, D_type = "relB", D_in = 0.4)
+
+# Test catch-based
+result3 <- solveD_multifleet2(lh, list(sel1, sel2), doFit = TRUE, D_type = "relB", D_in = 0.4,
+                              fleet_proportions = c(0.7, 0.3), allocation_type = "catch")
 

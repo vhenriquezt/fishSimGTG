@@ -938,7 +938,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
         # for example, I could say: 50% of age-5 fish are vulnerable to the "combined" fishery
         combined_vul <- combined_vul + (F_by_fleet[f] / Feq_total) * sel_list[[f]]$vul[[x]]  # for example: Fleet1 prop= 0.2 , sel age 5 fleet1= 0.53 , combined vul: 0.2*0.4
       }
-      combined_vul
+      return(combined_vul)
       print("GTG 1, first 10 ages:")
       print(combined_vul_by_gtg[[1]][1:10])
     })
