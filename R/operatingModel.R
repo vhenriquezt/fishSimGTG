@@ -1072,6 +1072,411 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
   }
 }
 
+#find effort proportions that give target catch proportions
+solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
+                             D_type = NULL, D_in = NULL, doPlot = FALSE,
+                             fleet_proportions = NULL, allocation_type = "effort"){
+
+  l <- NULL
+
+
+  # input validation is the same
+  if(is.null(lh) ||
+     is.null(sel_list) ||
+     !is.list(sel_list) ||
+     length(sel_list) == 0 ||
+     length(lh$LifeHistory@Steep) == 0 ||
+     lh$LifeHistory@Steep < 0.21 ||
+     lh$LifeHistory@Steep > 1 ||
+     isTRUE(doFit & !(D_type %in%  c("relB", "SPR"))) ||
+     isTRUE(doFit & is.null(D_in)) ||
+     isTRUE(doFit & D_in < 0) ||
+     isTRUE(doFit & D_in > 1)
+  ) {
+    return(NULL)
+  }
+
+    #---------------
+    #Steps per year
+    #---------------
+    nfleets <- length(sel_list)     # count n fleets from selectivity list
+    stepsPerYear <- lh$stepsPerYear # time step 1
+    totalSteps <- NROW(lh$L[[1]])   # nages
+
+    # adding a default fleet proportions if not specified (if not assume 50/50 for example for 2 fleets)
+    # if we dont provide proportions, it will create that. Also it make the fucntion work with 1 fleet or more fleet
+    if(is.null(fleet_proportions)) {
+      fleet_proportions <- rep(1/nfleets, nfleets)  # equal distribution among fleets
+    }
+
+    # validate fleet_proportions
+    if(length(fleet_proportions) != nfleets) {
+      stop("fleet_proportions length must match number of fleets")
+    }
+
+    if(any(fleet_proportions < 0)) {
+      stop("fleet_proportions must be non-negative")
+    }
+
+    if(abs(sum(fleet_proportions) - 1) > 1e-6) {
+      fleet_proportions <- fleet_proportions / sum(fleet_proportions)  # normalize
+      warning("fleet_proportions were normalized to sum to 1")
+    }
+
+
+    # validate each fleet has complete selectivity objects
+    for(f in 1:nfleets) {
+      if(is.null(sel_list[[f]]) ||
+         is.null(sel_list[[f]]$removal) ||
+         is.null(sel_list[[f]]$keep) ||
+         is.null(sel_list[[f]]$discard) ||
+         is.null(sel_list[[f]]$vul)) {
+        stop(paste("Fleet", f, "selectivity object is incomplete"))
+      }
+    }
+
+
+    # Adding a new section for catch based allocation
+
+    if(allocation_type == "catch") {
+      # what catch percentage we want
+      target_catch_proportions <- fleet_proportions
+      cat("finding effort proportions to achieve catch proportions:", target_catch_proportions, "\n")
+
+      # initial guess - strat with equal effort proportions
+      effort_proportions <- rep(1/nfleets, nfleets)
+
+      # we can do some iterative search/adjustment/tuning
+      for(iter in 1:20) {
+        test_result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
+                                         effort_proportions, stepsPerYear, totalSteps)
+        if(is.null(test_result))break
+
+    #get actual catch proportions (actual)
+    total_catch <- sum(test_result$catchB_by_fleet)
+    if(total_catch < 1e-10) break
+
+    actual_catch_proportions <- test_result$catchB_by_fleet / total_catch
+
+    #check
+    error <- target_catch_proportions - actual_catch_proportions
+    if(max(abs(error)) < 0.01) { # 1%
+      cat("Converged after", iter, "iterations\n")
+      break
+    }
+
+    #increase or decrease effort depending on the error
+    adjustment_factor <- 1 + 0.5 * error
+    effort_proportions <- effort_proportions * adjustment_factor
+    effort_proportions <- effort_proportions / sum(effort_proportions)
+
+    cat("Iteration", iter, "- Target:", round(target_catch_proportions, 3),
+        "Actual:", round(actual_catch_proportions, 3),
+        "Effort:", round(effort_proportions, 3), "\n")
+      }
+    #use the final effort prop
+      fleet_proportions <- effort_proportions
+      cat("Final effort proportions:", round(fleet_proportions, 3), "\n")
+    }
+
+    result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
+                                               fleet_proportions, stepsPerYear, totalSteps)
+
+    if(is.null(result)) return(NULL)
+
+    if(allocation_type == "catch") {
+      result$allocation_type <- allocation_type
+      result$target_catch_proportions <- target_catch_proportions
+      result$final_effort_proportions <- fleet_proportions
+      result$actual_catch_proportions <- result$catchB_by_fleet / sum(result$catchB_by_fleet)
+    } else {
+      result$allocation_type <- allocation_type
+    }
+
+    if(doPlot) {
+      tmp1<-data.frame(
+        l = unlist(lapply(1:lh$gtg, FUN=function(x){
+          rep(lh$L[[x]], result$N[[x]])
+        })))
+
+      # Plot vulnerable length composition (Fleet 1 only for simplicity)
+      tmp2<-data.frame(
+        l = unlist(lapply(1:lh$gtg, FUN=function(x){
+          rep(lh$L[[x]], result$N[[x]] * sel_list[[1]]$vul[[x]])
+        })))
+
+      p1 <- ggplot(tmp1, aes(x=l)) +
+        geom_histogram(binwidth=1, position="identity", fill="#58C7B1", color="white") +
+        labs(y= "Count", x = "Length", title = "Population length composition") +
+        theme_minimal()
+
+      p2 <- ggplot(tmp2, aes(x=l)) +
+        geom_histogram(binwidth=1, position="identity", fill="#58C7B1", color="white") +
+        labs(y= "Count", x = "Length", title = "Vulnerable length composition") +
+        theme_minimal()
+
+      gridExtra::grid.arrange(p1, p2, nrow = 1)
+    }
+
+    #------------
+    #Return list
+    #------------
+    return(result)
+  }
+
+  calculate_multifleet_equilibrium <-function(lh, sel_list, doFit,
+                                              F_in,
+                                              D_type,
+                                              D_in,
+                                              fleet_proportions,
+                                              stepsPerYear,
+                                              totalSteps){
+
+      nfleets <- length(sel_list)     # count n fleets from selectivity list
+
+      #------------------------------------------------------------
+      #Optimization - Fitting functions (adding modifications here)
+      #------------------------------------------------------------
+
+      # This function finds the total F that produces the target depletion level
+      # It's called by optimize() when doFit = TRUE
+      min.Depletion<-function(logFmort){
+        Ftotal <-exp(logFmort)
+        F_by_fleet <- Ftotal * fleet_proportions  # Distribute total F among fleets
+
+        # calc of equilibrium N - loops through each GTG (combined mortality for all fleets)
+        # outer lapply through gtgs
+        # survivorship eq equations
+        N<-lapply(1:lh$gtg, FUN=function(x) {
+
+          # This is key for the multifleet approach
+          # fleets interact through shared mortality (total removal represents the COMBINED
+          # fishing pressure that all fleets together exert on the fish population)
+          # Total_mortality (Z) = M + (F1*sel1 + F2*sel2 + F3*sel3)
+          # Survival (S)= exp(-(M + total_removal_from_all_fleets))= exp(-(M + F1*sel1 + F2*sel2 + F3*sel3))
+          # inner sapply: age loop for each gtg
+          # what total removal sel does: for each age in each gtt, this sums up the removal selectivity from all fleets
+          total_removal_sel <- sapply(1:totalSteps, function(age) {
+            #sapply fleet loop for each age
+            sum(sapply(1:nfleets, function(f) {
+              F_by_fleet[f] * sel_list[[f]]$removal[[x]][age] # Fleet f's contribution to total removal
+            }))
+          })
+
+          #for example: # Age 5 example:
+          # Fleet1_contribution = F_by_fleet[1] * sel_list[[1]]$removal[[gtg]][5]  # = 0.1 * 0.8 = 0.08
+          # Fleet2_contribution = F_by_fleet[2] * sel_list[[2]]$removal[[gtg]][5]  # = 0.15 * 0.6 = 0.09
+          # Fleet3_contribution = F_by_fleet[3] * sel_list[[3]]$removal[[gtg]][5]  # = 0.05 * 0.2 = 0.01
+          # total_removal_sel[5] = 0.08 + 0.09 + 0.01 = 0.18  # COMBINED effect on age-5 fish
+
+
+          # Calc survival per time step (exp(-lh$LifeHistory@M/stepsPerYear - Fmort/stepsPerYear*sel$removal[[x]]))
+          # for each GTG, the cumprod() calculates survival across ages within that GTG
+          # what dplyr::lag does? : shift n positions to the right, the first position is filled by the default value
+          # whit the lag age 0 start with abundance 1???
+          # recProb: 1 prob for each GTG
+          tmp<-dplyr::lag(cumprod(exp(-lh$LifeHistory@M/stepsPerYear - total_removal_sel/stepsPerYear)), n=1, default = 1)*lh$recProb[x]
+          # calc for the plus group
+          tmp[totalSteps]<- tmp[totalSteps]/(1-exp(-lh$LifeHistory@M/stepsPerYear - total_removal_sel[totalSteps]/stepsPerYear))
+          tmp
+        })
+        # cals spawning biomas, spr, and depletion
+        SB<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
+        SPR<- SB / Wbar #Equilibrium spawning biomass per recuit (fished)/ Equilibrium spawning biomass per recuit (unfished)
+        #convert SPR to stock depletion using BH S-R
+        D<-(4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1)
+        #squared error for optimization
+        if(D_type == "relB") return((D-D_in)^2) # Target relative biomass
+        if(D_type == "SPR") return((SPR-D_in)^2) # Target SPR
+      }
+
+      #---------------
+      #Wbar: Equilibrium spawning biomass per recuit (unfished)
+      #---------------
+      # Calculate abundance-at-age under no fishing (F = 0, only natural mortality)
+      # Suvivorship - Unifished conditions
+      N<-lapply(1:lh$gtg, FUN=function(x) {
+        tmp<-dplyr::lag(cumprod(rep(exp(-lh$LifeHistory@M/stepsPerYear), totalSteps)), n=1, default = 1)*lh$recProb[x]
+        tmp[totalSteps]<- tmp[totalSteps]/(1-exp(-lh$LifeHistory@M/stepsPerYear))
+        tmp
+      })
+      #Equilibrium spawning biomass per recuit (unfished) (phi unfished)
+      Wbar<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
+
+      #-------------
+      #Find equil F Feq: Find the F that produce the init depeltion
+      #-------------
+      # F in log scale
+      # min.Depletion: the objective fucntion
+      if(doFit) {
+        # ise numerical optimization to find F that gives target depletion
+        # optimize() searches between exp(-14) and exp(1.1) for the F that minimizes objective function
+        Feq_total <- exp(optimize(min.Depletion, lower = -14, upper = 1.1, maximum = FALSE, tol = 0.00000001)$minimum)
+      } else {
+        if(is.null(F_in)) {
+          stop("F_in must be provided when doFit = FALSE")
+        }
+        Feq_total <- F_in  # F_in should be total F across all fleets
+      }
+
+      # Distribute F among fleets
+      F_by_fleet <- Feq_total * fleet_proportions
+
+      #-------------------------------------------------------------------------------------------
+      #Get current SSB depletion
+      #Re-cacl regardless of having D_in because in some cases fit cannot deplete stock to target
+      #Recalculate with final F values
+      #Calc. final equilibrium conditions with distributed F
+      #-------------------------------------------------------------------------------------------
+
+      #FINAL EQUILIBRIUM CONDITIONS CALCULATION (after optimization)
+      # The logic is the same as above, but here F_by_fleet is after optimization
+
+      # Calculate total removal selectivity for each GTG (this is used multiple times)
+      # total removal return 1 vector (length nages) for each gtg
+      total_removal_sel_by_gtg <- lapply(1:lh$gtg, FUN = function(x) {
+        sapply(1:totalSteps, function(age) {
+          sum(sapply(1:nfleets, function(f) {
+            F_by_fleet[f] * sel_list[[f]]$removal[[x]][age]  # Fflet*Selfleet
+          }))
+        })
+      })
+
+      # Recalculate equilibrium abundance with final F values
+      N<-lapply(1:lh$gtg, FUN=function(x) {
+
+        tmp<-dplyr::lag(cumprod(exp(-lh$LifeHistory@M/stepsPerYear - total_removal_sel_by_gtg[[x]]/stepsPerYear)), n=1, default = 1)*lh$recProb[x]
+        tmp[totalSteps]<- tmp[totalSteps]/(1-exp(-lh$LifeHistory@M/stepsPerYear - total_removal_sel_by_gtg[[x]][totalSteps]/stepsPerYear))
+        tmp
+      })
+
+      # fleet specific calculations
+      YPR_by_fleet <- vector("numeric", nfleets)
+      catchN_by_fleet <- vector("numeric", nfleets)
+      catchB_by_fleet <- vector("numeric", nfleets)
+      discN_by_fleet <- vector("numeric", nfleets)
+      discB_by_fleet <- vector("numeric", nfleets)
+      VB_by_fleet <- vector("numeric", nfleets)
+
+      # calculate results for each fleet separately
+      for(f in 1:nfleets) {
+        # YPR for this fleet
+        # YPR calculation uses Baranov catch equation:
+        #C = F*sel/(F*sel + M) * (1 - exp(-(F*sel + M))) * N
+        # Note: Uses total_removal_sel_by_gtg in denominator because that's the total mortality (when + M) affecting survival
+        YPR_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) {
+          sum(lh$W[[x]] * F_by_fleet[f]/stepsPerYear * sel_list[[f]]$keep[[x]] /
+                (total_removal_sel_by_gtg[[x]]/stepsPerYear + lh$LifeHistory@M/stepsPerYear) *
+                (1 - exp(-total_removal_sel_by_gtg[[x]]/stepsPerYear - lh$LifeHistory@M/stepsPerYear)) * N[[x]])
+        }))
+
+        # Catch in numbers
+        # same as YPR but without weight multiplic.
+        catchN_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) {
+          sum(F_by_fleet[f]/stepsPerYear * sel_list[[f]]$keep[[x]] /
+                (total_removal_sel_by_gtg[[x]]/stepsPerYear + lh$LifeHistory@M/stepsPerYear) *
+                (1 - exp(-total_removal_sel_by_gtg[[x]]/stepsPerYear - lh$LifeHistory@M/stepsPerYear)) * N[[x]])
+        }))
+
+        # Catch in biomass
+        # same as catch in numbers but multiplied by weight
+        catchB_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) {
+          sum(lh$W[[x]] * F_by_fleet[f]/stepsPerYear * sel_list[[f]]$keep[[x]] /
+                (total_removal_sel_by_gtg[[x]]/stepsPerYear + lh$LifeHistory@M/stepsPerYear) *
+                (1 - exp(-total_removal_sel_by_gtg[[x]]/stepsPerYear - lh$LifeHistory@M/stepsPerYear)) * N[[x]])
+        }))
+
+        # Discards in numbers
+        # Discards use discard selectivity instead of keep selectivity
+        discN_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) {
+          sum(F_by_fleet[f]/stepsPerYear * sel_list[[f]]$discard[[x]] /
+                (total_removal_sel_by_gtg[[x]]/stepsPerYear + lh$LifeHistory@M/stepsPerYear) *
+                (1 - exp(-total_removal_sel_by_gtg[[x]]/stepsPerYear - lh$LifeHistory@M/stepsPerYear)) * N[[x]])
+        }))
+
+        # Discards in biomass
+        discB_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) {
+          sum(lh$W[[x]] * F_by_fleet[f]/stepsPerYear * sel_list[[f]]$discard[[x]] /
+                (total_removal_sel_by_gtg[[x]]/stepsPerYear + lh$LifeHistory@M/stepsPerYear) *
+                (1 - exp(-total_removal_sel_by_gtg[[x]]/stepsPerYear - lh$LifeHistory@M/stepsPerYear)) * N[[x]])
+        }))
+
+        # Vulnerable biomass = total abundance * fleet selectivity * weight
+        VB_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) sum(N[[x]] * sel_list[[f]]$vul[[x]] * lh$W[[x]])))
+      }
+
+      # Calculate population-level calculations
+
+      SB<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
+      SPR<-SB / Wbar
+      D<-max(0, (4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1))
+
+      # get totals
+      YPR <- sum(YPR_by_fleet)
+      catchN <- sum(catchN_by_fleet)
+      catchB <- sum(catchB_by_fleet)
+      discN <- sum(discN_by_fleet)
+      discB <- sum(discB_by_fleet)
+      VB <- sum(VB_by_fleet)
+
+
+      #------------------------------
+      #Scale stock size and catches by Req
+      #------------------------------
+      #calc Req using BH
+      #prior calc were per recurit, now this scale the pop. by Req
+      Req<-recruit(LifeHistoryObj = lh$LifeHistory, B0=Wbar, stock=Wbar*D, forceR=FALSE)
+
+      N<-lapply(1:lh$gtg, FUN=function(x) {
+        tmp<-dplyr::lag(cumprod(exp(-lh$LifeHistory@M/stepsPerYear - total_removal_sel_by_gtg[[x]]/stepsPerYear)), n=1, default = 1)*lh$recProb[x]*Req
+        tmp[totalSteps]<- tmp[totalSteps]/(1-exp(-lh$LifeHistory@M/stepsPerYear - total_removal_sel_by_gtg[[x]][totalSteps]/stepsPerYear))
+        tmp
+      })
+      SB<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
+      B0<-Wbar*lh$LifeHistory@R0
+
+
+      # Scale fleet-specific outputs by Req
+      YPR_by_fleet <- YPR_by_fleet * Req
+      catchN_by_fleet <- catchN_by_fleet * Req
+      catchB_by_fleet <- catchB_by_fleet * Req
+      discN_by_fleet <- discN_by_fleet * Req
+      discB_by_fleet <- discB_by_fleet * Req
+      VB_by_fleet <- VB_by_fleet * Req
+
+      # Recalculate totals with scaled values
+      YPR <- sum(YPR_by_fleet)
+      catchN <- sum(catchN_by_fleet)
+      catchB <- sum(catchB_by_fleet)
+      discN <- sum(discN_by_fleet)
+      discB <- sum(discB_by_fleet)
+      VB <- sum(VB_by_fleet)
+
+
+
+      #------------
+      #Return list
+      #------------
+      return(list(Feq = Feq_total, D=D, SPR=SPR, Req=Req, B0=B0,
+                  SB=SB, VB=VB, catchN=catchN, catchB=catchB,
+                  discN=discN, discB=discB, N=N, YPR = YPR,
+                  # Fleet-specific results
+                  nfleets = nfleets,
+                  F_by_fleet = F_by_fleet,
+                  fleet_proportions = fleet_proportions,
+                  YPR_by_fleet = YPR_by_fleet,
+                  catchN_by_fleet = catchN_by_fleet,
+                  catchB_by_fleet = catchB_by_fleet,
+                  discN_by_fleet = discN_by_fleet,
+                  discB_by_fleet = discB_by_fleet,
+                  VB_by_fleet = VB_by_fleet,
+
+                  # Additional outputs
+                  sel_list = sel_list,
+                  total_removal_sel_by_gtg = total_removal_sel_by_gtg
+      ))
+    }
+
 
 
 
