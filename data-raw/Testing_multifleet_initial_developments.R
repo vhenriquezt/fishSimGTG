@@ -66,11 +66,87 @@ sel3 <- selWrapper(lh, ta, fishery3, doPlot = FALSE)
 # Example 1: Run solveD (single fleet) doFit = FALSE- Fixed F scenarios (F = 0.2)
 #=================================================================================================#
 base_single1 <- solveD(lh, sel1, doFit = FALSE, F_in = 0.2)
-base_single1$Feq
-base_single1$D
-base_single1$B0
-base_single1$SB
-base_single1$VB
+
+base_multi1 <- solveD_multifleet(lh, list(sel1, sel1), doFit = FALSE, F_in = 0.2,
+                                 fleet_proportions = c(0.5, 0.5))
+
+iter_multi1e <- solveD_multifleet2(lh, list(sel1, sel1), doFit = FALSE, F_in = 0.2,
+                                fleet_proportions = c(0.5, 0.5),
+                                allocation_type="effort")
+
+iter_multi1c <- solveD_multifleet2(lh, list(sel1, sel1), doFit = FALSE, F_in = 0.2,
+                                 fleet_proportions = c(0.5, 0.5),
+                                 allocation_type="catch")
+
+
+# compare outputs:
+comparison_df_example1 <- data.frame(
+    Single_Fleet = round(c(base_single1$Feq, base_single1$D, base_single1$SPR, base_single1$SB,
+    base_single1$VB, base_single1$catchB, base_single1$YPR, NA, NA),4),
+
+    Multi_Original = c(base_multi1$Feq, base_multi1$D,base_multi1$SPR,base_multi1$SB,
+    base_multi1$VB,base_multi1$catchB,base_multi1$YPR,sum(base_multi1$catchB_by_fleet),
+    paste(round(base_multi1$F_by_fleet, 4), collapse = ", ")),
+
+    Multi2_Effort = c(iter_multi1e$Feq, iter_multi1e$D,iter_multi1e$SPR,iter_multi1e$SB,
+    iter_multi1e$VB, iter_multi1e$catchB,iter_multi1e$YPR, sum(iter_multi1e$catchB_by_fleet),
+    paste(round(iter_multi1e$F_by_fleet, 4), collapse = ", ") ),
+
+    Multi2_Catch = c(iter_multi1c$Feq,iter_multi1c$D,iter_multi1c$SPR,
+    iter_multi1c$SB,iter_multi1c$VB,iter_multi1c$catchB,iter_multi1c$YPR,
+    sum(iter_multi1c$catchB_by_fleet),
+    paste(round(iter_multi1c$F_by_fleet, 4), collapse = ", ")
+  )
+)
+rownames(comparison_df_example1) <- c("Feq", "D", "SPR", "SB", "VB", "catchB", "YPR", "Total_catchB", "F_by_fleet")
+
+print(comparison_df_example1)
+
+
+#============================================================================================================#
+# Example 2: Estimating F eq (finding the F that produce X depletion - doFit = TRUE)
+#============================================================================================================#
+base_single2 <- solveD(lh, sel1, doFit = TRUE, D_type = "relB", D_in = 0.4)
+
+base_multi2 <- solveD_multifleet(lh, list(sel1, sel1), doFit = TRUE, D_type = "relB", D_in = 0.4,
+                                   fleet_proportions = c(0.5, 0.5))
+
+
+iter_multi2e <- solveD_multifleet2(lh, list(sel1, sel1), doFit = TRUE, D_type = "relB", D_in = 0.4,
+                                   fleet_proportions = c(0.5, 0.5),
+                                   allocation_type="effort")
+
+iter_multi2c <- solveD_multifleet2(lh, list(sel1, sel1), doFit = TRUE, D_type = "relB", D_in = 0.4,
+                                   fleet_proportions = c(0.5, 0.5),
+                                   allocation_type="catch")
+
+# compare outputs:
+comparison_df_example2 <- data.frame(
+  Single_Fleet2 = round(c(base_single2$Feq, base_single2$D, base_single2$SPR, base_single2$SB,
+                         base_single2$VB, base_single2$catchB, base_single2$YPR, NA, NA),4),
+
+  Multi_Original2 = c(base_multi2$Feq, base_multi2$D,base_multi2$SPR,base_multi2$SB,
+                     base_multi2$VB,base_multi2$catchB,base_multi2$YPR,sum(base_multi2$catchB_by_fleet),
+                     paste(round(base_multi2$F_by_fleet, 4), collapse = ", ")),
+
+  Multi2_Effort2 = c(iter_multi2e$Feq, iter_multi2e$D,iter_multi2e$SPR,iter_multi2e$SB,
+                    iter_multi2e$VB, iter_multi2e$catchB,iter_multi2e$YPR, sum(iter_multi2e$catchB_by_fleet),
+                    paste(round(iter_multi2e$F_by_fleet, 4), collapse = ", ") ),
+
+  Multi2_Catch2 = c(iter_multi2c$Feq,iter_multi2c$D,iter_multi2c$SPR,
+                   iter_multi2c$SB,iter_multi2c$VB,iter_multi2c$catchB,iter_multi2c$YPR,
+                   sum(iter_multi2c$catchB_by_fleet),
+                   paste(round(iter_multi2c$F_by_fleet, 4), collapse = ", ")
+  )
+)
+rownames(comparison_df_example2) <- c("Feq", "D", "SPR", "SB", "VB", "catchB", "YPR", "Total_catchB", "F_by_fleet")
+
+print(comparison_df_example2)
+
+
+
+
+
 
 
 # Run solveD_multifleet (two identical fleets, 50:50), doFit = FALSE - Fixed F scenarios (F = 0.2)

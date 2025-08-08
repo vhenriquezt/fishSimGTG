@@ -938,12 +938,12 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
 
 
     # Scale fleet-specific outputs by Req
-    YPR_by_fleet <- YPR_by_fleet * Req
+    #YPR_by_fleet <- YPR_by_fleet * Req
     catchN_by_fleet <- catchN_by_fleet * Req
     catchB_by_fleet <- catchB_by_fleet * Req
     discN_by_fleet <- discN_by_fleet * Req
     discB_by_fleet <- discB_by_fleet * Req
-    VB_by_fleet <- VB_by_fleet * Req
+    #VB_by_fleet <- VB_by_fleet * Req
 
     # Recalculate totals with scaled values
     YPR <- sum(YPR_by_fleet)
@@ -1458,7 +1458,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
 
 
       # Scale fleet-specific outputs by Req
-      YPR_by_fleet <- YPR_by_fleet * Req
+      #YPR_by_fleet <- YPR_by_fleet * Req
       catchN_by_fleet <- catchN_by_fleet * Req
       catchB_by_fleet <- catchB_by_fleet * Req
       discN_by_fleet <- discN_by_fleet * Req
