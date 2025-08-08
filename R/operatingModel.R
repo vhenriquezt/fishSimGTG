@@ -918,38 +918,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
     catchB <- sum(catchB_by_fleet)
     discN <- sum(discN_by_fleet)
     discB <- sum(discB_by_fleet)
-
-    #new addition -slelctivity wigthed by F proportion
-    #Total VB calculation:
-    #weight each fleet's VB by their proportion of total F = produce a  "combined" vulnerable biomass metric
-    #weights each fleet's vulnerability by how much fishing pressure they contribute relative to total fishing pressure
-
-
-    combined_vul_by_gtg <- lapply(1:lh$gtg, FUN = function(x) {
-      #testing
-
-      # sel_list=list(sel1, sel1)
-      # nfleets=2
-      # F_by_fleet=c(0.03076721, 0.03076721)
-      # Feq_total=0.06153442
-
-      combined_vul <- rep(0, length(sel_list[[1]]$vul[[x]]))
-      for(f in 1:nfleets) {
-        # for example, I could say: 50% of age-5 fish are vulnerable to the "combined" fishery
-        combined_vul <- combined_vul + (F_by_fleet[f] / Feq_total) * sel_list[[f]]$vul[[x]]  # for example: Fleet1 prop= 0.2 , sel age 5 fleet1= 0.53 , combined vul: 0.2*0.4
-      }
-      return(combined_vul)
-      print("GTG 1, first 10 ages:")
-      print(combined_vul_by_gtg[[1]][1:10])
-    })
-
-    #why that approach and not the avergae: The average would treat all fleets equally, even though for example Fleet 2 has much higher fishing pressure
-
-    VB <- sum(sapply(1:lh$gtg, FUN = function(x) {
-      sum(N[[x]] * combined_vul_by_gtg[[x]] * lh$W[[x]])
-    }))
-
-    #VB <- sum(VB_by_fleet)
+    VB <- sum(VB_by_fleet)
 
 
     #------------------------------
@@ -982,12 +951,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
     catchB <- sum(catchB_by_fleet)
     discN <- sum(discN_by_fleet)
     discB <- sum(discB_by_fleet)
-    #VB <- sum(VB_by_fleet)
-
-    VB <- sum(sapply(1:lh$gtg, FUN = function(x) {
-      sum(N[[x]] * combined_vul_by_gtg[[x]] * lh$W[[x]])
-    }))
-
+    VB <- sum(VB_by_fleet)
 
 
     if(doPlot) {
@@ -1072,13 +1036,33 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
   }
 }
 
+
+#Roxygen header
+#'Multifleet equilibrium conditions (with iterative process to find proportion)
+#'
+#'Creates the necessary age-based vectors equilibrium abundance, biomass and catch for sub-cohorts
+#'This function extends the single-fleet solveD() to handle multiple fleets with different selectivities.
+#' @param lh  An object produced by LHWrapper.
+#' @param sel_list A list of selectivity objects produced by selWrapper, one per fleet. Each element should contain vul, keep, discard, and removal components.
+#' @param doFit Logical. When TRUE, estimates equilibrium fishing mortality based on input D_in. Ignores F_in. Default is FALSE
+#' @param F_in Equilibrium fishing mortality rate (total across all fleets). Used to calculate equilibrium conditions of the stock. Ignored when doFit = TRUE
+#' @param D_type When doFit = TRUE, specifies type of equilibrium state metric that is specified in D_in (e.g., SSB depletion or SPR).
+#' @param D_in When doFit = TRUE, specifies value of equilibrium state. Must be SSB depletion or SPR both with value between 0 and 1
+#' @param doPlot Equilibrium length composition
+#' @param fleet_proportions Numeric vector specifying the proportion of total F allocated to each fleet (How to split effort/catch among fleets). Must sum to 1. If NULL, equal proportions are used.
+#' @param allocation_type effort or catch
+#' @return A list containing a list containing equilibrium metrics for total population and individual fleets. See solveD() for standard outputs, plus fleet-specific results (F_by_fleet, catchB_by_fleet, etc.)
+#' @importFrom methods slot slotNames
+#' @import ggplot2  dplyr
+#' @importFrom stats optimize
+#' @importFrom gridExtra grid.arrange
+#' @export
+
 #find effort proportions that give target catch proportions
 solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
                              D_type = NULL, D_in = NULL, doPlot = FALSE,
                              fleet_proportions = NULL, allocation_type = "effort"){
-
   l <- NULL
-
 
   # input validation is the same
   if(is.null(lh) ||
@@ -1095,7 +1079,6 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
   ) {
     return(NULL)
   }
-
     #---------------
     #Steps per year
     #---------------
@@ -1123,7 +1106,6 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       warning("fleet_proportions were normalized to sum to 1")
     }
 
-
     # validate each fleet has complete selectivity objects
     for(f in 1:nfleets) {
       if(is.null(sel_list[[f]]) ||
@@ -1135,37 +1117,49 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       }
     }
 
-
-    # Adding a new section for catch based allocation
-
+    # This section is designed to be used for catch-based allocation
     if(allocation_type == "catch") {
-      # what catch percentage we want
+      # reinterpret user's fleet_proportions as target catch proportions
+      # for example: I want 70% of catch from fleet 1, 30% from fleet 2
+      # so the fucntion will find Function what effort proportions achieve this
+
       target_catch_proportions <- fleet_proportions
       cat("finding effort proportions to achieve catch proportions:", target_catch_proportions, "\n")
 
-      # initial guess - strat with equal effort proportions
+      # initial guess to start iterations - start with equal effort proportions
       effort_proportions <- rep(1/nfleets, nfleets)
 
-      # we can do some iterative search/adjustment/tuning
+      # we can do some iterative adjustment/tuning (limiting iteratons to 20)
+      # test current effort proportions by calculating equilibrium
+      # calls  function with current guess of effort proportions
       for(iter in 1:20) {
-        test_result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
-                                         effort_proportions, stepsPerYear, totalSteps)
+        test_result <- calculate_multifleet_equilibrium(lh, sel_list, doFit,
+                                                        F_in, D_type, D_in,
+                                                        effort_proportions,
+                                                        stepsPerYear, totalSteps)
+      #if calculation fails, exit the loop
         if(is.null(test_result))break
 
-    #get actual catch proportions (actual)
+    #Check if catch > 1e-10 (if it is 0 or tooo small, cannot calc prop, so exit), if so sum total catch across all fleets
     total_catch <- sum(test_result$catchB_by_fleet)
     if(total_catch < 1e-10) break
 
+    # here we calculate what catch proportions the current effort actually produces
+    # for example flle1 = 40 and fleet 2 60 <- props c(0.4, 0.6)
     actual_catch_proportions <- test_result$catchB_by_fleet / total_catch
 
-    #check
-    error <- target_catch_proportions - actual_catch_proportions
-    if(max(abs(error)) < 0.01) { # 1%
+    #check if the calcs is close enough to the target proportions
+    error <- target_catch_proportions - actual_catch_proportions # error: target - actual
+    # for example: we want c(0.7, 0.3), we got c(0.6, 0.4) <- error = c(0.1, -0.1)
+    if(max(abs(error)) < 0.01) { # 1% tolerance error
       cat("Converged after", iter, "iterations\n")
       break
     }
 
+    #We applied and adjustment logic that adjust effort proportions based on error
     #increase or decrease effort depending on the error
+    #if a fleet needs more catch (positive error), factor > 1 (increase effort) need more
+    #if fleet needs less catch (negative error), factor < 1 (decrease effort)   need less
     adjustment_factor <- 1 + 0.5 * error
     effort_proportions <- effort_proportions * adjustment_factor
     effort_proportions <- effort_proportions / sum(effort_proportions)
@@ -1173,17 +1167,25 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     cat("Iteration", iter, "- Target:", round(target_catch_proportions, 3),
         "Actual:", round(actual_catch_proportions, 3),
         "Effort:", round(effort_proportions, 3), "\n")
-      }
-    #use the final effort prop
+      } # end iterations
+
+
+    # after convergence, use final effort proportions for main calculation
+    # use the final effort prop after iterative adjustment
       fleet_proportions <- effort_proportions
       cat("Final effort proportions:", round(fleet_proportions, 3), "\n")
     }
+
+    # This fucntion is the same as solveD_multifleet, and this calculates
+    # final equilibrium with the chosen fleet proportions
 
     result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
                                                fleet_proportions, stepsPerYear, totalSteps)
 
     if(is.null(result)) return(NULL)
 
+    # inform whether "effort" or "catch" method was used
+    # saves target vs actual catch proportions and final effort proportions
     if(allocation_type == "catch") {
       result$allocation_type <- allocation_type
       result$target_catch_proportions <- target_catch_proportions
@@ -1223,6 +1225,25 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     #------------
     return(result)
   }
+
+# calculate_multifleet_equilibrium(): same as solveD_ multifleet, but this is used in the iterative search of proportions
+
+
+#' Multifleet equilibrium calculation (internal helper)
+#'
+#'Creates equilibrium abundance, biomass and catch for multiple fleets with different selectivities
+#'This function extends the single-fleet solveD() to handle multiple fleets with different selectivities.
+#' @param lh  An object produced by LHWrapper.
+#' @param sel_list A list of selectivity objects produced by selWrapper, one per fleet. Each element should contain vul, keep, discard, and removal components.
+#' @param doFit Logical. When TRUE, estimates equilibrium fishing mortality based on input D_in. Ignores F_in. Default is FALSE
+#' @param F_in Equilibrium fishing mortality rate (total across all fleets). Used to calculate equilibrium conditions of the stock. Ignored when doFit = TRUE
+#' @param D_type When doFit = TRUE, specifies type of equilibrium state metric that is specified in D_in (e.g., SSB depletion or SPR).
+#' @param D_in When doFit = TRUE, specifies value of equilibrium state. Must be SSB depletion or SPR both with value between 0 and 1
+#' @param fleet_proportions Numeric vector specifying the proportion of total F allocated to each fleet. Must sum to 1. If NULL, equal proportions are used.
+#' @param stepsPerYear Time steps per year from life history object
+#' @param totalSteps Number of age classes from life history object
+#' @return Same as solveD() plus fleet-specific outputs (F_by_fleet, catchB_by_fleet, etc.)
+#' @keywords internal
 
   calculate_multifleet_equilibrium <-function(lh, sel_list, doFit,
                                               F_in,
