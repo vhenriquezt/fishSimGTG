@@ -857,7 +857,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
     catchB_by_fleet <- vector("numeric", nfleets)
     discN_by_fleet <- vector("numeric", nfleets)
     discB_by_fleet <- vector("numeric", nfleets)
-    VB_by_fleet <- vector("numeric", nfleets)
+    #VB_by_fleet <- vector("numeric", nfleets)
 
 # calculate results for each fleet separately
     for(f in 1:nfleets) {
@@ -903,7 +903,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
       }))
 
       # Vulnerable biomass = total abundance * fleet selectivity * weight
-      VB_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) sum(N[[x]] * sel_list[[f]]$vul[[x]] * lh$W[[x]])))
+      #VB_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) sum(N[[x]] * sel_list[[f]]$vul[[x]] * lh$W[[x]])))
     }
 
     # Calculate population-level calculations
@@ -918,7 +918,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
     catchB <- sum(catchB_by_fleet)
     discN <- sum(discN_by_fleet)
     discB <- sum(discB_by_fleet)
-    VB <- sum(VB_by_fleet)
+    #VB <- sum(VB_by_fleet)
 
 
     #------------------------------
@@ -951,7 +951,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
     catchB <- sum(catchB_by_fleet)
     discN <- sum(discN_by_fleet)
     discB <- sum(discB_by_fleet)
-    VB <- sum(VB_by_fleet)
+    #VB <- sum(VB_by_fleet)
 
 
     if(doPlot) {
@@ -1017,7 +1017,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
     #------------
     #Return list
     #------------
-    return(list(Feq = Feq_total, D=D, SPR=SPR, Req=Req, B0=B0, SB=SB, VB=VB, catchN=catchN, catchB=catchB, discN=discN, discB=discB, N=N, YPR = YPR,
+    return(list(Feq = Feq_total, D=D, SPR=SPR, Req=Req, B0=B0, SB=SB, catchN=catchN, catchB=catchB, discN=discN, discB=discB, N=N, YPR = YPR,
                 # Fleet-specific results
                 nfleets = nfleets,
                 F_by_fleet = F_by_fleet,
@@ -1027,7 +1027,6 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
                 catchB_by_fleet = catchB_by_fleet,
                 discN_by_fleet = discN_by_fleet,
                 discB_by_fleet = discB_by_fleet,
-                VB_by_fleet = VB_by_fleet,
 
                 # Additional outputs
                 sel_list = sel_list,
@@ -1086,23 +1085,21 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     stepsPerYear <- lh$stepsPerYear # time step 1
     totalSteps <- NROW(lh$L[[1]])   # nages
 
-    # adding a default fleet proportions if not specified (if not assume 50/50 for example for 2 fleets)
-    # if we dont provide proportions, it will create that. Also it make the fucntion work with 1 fleet or more fleet
-    if(is.null(fleet_proportions)) {
-      fleet_proportions <- rep(1/nfleets, nfleets)  # equal distribution among fleets
+
+    original_fleet_proportions <- fleet_proportions
+    if(is.null(original_fleet_proportions)) {
+      original_fleet_proportions <- rep(1/nfleets, nfleets)
     }
 
-    # validate fleet_proportions
-    if(length(fleet_proportions) != nfleets) {
+    # validate and normalize original proportions
+    if(length(original_fleet_proportions) != nfleets) {
       stop("fleet_proportions length must match number of fleets")
     }
-
-    if(any(fleet_proportions < 0)) {
+    if(any(original_fleet_proportions < 0)) {
       stop("fleet_proportions must be non-negative")
     }
-
-    if(abs(sum(fleet_proportions) - 1) > 1e-6) {
-      fleet_proportions <- fleet_proportions / sum(fleet_proportions)  # normalize
+    if(abs(sum(original_fleet_proportions) - 1) > 1e-6) {
+      original_fleet_proportions <- original_fleet_proportions / sum(original_fleet_proportions)
       warning("fleet_proportions were normalized to sum to 1")
     }
 
@@ -1170,17 +1167,20 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       } # end iterations
 
 
-    # after convergence, use final effort proportions for main calculation
-    # use the final effort prop after iterative adjustment
-      fleet_proportions <- effort_proportions
-      cat("Final effort proportions:", round(fleet_proportions, 3), "\n")
+      final_effort_proportions <- effort_proportions
+      cat("Final effort proportions:", round(final_effort_proportions, 3), "\n")
+
+    } else {
+      # Effort allocation: use original proportions directly
+      target_catch_proportions <- NULL  # Not applicable for effort allocation
+      final_effort_proportions <- original_fleet_proportions
     }
 
     # This fucntion is the same as solveD_multifleet, and this calculates
     # final equilibrium with the chosen fleet proportions
 
     result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
-                                               fleet_proportions, stepsPerYear, totalSteps)
+                                               final_effort_proportions, stepsPerYear, totalSteps)
 
     if(is.null(result)) return(NULL)
 
@@ -1188,11 +1188,17 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     # saves target vs actual catch proportions and final effort proportions
     if(allocation_type == "catch") {
       result$allocation_type <- allocation_type
-      result$target_catch_proportions <- target_catch_proportions
-      result$final_effort_proportions <- fleet_proportions
+      result$fleet_proportions <- original_fleet_proportions # what i want
+      result$target_catch_proportions <- target_catch_proportions # what is needed
+      result$final_effort_proportions <- final_effort_proportions
+      #result$final_effort_proportions <- fleet_proportions
       result$actual_catch_proportions <- result$catchB_by_fleet / sum(result$catchB_by_fleet)
     } else {
       result$allocation_type <- allocation_type
+      result$fleet_proportions <- original_fleet_proportions
+      result$final_effort_proportions <- final_effort_proportions
+      result$target_catch_proportions <- NULL
+      result$actual_catch_proportions <- NULL
     }
 
     if(doPlot) {
@@ -1377,7 +1383,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       catchB_by_fleet <- vector("numeric", nfleets)
       discN_by_fleet <- vector("numeric", nfleets)
       discB_by_fleet <- vector("numeric", nfleets)
-      VB_by_fleet <- vector("numeric", nfleets)
+      #VB_by_fleet <- vector("numeric", nfleets)
 
       # calculate results for each fleet separately
       for(f in 1:nfleets) {
@@ -1423,7 +1429,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
         }))
 
         # Vulnerable biomass = total abundance * fleet selectivity * weight
-        VB_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) sum(N[[x]] * sel_list[[f]]$vul[[x]] * lh$W[[x]])))
+        #VB_by_fleet[f] <- sum(sapply(1:lh$gtg, FUN = function(x) sum(N[[x]] * sel_list[[f]]$vul[[x]] * lh$W[[x]])))
       }
 
       # Calculate population-level calculations
@@ -1438,7 +1444,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       catchB <- sum(catchB_by_fleet)
       discN <- sum(discN_by_fleet)
       discB <- sum(discB_by_fleet)
-      VB <- sum(VB_by_fleet)
+      #VB <- sum(VB_by_fleet)
 
 
       #------------------------------
@@ -1463,7 +1469,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       catchB_by_fleet <- catchB_by_fleet * Req
       discN_by_fleet <- discN_by_fleet * Req
       discB_by_fleet <- discB_by_fleet * Req
-      VB_by_fleet <- VB_by_fleet * Req
+      #VB_by_fleet <- VB_by_fleet * Req
 
       # Recalculate totals with scaled values
       YPR <- sum(YPR_by_fleet)
@@ -1471,7 +1477,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       catchB <- sum(catchB_by_fleet)
       discN <- sum(discN_by_fleet)
       discB <- sum(discB_by_fleet)
-      VB <- sum(VB_by_fleet)
+      #VB <- sum(VB_by_fleet)
 
 
 
@@ -1479,7 +1485,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       #Return list
       #------------
       return(list(Feq = Feq_total, D=D, SPR=SPR, Req=Req, B0=B0,
-                  SB=SB, VB=VB, catchN=catchN, catchB=catchB,
+                  SB=SB, catchN=catchN, catchB=catchB,
                   discN=discN, discB=discB, N=N, YPR = YPR,
                   # Fleet-specific results
                   nfleets = nfleets,
@@ -1490,7 +1496,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
                   catchB_by_fleet = catchB_by_fleet,
                   discN_by_fleet = discN_by_fleet,
                   discB_by_fleet = discB_by_fleet,
-                  VB_by_fleet = VB_by_fleet,
+
 
                   # Additional outputs
                   sel_list = sel_list,
@@ -3432,3 +3438,8 @@ calculate_single_LengthComp  <- function(dataObject) {
 
   return(lengthcomp_return)
 }
+
+
+
+
+
