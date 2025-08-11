@@ -17,8 +17,22 @@ evalMSE<-function(inputObject){
   #------------------
   #Unpack dataObject
   #------------------
-  TimeAreaObj <- StrategyObj <- LifeHistoryObj <- HistFisheryObj <- ProFisheryObj_list <- iterations <- iter <- Ddev <- Edev <- LHdev <- Sdev <- Cdev <- Edev <- histEffortDev <- RdevMatrix <- doDiagnostic <- NULL
+  TimeAreaObj <- StrategyObj <- LifeHistoryObj <- HistFisheryObj <- ProFisheryObj_list <- iterations <- iter <- Ddev <- Edev <- LHdev <- Sdev <- Cdev <- Edev <- histEffortDev <- RdevMatrix <- doDiagnostic <- MultifleetObj <- NULL # adding MultifleetObj to unpacking
   for(r in 1:NROW(inputObject)) assign(names(inputObject)[r], inputObject[[r]])
+
+  #new addition: detect multifleet mode
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
+
+  if(is_multifleet) {
+    nfleets <- MultifleetObj@nfleets
+    fleet_proportions <- MultifleetObj@fleet_proportions
+    cat("Multifleet mode detected with", nfleets, "fleets\n")
+  } else {
+    nfleets <- 1
+    fleet_proportions <- c(1.0)
+    cat("Single fleet mode detected\n")
+  }
+
 
   controlRuleYear<-c(FALSE, rep(FALSE,(TimeAreaObj@historicalYears)), rep(TRUE, ifelse(is(StrategyObj, "Strategy")  && length(StrategyObj@projectionYears) > 0, StrategyObj@projectionYears, 0)))
   years <- 1 + TimeAreaObj@historicalYears + ifelse(is(StrategyObj, "Strategy")  && length(StrategyObj@projectionYears) > 0, StrategyObj@projectionYears, 0)
@@ -39,6 +53,23 @@ evalMSE<-function(inputObject){
   relSB<-array(dim=c(years, iterations))
   recN<-array(dim=c(years, iterations))
 
+  #new additions(multifleet)
+  if(is_multifleet) {
+    Ftotal_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
+    catchB_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
+    catchN_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
+    discB_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
+    discN_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
+
+    Ftotal_by_fleet[] <- NA
+    catchB_by_fleet[] <- NA
+    catchN_by_fleet[] <- NA
+    discB_by_fleet[] <- NA
+    discN_by_fleet[] <- NA
+  }
+
+
+
   #Optional exports for diagnostic mode
   Nexport<-NULL
   catchNageExport<-NULL
@@ -57,7 +88,7 @@ evalMSE<-function(inputObject){
   ref<-array(dim = c(iterations, 10))
 
   #-------------------------------------------
-  #Deteministic LH and Sel, if present
+  #Deteministic LH and Sel, if present (modified for multifleet)
   #-------------------------------------------
   LHList<-names(LHdev[!unlist(lapply(LHdev, is.null))])
   selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
@@ -70,6 +101,32 @@ evalMSE<-function(inputObject){
     ageClasses <- lh$ageClasses
     if(!is.null(lh) & lh$LifeHistory@Steep < 0.21) lh$LifeHistory@Steep <- 0.21
     if(!is.null(lh) & lh$LifeHistory@Steep > 1) lh$LifeHistory@Steep <- 1
+
+    # NEW: Setup selectivity structure for multifleet
+    if(is_multifleet) {
+      # selHist[[area]][[fleet]] structure
+      selHist<-lapply(1:TimeAreaObj@areas, function(area){
+        lapply(1:nfleets, function(f) {
+          selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
+        })
+      })
+
+      # selPro[[area]][[fleet]] structure
+      selPro<-lapply(1:TimeAreaObj@areas, function(area){
+        lapply(1:nfleets, function(f) {
+          if(!is.null(ProFisheryObj_list) && length(ProFisheryObj_list) >= area) {
+            selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_list[[area]], doPlot = FALSE)
+          } else {
+            selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
+          }
+        })
+      })
+
+      refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]][[1]])
+
+    } else {
+
+    #continue with origuinal single fleet strucuture
     selHist<-lapply(1:TimeAreaObj@areas, function(x){
       selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj, doPlot = FALSE)
     })
@@ -130,9 +187,30 @@ evalMSE<-function(inputObject){
     }
 
     #-----------------------------------------
-    #Initial equilibrium - year 1
+    #Initial equilibrium - year 1 (modification for multifleet approach)
     #-----------------------------------------
-    is<-solveD(lh, sel = selHist[[1]], doFit = TRUE, D_type = TimeAreaObj@historicalBioType, D_in = Ddev[k])
+
+    if(is_multifleet) {
+      # create selectivity list for multifleet equilibrium
+      hist_sel_list <- lapply(1:nfleets, function(f) {
+        selHist[[1]][[f]]  # Use area 1 selectivity for equilibrium
+      })
+
+    #new: multifleet
+    is <- solveD_multifleet2(lh = lh, sel_list = hist_sel_list,doFit = TRUE,D_type = TimeAreaObj@historicalBioType,
+                               D_in = Ddev[k], fleet_proportions = fleet_proportions,
+                               allocation_type = MultifleetObj@allocation_type)
+
+    #extract both total F and fleet-specific F
+    total_Feq <- is$Feq                # total F for population
+    F_eq_by_fleet <- is$F_by_fleet     # fleet-specific F values
+
+    } else {
+      # single fleet equilibrium (original code unchanged)
+      is<-solveD(lh, sel = selHist[[1]], doFit = TRUE, D_type = TimeAreaObj@historicalBioType, D_in = Ddev[k])
+      total_Feq <- is$Feq
+      F_eq_by_fleet <- c(is$Feq)
+    }
 
     #Burn-in to calibrate N by area, noting effect of movement
     Ntmp <- list()
@@ -186,7 +264,50 @@ evalMSE<-function(inputObject){
     SPR[1,k]<-(sum(SB[1,k,])/is$Req)/(is$B0/lh$LifeHistory@R0)
     relSB[1,k]<-sum(SB[1,k,])/is$B0
     recN[1,k]<-is$Req
+
     for(m in 1:areas){
+      if(is_multifleet) {
+
+        # NEW: fleet-specific calculations for year 1
+        for(f in 1:nfleets) {
+          Ftotal_by_fleet[1,k,m,f] <- F_eq_by_fleet[f]
+
+          # fleet-specific catches for year 1
+          for(l in 1:lh$gtg){
+            # calculate total Z from all fleet contributions
+            total_fishing_mortality <- sapply(1:ageClasses, function(age) {
+              sum(sapply(1:nfleets, function(ff) {
+                F_eq_by_fleet[ff] * selHist[[m]][[ff]]$removal[[l]][age]
+              }))
+            })
+            Z[[l]][,1,m] <- total_fishing_mortality + lh$LifeHistory@M
+
+            # fleet-specific catch (using shared Z)
+            catchNage_by_fleet[[f]][[l]][,1,m] <- F_eq_by_fleet[f] * selHist[[m]][[f]]$keep[[l]] /
+              Z[[l]][,1,m] * (1-exp(-Z[[l]][,1,m])) * N[[l]][,1,m]
+          }
+
+          # fleet totals
+          catchN_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(catchNage_by_fleet[[f]][[x]][,1,m])))
+          catchB_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*catchNage_by_fleet[[f]][[x]][,1,m])))
+          discN_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(F_eq_by_fleet[f]*selHist[[m]][[f]]$discard[[x]]/(Z[[l]][,1,m])*(1-exp(-Z[[l]][,1,m]))*N[[x]][,1,m])))
+          discB_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*F_eq_by_fleet[f]*selHist[[m]][[f]]$discard[[x]]/(Z[[l]][,1,m])*(1-exp(-Z[[l]][,1,m]))*N[[x]][,1,m])))
+        }
+
+        # area totals (sum across fleets)
+        VB[1,k,m] <- sum(sapply(1:nfleets, function(f) {
+          sum(sapply(1:lh$gtg, FUN=function(x) sum(N[[x]][,1,m]*selHist[[m]][[f]]$vul[[x]]*lh$W[[x]])))
+        }))
+        RB[1,k,m] <- sum(catchB_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
+        Ftotal[1,k,m] <- sum(F_eq_by_fleet)  # Total F
+
+        # total catchNage across fleets
+        for(l in 1:lh$gtg){
+          catchNage[[l]][,1,m] <- rowSums(sapply(1:nfleets, function(f) catchNage_by_fleet[[f]][[l]][,1,m]), na.rm = TRUE)
+        }
+
+        # single fleet (remain unchanged for single fleet)
+      } else {
       VB[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(N[[x]][,1,m]*selHist[[m]]$vul[[x]]*lh$W[[x]])))
       RB[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(N[[x]][,1,m]*selHist[[m]]$keep[[x]]*lh$W[[x]])))
       Ftotal[1,k,m] <- is$Feq
@@ -196,10 +317,23 @@ evalMSE<-function(inputObject){
         Z[[l]][,1,m] <- Ftotal[1,k,m]*selHist[[m]]$removal[[l]] + lh$LifeHistory@M
         catchNage[[l]][,1,m] <- Ftotal[1,k,m]*selHist[[m]]$keep[[l]]/(Z[[l]][,1,m])*(1-exp(-Z[[l]][,1,m]))*N[[l]][,1,m]
       }
+      }
+
+      #total catch and discards (multiffleet)
+      if(is_multifleet) {
+        catchN[1,k,m] <- sum(catchN_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
+        catchB[1,k,m] <- sum(catchB_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
+        discN[1,k,m] <- sum(discN_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
+        discB[1,k,m] <- sum(discB_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
+
+        #remain unchanged for single fleet
+        } else {
+
       catchN[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(catchNage[[x]][,1,m])))
       catchB[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*catchNage[[x]][,1,m])))
       discN[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(Ftotal[1,k,m]*selHist[[m]]$discard[[x]]/(Ftotal[1,k,m]*selHist[[m]]$removal[[x]] + lh$LifeHistory@M)*(1-exp(-Ftotal[1,k,m]*selHist[[m]]$removal[[x]]-lh$LifeHistory@M))*N[[x]][,1,m])))
       discB[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*Ftotal[1,k,m]*selHist[[m]]$discard[[x]]/(Ftotal[1,k,m]*selHist[[m]]$removal[[x]] + lh$LifeHistory@M)*(1-exp(-Ftotal[1,k,m]*selHist[[m]]$removal[[x]]-lh$LifeHistory@M))*N[[x]][,1,m])))
+        }
     }
 
     #--------------------
@@ -409,13 +543,38 @@ evalMSE<-function(inputObject){
 #' @export
 
 
-runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryObj_list = NULL, StrategyObj = NULL, StochasticObj = NULL, IndexObj=NULL, CatchObsObj=NULL, LengthCompObj=NULL,
+runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryObj_list = NULL, StrategyObj = NULL, StochasticObj = NULL,MultifleetObj = NULL, IndexObj=NULL, CatchObsObj=NULL, LengthCompObj=NULL,
                         wd, fileName, seed = 1, doPlot = FALSE, doDiagnostic=F, customToCluster = NULL, titleStrategy = "No name", waitName=NULL, hostName=NULL){
 
   #-----------------------
   #Build inputObject
   #-----------------------
   TimeAreaObj@recArea <- TimeAreaObj@recArea / sum(TimeAreaObj@recArea) #Make sure this sums to 1
+
+  #New:
+  #adding basic multifleet detection and validation
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
+
+  if(is_multifleet) {
+    nfleets <- MultifleetObj@nfleets
+
+    # basic validation - just check fleet proportions for now
+    if(abs(sum(MultifleetObj@fleet_proportions) - 1.0) > 1e-6) {
+      stop(paste("Fleet proportions must sum to 1.0. current sum:", sum(MultifleetObj@fleet_proportions)))
+    }
+
+    if(length(MultifleetObj@fleet_selectivity_list) != nfleets) {
+      stop(paste("fleet_selectivity_list must contain", nfleets, "Fishery objects"))
+    }
+
+    cat("Multifleet mode enabled with", nfleets, "fleets\n")
+    cat("Fleet proportions:", paste(round(MultifleetObj@fleet_proportions, 3), collapse = ", "), "\n")
+
+  } else {
+    nfleets <- 1
+    cat("Single fleet mode\n")
+  }
+
 
   #------------------------------------------------
   #Build stochastic & uncertainty range parameters
@@ -446,8 +605,8 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   #Selectivity parameters
   Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
 
-  #Historical effort devs
-  histEffortDev<-histEffortDev(TimeAreaObj, StochasticObj)$Emult
+  #Historical effort devs (adding multifleet)
+  histEffortDev<-histEffortDev(TimeAreaObj, StochasticObj,nfleets)$Emult
 
 
   #---------------------------------------
