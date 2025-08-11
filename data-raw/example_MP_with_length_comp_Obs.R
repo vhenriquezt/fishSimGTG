@@ -1,6 +1,7 @@
 rm(list=ls())
 #devtools::install()
 devtools::load_all()
+#devtools::document()
 library(ggplot2)
 #library(fishSimGTG)
 library(dplyr)
