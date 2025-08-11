@@ -1613,11 +1613,12 @@ recDev<-function(LifeHistoryObj, TimeAreaObj, StochasticObj, StrategyObj = NULL)
 #'
 #' @param TimeAreaObj A TimeArea object
 #' @param StochasticObj A Stochastic object
+#' @param nfleets Number of fleets (default = 1 for backward compatibility)
 #' @importFrom methods slot slotNames
 #' @importFrom stats rnorm
 #' @export
 
-histEffortDev<-function(TimeAreaObj, StochasticObj){
+histEffortDev<-function(TimeAreaObj, StochasticObj, nfleets = 3){
   if(length(TimeAreaObj@historicalYears) == 0 ||
      length(TimeAreaObj@iterations) == 0 ||
      TimeAreaObj@iterations < 1
@@ -1641,14 +1642,35 @@ histEffortDev<-function(TimeAreaObj, StochasticObj){
 
     years <- 1 + TimeAreaObj@historicalYears
     areas <- TimeAreaObj@areas
-    Emult<-array(1:1, dim=c(years, iterations, areas))
+    #Emult<-array(1:1, dim=c(years, iterations, areas))
+    Emult<-array(1:1, dim=c(years, iterations, areas, nfleets)) # now: include fleet dimension for multifleet support
     for (k in 1:iterations){
-      eps<-rnorm(years*areas,0,effortSD[k])
-      Emult[,k,]<-exp(eps-effortSD[k]*effortSD[k]/2)
+      #eps<-rnorm(years*areas,0,effortSD[k])
+      eps<-rnorm(years*areas*nfleets, 0, effortSD[k]) #now: include fleet dimension in random number generation
+      #Emult[,k,]<-exp(eps-effortSD[k]*effortSD[k]/2)
+      Emult[,k,,]<-exp(eps-effortSD[k]*effortSD[k]/2)#now: fill a 4D array including fleet dimension
     }
     return(list(Emult=Emult))
   }
 }
+
+  # histEffortDev fucntion tested using the objects from the LC example
+  # New dimensions:
+  #11 rows: Historical years (10 years + year 1)
+  #2 columns: Iterations
+  #2 areas: Areas 1 and 2
+  #3 fleets: Fleets 1, 2, and 3
+
+  # , , area, fleet
+  #
+  # # So:
+  # , , 1, 1  # Area 1, Fleet 1
+  # , , 2, 1  # Area 2, Fleet 1
+  # , , 1, 2  # Area 1, Fleet 2
+  # , , 2, 2  # Area 2, Fleet 2
+  # , , 1, 3  # Area 1, Fleet 3
+  # , , 2, 3  # Area 2, Fleet 3
+
 
 #-----------------------------------------
 #Initial relative biomass deviations
