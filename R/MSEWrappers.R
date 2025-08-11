@@ -134,6 +134,7 @@ evalMSE<-function(inputObject){
       selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_list[[x]], doPlot = FALSE)
     })
     refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]])
+    }
     for(k in iter[1]:iter[2]) ref[k, ]<-as.matrix(refCalc$sim)[1,]
     colnames(ref)<-names(refCalc$sim)
   }
@@ -264,6 +265,17 @@ evalMSE<-function(inputObject){
     SPR[1,k]<-(sum(SB[1,k,])/is$Req)/(is$B0/lh$LifeHistory@R0)
     relSB[1,k]<-sum(SB[1,k,])/is$B0
     recN[1,k]<-is$Req
+
+    if(is_multifleet) {
+      # initialize fleet-specific catch arrays for year 1
+      catchNage_by_fleet <- list()
+      for(f in 1:nfleets) {
+        catchNage_by_fleet[[f]] <- list()
+        for(l in 1:lh$gtg) {
+          catchNage_by_fleet[[f]][[l]] <- array(dim=c(ageClasses, years, areas))
+        }
+      }
+    }
 
     for(m in 1:areas){
       if(is_multifleet) {
