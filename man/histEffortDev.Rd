@@ -4,12 +4,14 @@
 \alias{histEffortDev}
 \title{Historical effort deviations}
 \usage{
-histEffortDev(TimeAreaObj, StochasticObj)
+histEffortDev(TimeAreaObj, StochasticObj, nfleets = 3)
 }
 \arguments{
 \item{TimeAreaObj}{A TimeArea object}
 
 \item{StochasticObj}{A Stochastic object}
+
+\item{nfleets}{Number of fleets (default = 1 for backward compatibility)}
 }
 \description{
 Historical effort deviations

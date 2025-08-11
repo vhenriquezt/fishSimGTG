@@ -11,6 +11,7 @@ runProjection(
   ProFisheryObj_list = NULL,
   StrategyObj = NULL,
   StochasticObj = NULL,
+  MultifleetObj = NULL,
   IndexObj = NULL,
   CatchObsObj = NULL,
   LengthCompObj = NULL,
