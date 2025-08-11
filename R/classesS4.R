@@ -359,3 +359,29 @@ setClass("LCompObs",
            length_bin_width= "numeric"
          )
 )
+
+#----------------------
+#Multifleet object
+#----------------------
+
+#Roxygen header
+#'Multifleet object
+#'
+#'An S4 object that holds multifleet configuration for historical and projection periods
+#'
+#' @param title A title for the object
+#' @param nfleets Number of fleets
+#' @param fleet_proportions Numeric vector of fleet proportions (must sum to 1)
+#' @param allocation_type Either "effort" or "catch" for equilibrium allocation
+#' @param fleet_selectivity_list List of Fishery objects (length = nfleets)
+#' @importFrom methods new
+
+setClass("Multifleet",
+         representation(
+           title = "character",
+           nfleets = "numeric",
+           fleet_proportions = "numeric",
+           allocation_type = "character",
+           fleet_selectivity_list = "list"
+         )
+)
