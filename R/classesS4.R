@@ -257,7 +257,7 @@ setClass("Stochastic",
            proFisheryDmort_list = "list",
            sameFisheryDmort = "logical",
            histEffortSD = "numeric"
-         )
+       )
 )
 
 
