@@ -2095,7 +2095,6 @@ selDev<-function(TimeAreaObj, HistFisheryObj, ProFisheryObj_list=NULL, Stochasti
 }
 
 
-
 #-----------------------------------------
 #Surival matrix calculations for cohort
 #-----------------------------------------
