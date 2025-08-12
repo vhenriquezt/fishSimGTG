@@ -1,11 +1,11 @@
 # initial testings
-# rm(list=ls())
-# #devtools::install()
-# devtools::load_all()
+ rm(list=ls())
+ #devtools::install()
+ devtools::load_all()
 # #devtools::document()
-# library(ggplot2)
-# #library(fishSimGTG)
-# library(dplyr)
+ library(ggplot2)
+ #library(fishSimGTG)
+ library(dplyr)
 
 # Create simple examples of each class to understand their structure
 lh <- new("LifeHistory")
@@ -94,7 +94,7 @@ fishery2@Dmort <- 0
 MultifleetObj <- new("Multifleet")
 MultifleetObj@nfleets <- 2
 MultifleetObj@fleet_proportions <- c(0.6, 0.4)
-MultifleetObj@allocation_type <- "effort"
+MultifleetObj@allocation_type <- "catch"
 MultifleetObj@fleet_selectivity_list <- list(fishery1, fishery2)
 
 fleet_proportions <- MultifleetObj@fleet_proportions
@@ -114,6 +114,8 @@ sel_list = hist_sel_list,
 doFit = TRUE,
 D_type = ta@historicalBioType,
 D_in = Ddev[k],
+#D_type = "relB",
+#D_in = 0.4,
 fleet_proportions = fleet_proportions,
 allocation_type = MultifleetObj@allocation_type)
 
