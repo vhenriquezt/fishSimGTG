@@ -638,6 +638,7 @@ evalMSE<-function(inputObject){
           discN[j,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(Ftotal[j,k,m]*selGroup[[m]]$discard[[x]]/(Ftotal[j,k,m]*selGroup[[m]]$removal[[x]] + lh$LifeHistory@M)*(1-exp(-Ftotal[j,k,m]*selGroup[[m]]$removal[[x]]-lh$LifeHistory@M))*N[[x]][,j,m])))
           discB[j,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*Ftotal[j,k,m]*selGroup[[m]]$discard[[x]]/(Ftotal[j,k,m]*selGroup[[m]]$removal[[x]] + lh$LifeHistory@M)*(1-exp(-Ftotal[j,k,m]*selGroup[[m]]$removal[[x]]-lh$LifeHistory@M))*N[[x]][,j,m])))
         }
+      }
 
 
 
