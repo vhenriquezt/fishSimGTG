@@ -124,3 +124,50 @@ print(is$Feq)  # Total F
 print(is$F_by_fleet)  # Fleet-specific F
 print(is$D)  # Achieved depletion
 print(is$catchB_by_fleet)  # Fleet-specific catches
+
+
+
+# COMPARING 1 FLEET APPRAOCH (solveD_multifleet2)
+MultifleetObj <- new("Multifleet")
+MultifleetObj@nfleets <- 1
+MultifleetObj@fleet_proportions <- c(1)
+MultifleetObj@allocation_type <- "catch"
+MultifleetObj@fleet_selectivity_list <- list(fishery1)
+
+fleet_proportions <- MultifleetObj@fleet_proportions
+
+#selectivity list
+hist_sel_list <- lapply(1:MultifleetObj@nfleets, function(f) {
+  selWrapper(lh, ta, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
+})
+
+#fleet_proportions <- MultifleetObj@fleet_proportions
+Ddev <- c(0.4)  # Target depletion
+k <- 1
+
+#test
+is <- solveD_multifleet2(lh = lh,
+                         sel_list = hist_sel_list,
+                         doFit = TRUE,
+                         D_type = ta@historicalBioType,
+                         D_in = Ddev[k],
+                         #D_type = "relB",
+                         #D_in = 0.4,
+                         fleet_proportions = fleet_proportions,
+                         allocation_type = MultifleetObj@allocation_type)
+
+# Check results
+print(is$Feq)  # Total F
+print(is$F_by_fleet)  # Fleet-specific F
+print(is$D)  # Achieved depletion
+print(is$catchB_by_fleet)  # Fleet-specific catches
+
+
+# COMPARING 1 FLEET APPRAOCH (solveD)
+sel1 <- selWrapper(lh, ta, fishery1, doPlot = FALSE)
+is2 <- solveD(lh =lh,
+              sel1,
+              doFit = TRUE,
+              D_type = "relB",
+              D_in = 0.4)
+print(is2$Feq)
