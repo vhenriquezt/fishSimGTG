@@ -1,4 +1,4 @@
-
+# all multifleet modifications try to preserve the  existing functionality
 
 #---------------------------------------
 #Evaluate MSE
@@ -14,10 +14,12 @@
 
 evalMSE<-function(inputObject){
 
+  #evalMSE: maintain the same parameters in the multifleet version
+
   #------------------
   #Unpack dataObject
   #------------------
-  #new addition: adding MultifleetObj to unpacking so MSEeval can access to the object
+  #new addition: adding "MultifleetObj" to unpacking so MSEeval can access to the object
   TimeAreaObj <- StrategyObj <- LifeHistoryObj <- HistFisheryObj <- ProFisheryObj_list <- iterations <- iter <- Ddev <- Edev <- LHdev <- Sdev <- Cdev <- Edev <- histEffortDev <- RdevMatrix <- doDiagnostic <- MultifleetObj <- NULL
   for(r in 1:NROW(inputObject)) assign(names(inputObject)[r], inputObject[[r]])
 
@@ -117,6 +119,9 @@ evalMSE<-function(inputObject){
           selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
         })
       })
+
+
+      # modif: projection selectivity handling "THIS NEED TO BE IMPROVED"
 
       # selPro[[area]][[fleet]] structure
       selPro<-lapply(1:TimeAreaObj@areas, function(area){
@@ -275,7 +280,9 @@ evalMSE<-function(inputObject){
 
 
           for(m in 1:areas){
-            #new addition:assuming fleet 1 is a representative fleet
+            #new addition:ASSUMPTION FLEET 1 is a representative fleet (THIS IS IMPORTANT)
+            # the selectivity here is important  because it affects which ages survive during burn in
+            # affecting the age structure in each area (ASK Bill , what we should do here)
             if(is_multifleet) {
               # Fleet 1 is the "main" fleet, equivalent to single fleet
               sel_removal <- selHist[[m]][[1]]$removal[[l]]
@@ -424,7 +431,7 @@ evalMSE<-function(inputObject){
     #--------------------
     #Time dynamics
     #--------------------
-    # No modifications from here to 432 are needed so far
+    # No modifications so far
     for (j in 2:years){
 
       #Selgroup
@@ -505,7 +512,7 @@ evalMSE<-function(inputObject){
       for (l in 1:lh$gtg) N[[l]][1,j,]<- Rtmp*lh$recProb[l]*TimeAreaObj@recArea*RdevMatrix[j,k]
 
       #Arrays
-      # Modifications need to be added here , this section is moved to line 551
+      # Modifications need to be added here , this section is moved to line 626-643
 
       # for(m in 1:areas){
       #   VB[j,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(N[[x]][,j,m]*selGroup[[m]]$vul[[x]]*lh$W[[x]])))
@@ -524,18 +531,21 @@ evalMSE<-function(inputObject){
       #   discB[j,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*Ftotal[j,k,m]*selGroup[[m]]$discard[[x]]/(Ftotal[j,k,m]*selGroup[[m]]$removal[[x]] + lh$LifeHistory@M)*(1-exp(-Ftotal[j,k,m]*selGroup[[m]]$removal[[x]]-lh$LifeHistory@M))*N[[x]][,j,m])))
       # }
 
+      #new addition:check if we have the multifleet mode activated
       if(is_multifleet) {
-        for(m in 1:areas) {
+        for(m in 1:areas) { # main area loop for multfleet
       #initialize fleet-specific F values for this area
           F_by_fleet_current <- numeric(nfleets)
 
+      # we are in the historical period (before management)
           if(!controlRuleYear[j]) {
-      #historical period - fleet specific F scaling
+      #historical period - fleet specific F scaling (multiplier)
       #each fleet scale independently from equilibrium F
+            yr <- j - 1  # year index for historical effort (the time dyn loop starts at 2) this is to index correctly the TimeAreaObj@historicalEffort
 
-            for(f in 1:nfleets) {
-      #historical effort scaling for each fleet
-              yr <- j - 1  # year index for historical effort
+              for(f in 1:nfleets) {
+                #hist effort for each fleet * multiplier eff (scaling)
+                #fleet f's equilibrium F from Year 1 times area specific effor multiplier* deviation
               F_by_fleet_current[f] <- F_eq_by_fleet[f] *
                 TimeAreaObj@historicalEffort[yr,m] *
                 histEffortDev[j,k,m,f]  # this is a 4D array now
@@ -544,51 +554,81 @@ evalMSE<-function(inputObject){
             }
           } else {
 
-            # New projection period - Use management strategy results
-            # for now, assuming proportional scaling (will improve later)
-            xRow <- which(decisionLocal$year==j & decisionLocal$iteration==k & decisionLocal$area==m)
-            total_F_from_strategy <- decisionLocal$Flocal[xRow]
+          # New projection period - Use management strategy results
 
-            # New:scale each fleet proportionally
+            # decisionLocal: df stores the F decisions (Flocal) made by management startegies for each year, iteration, and area
+            xRow <- which(decisionLocal$year==j & decisionLocal$iteration==k &
+                            decisionLocal$area==m & decisionLocal$fleet==0) # search in the df to find the row that match the year, iter, and m, xRow return the row that provide the combined value
+
+            if(length(xRow) == 0) {
+              # fallback: sum fleet-specific F values if total not available
+              fleet_rows <- which(decisionLocal$year==j & decisionLocal$iteration==k &
+                                    decisionLocal$area==m & decisionLocal$fleet > 0)
+              total_F_from_strategy <- sum(decisionLocal$Flocal[fleet_rows])
+            } else {
+              total_F_from_strategy <- decisionLocal$Flocal[xRow]
+            }
+
+            # scale each fleet proportionally
+            # for now, assuming proportional scaling (will improve later)
             for(f in 1:nfleets) {
               F_by_fleet_current[f] <- total_F_from_strategy * fleet_proportions[f]
               Ftotal_by_fleet[j,k,m,f] <- F_by_fleet_current[f]
             }
-          }
-          # New: calculate total F for this area (sum across fleets)
-          Ftotal[j,k,m] <- sum(F_by_fleet_current)
+            }
 
-          # New: Calculate Z and catches for each GTG
+              # # SINGLE FLEET - Original logic
+              # xRow <- which(decisionLocal$year==j & decisionLocal$iteration==k & decisionLocal$area==m)
+              # total_F_from_strategy <- decisionLocal$Flocal[xRow]
+
+            #   # For single fleet, just set the total F
+            #   Ftotal[j,k,m] <- F_by_fleet_current
+            # #}
+
+
+
+          # calculate total F for this area (sum across fleets)
+          # this total F is used for population dynamics (survival, movement)
+          # also maintain backward compatibi;ity
+          Ftotal[j,k,m] <- sum(F_by_fleet_current) #sum all fleet-specific F values to get the total fishing pressure
+
+          # calculate Z and catches for each GTG
           for(l in 1:lh$gtg) {
-            # New: CRITICAL - Calculate total fishing mortality across all fleets
+            # CRITICAL - Calculate total fishing mortality across all fleets
             # Z = M + sum_fleets(F_fleet * selectivity_fleet)
             # DO NOT COMBINE SELECTIVITIES - each fleet contributes separately
+            # regardless of historical vs projection: the total F is calculated in this way
             total_fishing_mortality <- sapply(1:ageClasses, function(age) {
-              fleet_mortality_sum <- 0
+              fleet_mortality_sum <- 0   # sum contribution from all fleets
               for(f in 1:nfleets) {
                 # Each fleet contributes: F_fleet * selectivity_fleet
+                # for example:
+                # F_by_fleet_current = [0.24, 0.16]* selGroup[[area]][[1]]$removal[[1]][5] = 0.8 # Age 5, GTG 1
                 fleet_mortality_sum <- fleet_mortality_sum +
                   F_by_fleet_current[f] * selGroup[[m]][[f]]$removal[[l]][age]
               }
               return(fleet_mortality_sum)
             })
 
-            # NEW: Total mortality = natural + all fleet fishing mortalities
+            # Z= natural + all fleet fishing mortalities
+            # Z[gtg][age,year,area]
             Z[[l]][,j,m] <- total_fishing_mortality + lh$LifeHistory@M
-            # NEW: Calculate fleet-specific catches using shared Z
+
+            # fleet-specific catches using shared Z
             for(f in 1:nfleets) {
-              # NEW: Fleet-specific catch using Baranov equation with shared Z
+              # fleet-specific catch using Baranov equation with shared Z
               catchNage_by_fleet[[f]][[l]][,j,m] <-
                 F_by_fleet_current[f] * selGroup[[m]][[f]]$keep[[l]] /
                 Z[[l]][,j,m] * (1-exp(-Z[[l]][,j,m])) * N[[l]][,j,m]
             }
 
-            # NEW: Total catchNage is sum across all fleets
+            # catchNage is sum across all fleets (for backward compativbility)
+            # maintains compatibility with existing single-fleet code
             catchNage[[l]][,j,m] <- rowSums(sapply(1:nfleets, function(f)
               catchNage_by_fleet[[f]][[l]][,j,m]), na.rm = TRUE)
           }
 
-          # NEW: Calculate fleet-specific totals
+          # fleet-specific totals
           for(f in 1:nfleets) {
             catchN_by_fleet[j,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x)
               sum(catchNage_by_fleet[[f]][[x]][,j,m])))
@@ -605,7 +645,8 @@ evalMSE<-function(inputObject){
                     Z[[l]][,j,m] * (1-exp(-Z[[l]][,j,m])) * N[[x]][,j,m])))
           }
 
-          # NEW: Calculate area totals for existing arrays (backward compatibility)
+          #calculate area totals for existing arrays (backward compatibility)
+          # each fleet sees different vulnerable biomass
           VB[j,k,m] <- sum(sapply(1:nfleets, function(f) {
             sum(sapply(1:lh$gtg, FUN=function(x)
               sum(N[[x]][,j,m] * selGroup[[m]][[f]]$vul[[x]] * lh$W[[x]])))
@@ -712,8 +753,29 @@ evalMSE<-function(inputObject){
     waitName$hide()
   }
 
+  # new addition: add multifleet data to the final output
+  if(is_multifleet) {
+    dynamics_multifleet <- list(
+      Ftotal_by_fleet = Ftotal_by_fleet,
+      catchB_by_fleet = catchB_by_fleet,
+      catchN_by_fleet = catchN_by_fleet,
+      discB_by_fleet = discB_by_fleet,
+      discN_by_fleet = discN_by_fleet,
+      fleet_proportions = fleet_proportions,
+      nfleets = nfleets
+    )
+
+
   #save
-  dynamics<-list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, Ftotal=Ftotal, discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref = ref)
+  dynamics<-list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, Ftotal=Ftotal,
+                 discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref = ref,
+                 multifleet = dynamics_multifleet)
+  } else {
+    dynamics<-list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, Ftotal=Ftotal,
+                   discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref = ref)
+  }
+
+
   HCR<-list(decisionLocal=decisionLocal, decisionAnnual=decisionAnnual, decisionData=decisionData)
   return(list(dynamics=dynamics, HCR=HCR, iter=iter, N=Nexport, Z=Zexport, catchNage=catchNageExport))
 }
