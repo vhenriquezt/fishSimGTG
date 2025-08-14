@@ -61,18 +61,18 @@ fixedStrategy<-function(phase, dataObject){
       return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],
                   fleet=Flocal[,4], Flocal=Flocal[,5]))
 
-  } else {
+    }else {
 
     #otherwise continue with original implementation
     #Create a temp data frame of fishing mortalities by area
     Flocal<-data.frame()
-    for (m in 1:areas){
+    for (m in 1:areas)
     Flocal<-rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m]*is$Feq*histEffortDev[j,k,m]))
-    }
     return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],  Flocal=Flocal[,4]))
   }
+  }
 }
-}
+
 
 #-------------------------------------------------------------------
 #Projection modeling - no harvest control rule, simple projections
