@@ -12,23 +12,67 @@
 #' @param dataObject The needed inputs to the management procedure
 #' @export
 
+# new addition: updated fixedStrategy function for multifleet support
 fixedStrategy<-function(phase, dataObject){
 
-  #Unpack dataObject
-  j <- areas <- k <- TimeAreaObj <- is <- histEffortDev <- NULL
+  #Unpack dataObject (adding MultifleetObj)
+  j <- areas <- k <- TimeAreaObj <- is <- histEffortDev <- MultifleetObj <- NULL
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
+  #new addition: detecting multifleet mode
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
+
+  if(is_multifleet) {
+    nfleets <- MultifleetObj@nfleets
+    fleet_proportions <- MultifleetObj@fleet_proportions
+    F_eq_by_fleet <- is$F_by_fleet
+  } else {
+    nfleets <- 1
+    fleet_proportions <- c(1.0)
+    F_eq_by_fleet <- c(is$Feq)
+  }
+
+
   #Booking keeping for year for items in TimeAreaObj
-  yr <- j - 1
+  # e.g., simulation year j=3 needs historical effort from year yr=2
+  yr <- j - 1  #the simulation year (starting from 2 in time dynamics) and yr is the index for historical effort arrays (starting from 1)
 
   if(phase==3){
+
+    if(is_multifleet) {
+
+      Flocal<-data.frame()
+
+      for (m in 1:areas) {
+        #total F for this area (will be distributed among fleets)- this approach for now, for testing
+        total_F_area <- 0
+        for(f in 1:nfleets) {
+          # fleet-specific F calculation
+          F_fleet <- F_eq_by_fleet[f] * TimeAreaObj@historicalEffort[yr,m] * histEffortDev[j,k,m,f]
+          total_F_area <- total_F_area + F_fleet
+          #add fleet-specific row (for tracking purposes)
+          Flocal<-rbind(Flocal, c(j, k, m, f, F_fleet))
+        }
+        # add total F row (for backward compatibility)
+        Flocal<-rbind(Flocal, c(j, k, m, 0, total_F_area))  # fleet=0 indicates total
+      }
+
+      colnames(Flocal) <- c("year", "iteration", "area", "fleet", "Flocal")
+      return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],
+                  fleet=Flocal[,4], Flocal=Flocal[,5]))
+
+  } else {
+
+    #otherwise continue with original implementation
     #Create a temp data frame of fishing mortalities by area
     Flocal<-data.frame()
-    for (m in 1:areas) Flocal<-rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m]*is$Feq*histEffortDev[j,k,m]))
+    for (m in 1:areas){
+    Flocal<-rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m]*is$Feq*histEffortDev[j,k,m]))
+    }
     return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],  Flocal=Flocal[,4]))
   }
 }
-
+}
 
 #-------------------------------------------------------------------
 #Projection modeling - no harvest control rule, simple projections
