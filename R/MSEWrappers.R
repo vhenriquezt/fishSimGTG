@@ -823,8 +823,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   #-----------------------
   TimeAreaObj@recArea <- TimeAreaObj@recArea / sum(TimeAreaObj@recArea) #Make sure this sums to 1
 
-  #New:
-  #adding basic multifleet detection and validation
+  #new addition: adding basic multifleet detection and validation
   is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
 
   if(is_multifleet) {
@@ -953,7 +952,25 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   #----------------------------------------------
   proceedMSE<-TRUE
 
-  #Is iterations specified correctly?
+  #new additions for multfleet validations
+  if(proceedMSE && is_multifleet) {
+    # validate fleet selectivity objects
+    for(f in 1:nfleets) {
+      if(is.null(MultifleetObj@fleet_selectivity_list[[f]])) {
+        proceedMSE<-FALSE
+        print(paste("Fleet", f, "selectivity object is missing"))
+      }
+    }
+
+    # validate allocation type
+    if(!MultifleetObj@allocation_type %in% c("effort", "catch")) {
+      proceedMSE<-FALSE
+      print("allocation_type must be 'effort' or 'catch'")
+    }
+  }
+
+
+  #Is iterations specified correctly? (existing validation)
   if(proceedMSE && length(TimeAreaObj@iterations) == 0 ||
      TimeAreaObj@iterations < 1) {
       proceedMSE<-FALSE
@@ -1122,6 +1139,8 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   #Setup parallel processing
   #---------------------------
 
+  #new addition: Only adding MultifleetObj = MultifleetObj
+
   #Test whether we can proceed to simulations
   if(
     isFALSE(proceedMSE)
@@ -1160,6 +1179,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
                                ProFisheryObj_list = ProFisheryObj_list,
                                StrategyObj = StrategyObj,
                                StochasticObj = StochasticObj,
+                               MultifleetObj = MultifleetObj,
                                IndexObj= IndexObj,
                                CatchObsObj= CatchObsObj,
                                LengthCompObj= LengthCompObj,
@@ -1191,6 +1211,18 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       decisionLocal<-mseParallel[[1]]$HCR$decisionLocal
       decisionData<-mseParallel[[1]]$HCR$decisionData
 
+      # new addition: extract multifleet results if they exist
+      multifleet_results <- NULL
+      if(!is.null(mseParallel[[1]]$dynamics$multifleet)) {
+        multifleet_results <- mseParallel[[1]]$dynamics$multifleet
+        Ftotal_by_fleet <- multifleet_results$Ftotal_by_fleet
+        catchB_by_fleet <- multifleet_results$catchB_by_fleet
+        catchN_by_fleet <- multifleet_results$catchN_by_fleet
+        discB_by_fleet <- multifleet_results$discB_by_fleet
+        discN_by_fleet <- multifleet_results$discN_by_fleet
+      }
+
+
       #Optional diagnostic outputs
       N<-mseParallel[[1]]$N
       catchNage<-mseParallel[[1]]$catchNage
@@ -1205,7 +1237,20 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
           Ftotal[,input[[i]][1]:input[[i]][2],m]<-mseParallel[[i]]$dynamics$Ftotal[,input[[i]][1]:input[[i]][2],m]
           discB[,input[[i]][1]:input[[i]][2],m]<-mseParallel[[i]]$dynamics$discB[,input[[i]][1]:input[[i]][2],m]
           discN[,input[[i]][1]:input[[i]][2],m]<-mseParallel[[i]]$dynamics$discN[,input[[i]][1]:input[[i]][2],m]
+
+          #new addition: reassemble multifleet arrays
+          if(!is.null(multifleet_results)) {
+            for(f in 1:multifleet_results$nfleets) {
+              Ftotal_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$Ftotal_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
+              catchB_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$catchB_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
+              catchN_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$catchN_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
+              discB_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$discB_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
+              discN_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$discN_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
+            }
+          }
         }
+
+          # continue with the rest of arraya (no modification needed)
         SPR[,input[[i]][1]:input[[i]][2]]<-mseParallel[[i]]$dynamics$SPR[,input[[i]][1]:input[[i]][2]]
         relSB[,input[[i]][1]:input[[i]][2]]<-mseParallel[[i]]$dynamics$relSB[,input[[i]][1]:input[[i]][2]]
         recN[,input[[i]][1]:input[[i]][2]]<-mseParallel[[i]]$dynamics$recN[,input[[i]][1]:input[[i]][2]]
@@ -1213,9 +1258,23 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
         decisionAnnual<-rbind(decisionAnnual, mseParallel[[i]]$HCR$decisionAnnual)
         decisionLocal<-rbind(decisionLocal, mseParallel[[i]]$HCR$decisionLocal)
         decisionData<-rbind(decisionData, mseParallel[[i]]$HCR$decisionData)
-      }
+        }
+
+        #new addition: reconstruct multifleet results structure
+
+        if(!is.null(multifleet_results)) {
+          multifleet_results$Ftotal_by_fleet <- Ftotal_by_fleet
+          multifleet_results$catchB_by_fleet <- catchB_by_fleet
+          multifleet_results$catchN_by_fleet <- catchN_by_fleet
+          multifleet_results$discB_by_fleet <- discB_by_fleet
+          multifleet_results$discN_by_fleet <- discN_by_fleet
+        }
+
+
+
 
     } else {
+      #single core processing
       mse<-evalMSE(inputObject=list(iter=c(1, iterations),
                                     RdevMatrix=RdevMatrix,
                                     Ddev=Ddev,
@@ -1230,6 +1289,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
                                     ProFisheryObj_list = ProFisheryObj_list,
                                     StrategyObj = StrategyObj,
                                     StochasticObj = StochasticObj,
+                                    MultifleetObj = MultifleetObj, #new addition
                                     IndexObj = IndexObj,
                                     CatchObsObj= CatchObsObj,
                                     LengthCompObj= LengthCompObj,
@@ -1256,6 +1316,12 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       decisionLocal<-mse$HCR$decisionLocal
       decisionData<-mse$HCR$decisionData
 
+      # new addition: extract multifleet results for single core mode
+      multifleet_results <- NULL
+      if(!is.null(mse$dynamics$multifleet)) {
+        multifleet_results <- mse$dynamics$multifleet
+      }
+
       #Optional diagnostic outputs
       N<-mse$N
       catchNage<-mse$catchNage
@@ -1265,8 +1331,16 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     #Save results
     #---------------
     dynamics<-list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, Ftotal=Ftotal, discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref=ref, N=N, catchNage=catchNage)
+
+    #new addditon: adding multifleet results if they exist
+    if(!is.null(multifleet_results)) {
+      dynamics$multifleet <- multifleet_results
+    }
+
     HCR<-list(decisionLocal=decisionLocal, decisionAnnual=decisionAnnual, decisionData=decisionData)
-    dt<-list(titleStrategy = titleStrategy, dynamics=dynamics, HCR=HCR, iterations=iterations, LifeHistoryObj=LifeHistoryObj, LHdev=LHdev, Sdev = Sdev, histEffortDev = histEffortDev, Ddev=Ddev, TimeAreaObj=TimeAreaObj, HistFisheryObj=HistFisheryObj, ProFisheryObj_list=ProFisheryObj_list,  StrategyObj= StrategyObj, StochasticObj=StochasticObj, IndexObj= IndexObj, CatchObsObj= CatchObsObj, LengthCompObj = LengthCompObj)
+
+    # adding MultifleetObj
+    dt<-list(titleStrategy = titleStrategy, dynamics=dynamics, HCR=HCR, iterations=iterations, LifeHistoryObj=LifeHistoryObj, LHdev=LHdev, Sdev = Sdev, histEffortDev = histEffortDev, Ddev=Ddev, TimeAreaObj=TimeAreaObj, HistFisheryObj=HistFisheryObj, ProFisheryObj_list=ProFisheryObj_list,  StrategyObj= StrategyObj, StochasticObj=StochasticObj, MultifleetObj=MultifleetObj, IndexObj= IndexObj, CatchObsObj= CatchObsObj, LengthCompObj = LengthCompObj)
     saveRDS(dt, file=paste(wd, "/", fileName, ".rds", sep=""))
 
     #--------------------------------------------------------------------------------
@@ -1309,25 +1383,25 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       dev.off()
 
 
-      #S-R
-      png(filename=paste(wd, "/", fileName, "_SR.png",sep=""), width=4, height=4, units="in", res=300, bg="white", pointsize=12)
-      par(mfrow=c(1,1), mar=c(4,4,3,1))
-
-      is<-solveD(lh, sel = selHist, doFit = FALSE, F_in = 0.01)
-      SRcurve<-t(sapply(seq(0, is$B0, length.out = 100), FUN=function(x){
-        c(x/is$B0, recruit(LifeHistoryObj=dt$LifeHistoryObj, B0=is$B0, stock=x, forceR=FALSE, Rforced=0))
-      }))
-      plot(dt$dynamics$relSB[,1], dt$dynamics$recN[,1], type="b", las=1, ylim=c(min(dt$dynamics$recN),max(dt$dynamics$recN)), col=rb[1], ylab="Recruits", xlab = "Stock (rel SSB)", main = "Stock-recruit")
-      #text(dt$dynamics$relSB[,1], dt$dynamics$recN[,1], labels=1:NROW(dt$dynamics$recN[,1]))
-      if(iterations > 1){
-        for(k in 2:iterations){
-          lines(dt$dynamics$relSB[,k], dt$dynamics$recN[,k], type="b", col=rb[k])
-          #text(dt$dynamics$relSB[,k], dt$dynamics$recN[,k], labels=1:NROW(dt$dynamics$recN[,k]))
-        }
-      }
-      lines(SRcurve[,1], SRcurve[,2], type="l", col="black", las=1, ylab="Recruits", xlab = "Stock (rel SSB)", main = "Stock-recruit")
-
-      dev.off()
+      #S-R (need to reviw this plot)
+      # png(filename=paste(wd, "/", fileName, "_SR.png",sep=""), width=4, height=4, units="in", res=300, bg="white", pointsize=12)
+      # par(mfrow=c(1,1), mar=c(4,4,3,1))
+      #
+      # is<-solveD(lh, sel = selHist, doFit = FALSE, F_in = 0.01)
+      # SRcurve<-t(sapply(seq(0, is$B0, length.out = 100), FUN=function(x){
+      #   c(x/is$B0, recruit(LifeHistoryObj=dt$LifeHistoryObj, B0=is$B0, stock=x, forceR=FALSE, Rforced=0))
+      # }))
+      # plot(dt$dynamics$relSB[,1], dt$dynamics$recN[,1], type="b", las=1, ylim=c(min(dt$dynamics$recN),max(dt$dynamics$recN)), col=rb[1], ylab="Recruits", xlab = "Stock (rel SSB)", main = "Stock-recruit")
+      # #text(dt$dynamics$relSB[,1], dt$dynamics$recN[,1], labels=1:NROW(dt$dynamics$recN[,1]))
+      # if(iterations > 1){
+      #   for(k in 2:iterations){
+      #     lines(dt$dynamics$relSB[,k], dt$dynamics$recN[,k], type="b", col=rb[k])
+      #     #text(dt$dynamics$relSB[,k], dt$dynamics$recN[,k], labels=1:NROW(dt$dynamics$recN[,k]))
+      #   }
+      # }
+      # lines(SRcurve[,1], SRcurve[,2], type="l", col="black", las=1, ylab="Recruits", xlab = "Stock (rel SSB)", main = "Stock-recruit")
+      #
+      # dev.off()
 
       #----------------------
       # Area specific plots
@@ -1390,11 +1464,52 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
         }
       }
       dev.off()
+
+      # new addition: add multifleet-specific plots if multifleet results exist
+      if(!is.null(multifleet_results)) {
+        # Fleet-specific F plots
+        png(filename=paste0(wd, "/", fileName, "_F_by_Fleet.png"), width=12, height=8, units="in", res=96, bg="white", pointsize=12)
+        par(mfrow=c(ceiling(multifleet_results$nfleets/2), 2), mar=c(4,4,3,1))
+        for(f in 1:multifleet_results$nfleets) {
+          for(m in 1:dt$TimeAreaObj@areas) {
+            if(f == 1 && m == 1) {
+              plot(multifleet_results$Ftotal_by_fleet[,1,m,f], type="l", las=1, ylab="F", xlab = "Year",
+                   col=rb[1], main = paste("Fleet", f, "Area", m))
+            } else {
+              plot(multifleet_results$Ftotal_by_fleet[,1,m,f], type="l", las=1, ylab="F", xlab = "Year",
+                   col=rb[1], main = paste("Fleet", f, "Area", m))
+            }
+            if(iterations > 1){
+              for(k in 2:iterations){
+                lines(multifleet_results$Ftotal_by_fleet[,k,m,f], col=rb[k])
+              }
+            }
+          }
+        }
+        dev.off()
+
+        # Fleet-specific catch plots
+        png(filename=paste0(wd, "/", fileName, "_Catch_by_Fleet.png"), width=12, height=8, units="in", res=96, bg="white", pointsize=12)
+        par(mfrow=c(ceiling(multifleet_results$nfleets/2), 2), mar=c(4,4,3,1))
+        for(f in 1:multifleet_results$nfleets) {
+          for(m in 1:dt$TimeAreaObj@areas) {
+            plot(multifleet_results$catchB_by_fleet[,1,m,f], type="l", las=1, ylab="Catch", xlab = "Year",
+                 col=rb[1], main = paste("Fleet", f, "Area", m))
+            if(iterations > 1){
+              for(k in 2:iterations){
+                lines(multifleet_results$catchB_by_fleet[,k,m,f], col=rb[k])
+              }
+            }
+          }
+        }
+        dev.off()
+      }
     }
     print("Simulation time in minutes: ")
     print((proc.time()-ptm)/60)
   }
 }
+
 
 
 #---------------------------------------
