@@ -861,6 +861,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   #Historical cpue used only in projectionStrategy
   Cdev<-NULL
   if(is(StrategyObj, "Strategy") &&
+
      StrategyObj@projectionName == "projectionStrategy"
   ) Cdev<-cpueDev(TimeAreaObj, StrategyObj)$Cdev
 
@@ -876,23 +877,73 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   #Selectivity parameters
   Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
 
+  #new addition: determine nfleets and call histEffortDev
+  effective_nfleets <- if(is_multifleet) nfleets else 1
+  cat("Creating histEffortDev with", effective_nfleets, "fleets\n")
+
   #Historical effort devs (adding multifleet)
-  histEffortDev_result<-histEffortDev(TimeAreaObj, StochasticObj,nfleets)
+  histEffortDev_result<-histEffortDev(TimeAreaObj, StochasticObj, effective_nfleets)
 
   # single fleet expects: histEffortDev[year, iteration, area] (3D)
   # multifleet expects:   histEffortDev[year, iteration, area, fleet] (4D)
 
   # Handle backward compatibility
+
   if(is_multifleet) {
     histEffortDev <- histEffortDev_result$Emult  # Use 4D array
+
+
+    expected_dims <- c(1 + TimeAreaObj@historicalYears,
+                       as.integer(floor(TimeAreaObj@iterations)),
+                       TimeAreaObj@areas,
+                       nfleets)
+
+    cat("multifleet mode: using 4D histEffortDev array\n")
+    cat("  expected dims:", paste(expected_dims, collapse = " x "), "\n")
+    cat("  actual dims:  ", paste(dim(histEffortDev), collapse = " x "), "\n")
+
+
+    # validation
+    if(!all(dim(histEffortDev) == expected_dims)) {
+      stop("multifleet histEffortDev dimension mismatch.\n",
+           "  expected: ", paste(expected_dims, collapse = " x "), "\n",
+           "  got:      ", paste(dim(histEffortDev), collapse = " x "))
+    }
+
+
   } else {
     # For single fleet, check if 3D is available
     if(!is.null(histEffortDev_result$Emult_3D)) {
       histEffortDev <- histEffortDev_result$Emult_3D  # Use 3D array for backward compatibility
-    } else {
+      cat("single fleet mode: using 3D histEffortDev array: dim =", paste(dim(histEffortDev), collapse = " x "), "\n")
+      } else {
       histEffortDev <- histEffortDev_result$Emult[,,,1]  # Extract first fleet from 4D
-    }
+      cat("single fleet mode: extracted 3D from 4D histEffortDev array: dim =", paste(dim(histEffortDev), collapse = " x "), "\n")
+      }
+
+
+  expected_dims <- c(1 + TimeAreaObj@historicalYears,
+                     as.integer(floor(TimeAreaObj@iterations)),
+                     TimeAreaObj@areas)
+
+  cat("  expected dims:", paste(expected_dims, collapse = " x "), "\n")
+  cat("  actual dims:  ", paste(dim(histEffortDev), collapse = " x "), "\n")
+
+
+  # validate dimensions
+  if(!all(dim(histEffortDev) == expected_dims)) {
+    stop("single fleet histEffortDev dimension mismatch.\n",
+         "  expected: ", paste(expected_dims, collapse = " x "), "\n",
+         "  got:      ", paste(dim(histEffortDev), collapse = " x "))
   }
+}
+
+cat("histEffortDev validation passed!\n")
+
+
+
+
+
 
   #---------------------------------------
   #Initial checks that do not stop program

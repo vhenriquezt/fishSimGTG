@@ -1618,7 +1618,7 @@ recDev<-function(LifeHistoryObj, TimeAreaObj, StochasticObj, StrategyObj = NULL)
 #' @importFrom stats rnorm
 #' @export
 
-histEffortDev<-function(TimeAreaObj, StochasticObj, nfleets = 3){
+histEffortDev<-function(TimeAreaObj, StochasticObj, nfleets = 1){
   if(length(TimeAreaObj@historicalYears) == 0 ||
      length(TimeAreaObj@iterations) == 0 ||
      TimeAreaObj@iterations < 1

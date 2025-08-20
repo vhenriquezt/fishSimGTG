@@ -52,8 +52,51 @@ fixedStrategy<-function(phase, dataObject){
       return(NULL)
     }
 
+    # check if this is historical period or projection period
+    historical_end <- 1 + TimeAreaObj@historicalYears  # j=11 in this case
+
     # for historical years (j >= 2), use historical effort
-    yr <- j - 1  # convert simulation year to historical effort index
+    #yr <- j - 1  # convert simulation year to historical effort index
+
+    #only process historical years in fixedStrategy
+    if(j <= historical_end) {
+
+      # for historical years (j >= 2), use historical effort
+      yr <- j - 1  # convert simulation year to historical effort index
+
+
+    #debug
+    # cat("=== DEBUG INFO ===\n")
+    # cat("j =", j, "\n")
+    # cat("yr =", yr, "\n")
+    # cat("k =", k, "\n")
+    # cat("areas =", areas, "\n")
+    # cat("TimeAreaObj@historicalYears =", TimeAreaObj@historicalYears, "\n")
+    # cat("dim(TimeAreaObj@historicalEffort) =", dim(TimeAreaObj@historicalEffort), "\n")
+    # cat("dim(histEffortDev) =", dim(histEffortDev), "\n")
+    # cat("is_multifleet =", is_multifleet, "\n")
+    # cat("nfleets =", nfleets, "\n")
+    #
+    # # check if indices are within bounds before accessing
+    # if(yr > TimeAreaObj@historicalYears) {
+    #   cat("ERROR: yr (", yr, ") > historicalYears (", TimeAreaObj@historicalYears, ")\n")
+    # }
+    # if(yr < 1) {
+    #   cat("ERROR: yr (", yr, ") < 1\n")
+    # }
+    #
+    #
+    # # check area bounds in the loop
+    # for(m_check in 1:areas) {
+    #   if(m_check > TimeAreaObj@areas) {
+    #     cat("ERROR: m (", m_check, ") > TimeAreaObj@areas (", TimeAreaObj@areas, ")\n")
+    #   }
+    #   if(m_check < 1) {
+    #     cat("ERROR: m (", m_check, ") < 1\n")
+    #   }
+    # }
+    # cat("==================\n")
+
 
 
     if(is_multifleet) {
@@ -61,12 +104,26 @@ fixedStrategy<-function(phase, dataObject){
       Flocal<-data.frame()
 
       for (m in 1:areas) {
+
+        cat("Processing area m =", m, "\n")
+
         #total F for this area (will be distributed among fleets)- this approach for now, for testing
         total_F_area <- 0
+
         for(f in 1:nfleets) {
+
+          # new addition: handle both 3D and 4D histEffortDev arrays
+         # if(yr <= TimeAreaObj@historicalYears) {
+          if(length(dim(histEffortDev)) == 4) {
+            effort_dev_value <- histEffortDev[yr + 1, k, m, f]  # +1 because histEffortDev starts at index 1 for year 0
+          } else {
+            effort_dev_value <- histEffortDev[yr + 1, k, m]     # +1 because histEffortDev starts at index 1 for year 0
+          }
+
           # fleet-specific F calculation
-          F_fleet <- F_eq_by_fleet[f] * TimeAreaObj@historicalEffort[yr,m] * histEffortDev[j,k,m,f]
+          F_fleet <- F_eq_by_fleet[f] * TimeAreaObj@historicalEffort[yr,m] * effort_dev_value
           total_F_area <- total_F_area + F_fleet
+
           #add fleet-specific row (for tracking purposes)
           Flocal<-rbind(Flocal, c(j, k, m, f, F_fleet))
         }
@@ -78,7 +135,7 @@ fixedStrategy<-function(phase, dataObject){
       return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],
                   fleet=Flocal[,4], Flocal=Flocal[,5]))
 
-    }else {
+    } else {
 
     #otherwise continue with original implementation
     #Create a temp data frame of fishing mortalities by area
@@ -86,20 +143,24 @@ fixedStrategy<-function(phase, dataObject){
     Flocal<-data.frame()
     for (m in 1:areas) {
 
-      if(length(dim(histEffortDev)) == 4){
-        effort_dev_value <- histEffortDev[j, k, m, 1]  # use first fleet
-    } else {
-      effort_dev_value <- histEffortDev[j, k, m]     # use 3D
+      if(length(dim(histEffortDev)) == 4) {
+        effort_dev_value <- histEffortDev[yr + 1, k, m, 1]  # +1 because histEffortDev starts at index 1 for year 0
+      } else {
+        effort_dev_value <- histEffortDev[yr + 1, k, m]     # +1 because histEffortDev starts at index 1 for year 0
+      }
+
+      Flocal <- rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m] * is$Feq * effort_dev_value))
     }
 
-    Flocal <- rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m] * is$Feq * effort_dev_value))
+    return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3], Flocal=Flocal[,4]))
     }
-    #Flocal<-rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m]*is$Feq*histEffortDev[j,k,m]))
-    return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],  Flocal=Flocal[,4]))
-  }
+
+    } else {
+
+      return(NULL)
   }
 }
-
+}
 
 #-------------------------------------------------------------------
 #Projection modeling - no harvest control rule, simple projections
