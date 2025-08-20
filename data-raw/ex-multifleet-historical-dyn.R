@@ -191,7 +191,7 @@ cat(sprintf("  - Fleet F: [%.4f, %.4f]\n", eq_multifleet$F_by_fleet[1], eq_multi
 cat(sprintf("  - Achieved depletion: %.4f\n", eq_multifleet$D))
 
 
-wd <- tempdir()
+wd <- getwd()
 cat("Working directory:", wd, "\n")
 
 #testing single fleet
@@ -210,7 +210,17 @@ single_result <- runProjection(
   doDiagnostic = FALSE
 )
 
-out1<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "single_result")
+single_result<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "single_fleet_test")
+single_result$dynamics$SB
+single_result$dynamics$catchB
+single_result$dynamics$catchN
+single_result$HCR$decisionLocal
+single_result$HCR$decisionData
+single_result$dynamics$Ftotal
+
+
+
+
 
 stop()
 #
