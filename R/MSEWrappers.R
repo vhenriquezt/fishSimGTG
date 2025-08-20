@@ -877,7 +877,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
 
   #Historical effort devs (adding multifleet)
-  histEffortDev<-histEffortDev(TimeAreaObj, StochasticObj,nfleets)
+  histEffortDev_result<-histEffortDev(TimeAreaObj, StochasticObj,nfleets)
 
   # single fleet expects: histEffortDev[year, iteration, area] (3D)
   # multifleet expects:   histEffortDev[year, iteration, area, fleet] (4D)
