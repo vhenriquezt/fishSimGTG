@@ -877,8 +877,22 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
 
   #Historical effort devs (adding multifleet)
-  histEffortDev<-histEffortDev(TimeAreaObj, StochasticObj,nfleets)$Emult
+  histEffortDev<-histEffortDev(TimeAreaObj, StochasticObj,nfleets)
 
+  # single fleet expects: histEffortDev[year, iteration, area] (3D)
+  # multifleet expects:   histEffortDev[year, iteration, area, fleet] (4D)
+
+  # Handle backward compatibility
+  if(is_multifleet) {
+    histEffortDev <- histEffortDev_result$Emult  # Use 4D array
+  } else {
+    # For single fleet, check if 3D is available
+    if(!is.null(histEffortDev_result$Emult_3D)) {
+      histEffortDev <- histEffortDev_result$Emult_3D  # Use 3D array for backward compatibility
+    } else {
+      histEffortDev <- histEffortDev_result$Emult[,,,1]  # Extract first fleet from 4D
+    }
+  }
 
   #---------------------------------------
   #Initial checks that do not stop program
