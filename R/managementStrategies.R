@@ -35,9 +35,26 @@ fixedStrategy<-function(phase, dataObject){
 
   #Booking keeping for year for items in TimeAreaObj
   # e.g., simulation year j=3 needs historical effort from year yr=2
-  yr <- j - 1  #the simulation year (starting from 2 in time dynamics) and yr is the index for historical effort arrays (starting from 1)
+  #yr <- j - 1  #the simulation year (starting from 2 in time dynamics) and yr is the index for historical effort arrays (starting from 1)
 
   if(phase==3){
+
+    # The simulation structure is:
+    # j=1: initial equilibrium (no historical effort)
+    # j=2: historical year 1 (historicalEffort[1,])
+    # j=3: historical year 2 (historicalEffort[2,])
+    # ...
+    # j=11: historical year 10 (historicalEffort[10,])
+    # j=12+: projection years (use management strategy)
+
+    if(j == 1) {
+      # initial equilibrium year - no historical effort applied
+      return(NULL)
+    }
+
+    # for historical years (j >= 2), use historical effort
+    yr <- j - 1  # convert simulation year to historical effort index
+
 
     if(is_multifleet) {
 
