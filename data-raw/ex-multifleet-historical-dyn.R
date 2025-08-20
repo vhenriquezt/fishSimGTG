@@ -219,8 +219,64 @@ single_result$HCR$decisionData
 single_result$dynamics$Ftotal
 
 
+#testing multifleet
+multifleet_result <- runProjection(
+  LifeHistoryObj = lh_obj,
+  TimeAreaObj = ta,
+  HistFisheryObj = hist_fishery,
+  ProFisheryObj_list = proj_fishery_list,
+  StrategyObj = strategy_obj,
+  StochasticObj = stochastic_obj,
+  MultifleetObj = multifleet_obj,  # this enables multifleet mode
+  #customToCluster = "simpleMP",    # for multi core
+  wd = wd,
+  fileName = "multifleet_test",
+  seed = 123,
+  doPlot = FALSE,
+  doDiagnostic = FALSE
+)
 
 
+
+lh <- LHwrapper(LifeHistoryObj = lh_obj, TimeAreaObj = ta)
+
+# Test each fleet selectivity
+for(f in 1:multifleet_obj@nfleets) {
+  cat("Testing fleet", f, "selectivity...\n")
+
+  fleet_fishery <- multifleet_obj@fleet_selectivity_list[[f]]
+  sel_test <- selWrapper(lh, ta, fleet_fishery, doPlot = FALSE)
+
+  if(is.null(sel_test)) {
+    cat("ERROR: Fleet", f, "selectivity is NULL\n")
+  } else {
+    cat("Fleet", f, "selectivity OK. Removal length for GTG 1:", length(sel_test$removal[[1]]), "\n")
+  }
+}
+
+
+# Test multifleet equilibrium
+hist_sel_list <- lapply(1:multifleet_obj@nfleets, function(f) {
+  selWrapper(lh, ta, FisheryObj = multifleet_obj@fleet_selectivity_list[[f]], doPlot = FALSE)
+})
+
+# Check if any selectivity in the list is NULL
+for(f in 1:length(hist_sel_list)) {
+  if(is.null(hist_sel_list[[f]])) {
+    cat("ERROR: hist_sel_list[[", f, "]] is NULL\n")
+  }
+}
+
+# Test equilibrium calculation
+eq_multifleet <- solveD_multifleet2(
+  lh = lh,
+  sel_list = hist_sel_list,
+  doFit = TRUE,
+  D_type = "relB",
+  D_in = 0.4,
+  fleet_proportions = multifleet_obj@fleet_proportions,
+  allocation_type = multifleet_obj@allocation_type
+)
 
 stop()
 #
