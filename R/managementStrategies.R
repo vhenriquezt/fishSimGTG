@@ -82,9 +82,19 @@ fixedStrategy<-function(phase, dataObject){
 
     #otherwise continue with original implementation
     #Create a temp data frame of fishing mortalities by area
+    # fixing single fleet bug - previous issue with 3D and 4D hist effort dev arrays
     Flocal<-data.frame()
-    for (m in 1:areas)
-    Flocal<-rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m]*is$Feq*histEffortDev[j,k,m]))
+    for (m in 1:areas) {
+
+      if(length(dim(histEffortDev)) == 4){
+        effort_dev_value <- histEffortDev[j, k, m, 1]  # use first fleet
+    } else {
+      effort_dev_value <- histEffortDev[j, k, m]     # use 3D
+    }
+
+    Flocal <- rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m] * is$Feq * effort_dev_value))
+    }
+    #Flocal<-rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m]*is$Feq*histEffortDev[j,k,m]))
     return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],  Flocal=Flocal[,4]))
   }
   }
