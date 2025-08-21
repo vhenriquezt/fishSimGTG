@@ -273,7 +273,7 @@ fishery_simple@Dmort <- 0
 multifleet_simple <- new("Multifleet")
 multifleet_simple@nfleets <- 2
 multifleet_simple@fleet_proportions <- c(0.6, 0.4)
-multifleet_simple@allocation_type <- "effort"  #  "effort" instead of "catch"
+multifleet_simple@allocation_type <- "catch"  #  "effort" instead of "catch"
 multifleet_simple@fleet_selectivity_list <- list(fishery_simple, fishery_simple)
 
 multifleet_result <- runProjection(
@@ -300,12 +300,15 @@ multi_result$dynamics$multifleet$Ftotal_by_fleet
 multi_result$dynamics$multifleet$catchB_by_fleet
 multi_result$dynamics$multifleet$fleet_proportions
 multi_result$dynamics$multifleet$nfleets
-
+multi_result$dynamics$multifleet$final_effort_proportions
+multi_result$dynamics$multifleet$target_catch_proportions
+multi_result$dynamics$multifleet$actual_catch_proportions
+multi_result$dynamics$multifleet$allocation_type
 #------------------------------------------------------#
 
 
-#testing multifleet
-multifleet_result <- runProjection(
+#testing multifleet (more complex example)
+multifleet_result2 <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
   HistFisheryObj = hist_fishery,
@@ -315,134 +318,16 @@ multifleet_result <- runProjection(
   MultifleetObj = multifleet_obj,  # this enables multifleet mode
   #customToCluster = "simpleMP",    # for multi core
   wd = wd,
-  fileName = "multifleet_test",
+  fileName = "multifleet_simple_test2",
   seed = 123,
   doPlot = FALSE,
   doDiagnostic = FALSE
 )
 
+multi_result2<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "multifleet_simple_test2")
+multi_result2$dynamics$multifleet$fleet_proportions
 
 
-lh <- LHwrapper(LifeHistoryObj = lh_obj, TimeAreaObj = ta)
-
-# Test each fleet selectivity
-for(f in 1:multifleet_obj@nfleets) {
-  cat("Testing fleet", f, "selectivity...\n")
-
-  fleet_fishery <- multifleet_obj@fleet_selectivity_list[[f]]
-  sel_test <- selWrapper(lh, ta, fleet_fishery, doPlot = FALSE)
-
-  if(is.null(sel_test)) {
-    cat("ERROR: Fleet", f, "selectivity is NULL\n")
-  } else {
-    cat("Fleet", f, "selectivity OK. Removal length for GTG 1:", length(sel_test$removal[[1]]), "\n")
-  }
-}
-
-
-# Test multifleet equilibrium
-hist_sel_list <- lapply(1:multifleet_obj@nfleets, function(f) {
-  selWrapper(lh, ta, FisheryObj = multifleet_obj@fleet_selectivity_list[[f]], doPlot = FALSE)
-})
-
-# Check if any selectivity in the list is NULL
-for(f in 1:length(hist_sel_list)) {
-  if(is.null(hist_sel_list[[f]])) {
-    cat("ERROR: hist_sel_list[[", f, "]] is NULL\n")
-  }
-}
-
-# Test equilibrium calculation
-eq_multifleet <- solveD_multifleet2(
-  lh = lh,
-  sel_list = hist_sel_list,
-  doFit = TRUE,
-  D_type = "relB",
-  D_in = 0.4,
-  fleet_proportions = multifleet_obj@fleet_proportions,
-  allocation_type = multifleet_obj@allocation_type
-)
-
-#stop()
-
-
-
-
-
-
-
-
-
-
-#
-# #selectivity list
-# hist_sel_list <- lapply(1:MultifleetObj@nfleets, function(f) {
-#   selWrapper(lh, ta, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
-# })
-#
-#
-# # ============================================================================
-# # CREATE STRATEGY OBJECT
-# # ============================================================================
-#
-# strategy_obj <- new("Strategy")
-# strategy_obj@title <- "Fixed Strategy Test"
-# strategy_obj@projectionYears <- 5
-# strategy_obj@projectionName <- "fixedStrategy"
-# strategy_obj@projectionParams <- list()  # No special parameters for fixed strategy
-#
-#
-#
-#
-#
-# # ============================================================================
-# # RUN FULL SIMULATION - SINGLE FLEET
-# # ============================================================================
-#
-# # Create working directory for outputs
-# wd <- tempdir()
-# cat("Working directory:", wd, "\n")
-#
-# # Run single fleet simulation
-#
-#   single_result <- runProjection(
-#     LifeHistoryObj = lh_obj,
-#     TimeAreaObj = ta_obj,
-#     HistFisheryObj = hist_fishery,
-#     ProFisheryObj_list = proj_fishery_list,
-#     StrategyObj = strategy_obj,
-#     StochasticObj = stochastic_obj,
-#     MultifleetObj = NULL,  # Single fleet mode
-#     wd = wd,
-#     fileName = "single_fleet_test",
-#     seed = 123,
-#     doPlot = FALSE,
-#     doDiagnostic = FALSE
-#   )
-#
-#
-# # ============================================================================
-# # RUN FULL SIMULATION - MULTIFLEET
-# # ============================================================================
-#
-#   multifleet_result <- runProjection(
-#     LifeHistoryObj = lh_obj,
-#     TimeAreaObj = ta_obj,
-#     HistFisheryObj = hist_fishery,
-#     ProFisheryObj_list = proj_fishery_list,
-#     StrategyObj = strategy_obj,
-#     StochasticObj = stochastic_obj,
-#     MultifleetObj = multifleet_obj,  # Multifleet mode
-#     wd = wd,
-#     fileName = "multifleet_test",
-#     seed = 123,
-#     doPlot = FALSE,
-#     doDiagnostic = FALSE
-#   )
-#
-#
-#
-#
 # # ============================================================================
 # # TEST BACKWARD COMPATIBILITY
 # # ============================================================================

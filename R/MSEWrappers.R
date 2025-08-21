@@ -252,6 +252,15 @@ evalMSE<-function(inputObject){
                                allocation_type = MultifleetObj@allocation_type)
 
     #extract both total F and fleet-specific F
+
+    # adding new:  store the final proportions to report after runProjection()
+    final_effort_proportions <- is$final_effort_proportions
+    target_catch_proportions <- is$target_catch_proportions
+    actual_catch_proportions <- is$actual_catch_proportions
+    allocation_type <- is$allocation_type
+
+
+
     total_Feq <- is$Feq                # total F for population
     F_eq_by_fleet <- is$F_by_fleet     # fleet-specific F values
 
@@ -260,6 +269,12 @@ evalMSE<-function(inputObject){
       is<-solveD(lh, sel = selHist[[1]], doFit = TRUE, D_type = TimeAreaObj@historicalBioType, D_in = Ddev[k])
       total_Feq <- is$Feq
       F_eq_by_fleet <- c(is$Feq)
+
+      # set NULL values for single fleet
+      final_effort_proportions <- NULL
+      target_catch_proportions <- NULL
+      actual_catch_proportions <- NULL
+      allocation_type <- NULL
     }
 
     #Burn-in to calibrate N by area, noting effect of movement (this is for area distribution)
@@ -835,7 +850,13 @@ evalMSE<-function(inputObject){
       discB_by_fleet = discB_by_fleet,
       discN_by_fleet = discN_by_fleet,
       fleet_proportions = fleet_proportions,
-      nfleets = nfleets
+      nfleets = nfleets,
+
+      # Adding new
+      final_effort_proportions = final_effort_proportions,
+      target_catch_proportions = target_catch_proportions,
+      actual_catch_proportions = actual_catch_proportions,
+      allocation_type = allocation_type
     )
 
 
