@@ -286,6 +286,14 @@ evalMSE<-function(inputObject){
             if(is_multifleet) {
               # Fleet 1 is the "main" fleet, equivalent to single fleet
               sel_removal <- selHist[[m]][[1]]$removal[[l]]
+
+              #debugging
+              # cat("DEBUG: m=", m, ", l=", l, ", length of sel_removal=", length(sel_removal), "\n")
+              # if(length(sel_removal) == 0) {
+              #   cat("ERROR: sel_removal has length 0!\n")
+              #   print(selHist[[m]][[1]])
+              # }
+
             } else {
               # Single fleet
               sel_removal <- selHist[[m]]$removal[[l]]
@@ -294,6 +302,28 @@ evalMSE<-function(inputObject){
             #S<-SurvMat(ageClasses = ageClasses, M_in=lh$LifeHistory@M, F_in=is$Feq, S_in=selHist[[m]]$removal[[l]] )
             #new addition:
             S<-SurvMat(ageClasses = ageClasses, M_in=lh$LifeHistory@M, F_in=is$Feq, S_in=sel_removal)
+
+            # #debugging:
+            # cat("About to call SurvMat: j=", j, ", k=", k, ", m=", m, ", l=", l, "\n")
+            # cat("F_in =", Ftotal[j,k,m], "\n")
+            # cat("selGroup structure for area", m, ":\n")
+            # if(is_multifleet) {
+            #   cat("Multifleet mode - checking selGroup[[", m, "]]$removal[[", l, "]]\n")
+            #   if(is.null(selGroup[[m]]$removal[[l]])) {
+            #     cat("ERROR: selGroup[[", m, "]]$removal[[", l, "]] is NULL!\n")
+            #   } else {
+            #     cat("Length:", length(selGroup[[m]]$removal[[l]]), "\n")
+            #   }
+            # } else {
+            #   cat("Single fleet mode - checking selGroup[[", m, "]]$removal[[", l, "]]\n")
+            #   if(is.null(selGroup[[m]]$removal[[l]])) {
+            #     cat("ERROR: selGroup[[", m, "]]$removal[[", l, "]] is NULL!\n")
+            #   } else {
+            #     cat("Length:", length(selGroup[[m]]$removal[[l]]), "\n")
+            #   }
+            # }
+
+
 
             #remain unchanged
             rows<-c((m-1)*dim(Ntmp[[l]])[1]+1,m*dim(Ntmp[[l]])[1])
@@ -357,6 +387,26 @@ evalMSE<-function(inputObject){
 
           # fleet-specific catches for year 1
           for(l in 1:lh$gtg){
+            #debugging:
+            cat("=== Year 1 Multifleet Debug ===\n")
+            cat("m=", m, ", f=", f, ", l=", l, "\n")
+            cat("F_eq_by_fleet:", F_eq_by_fleet, "\n")
+            cat("nfleets:", nfleets, "\n")
+
+            # Checking if selHist structure is OK
+            if(is.null(selHist[[m]])) {
+              cat("ERROR: selHist[[", m, "]] is NULL\n")
+            } else if(is.null(selHist[[m]][[1]])) {
+              cat("ERROR: selHist[[", m, "]][[1]] is NULL\n")
+            } else {
+              cat("selHist[[", m, "]][[1]]$removal[[", l, "]] length:", length(selHist[[m]][[1]]$removal[[l]]), "\n")
+            }
+
+
+
+
+
+
             #calculate total Z from all fleet contributions
             #Z = M + sum_across_fleets(F_fleet * selectivity_fleet)
             # NEVER combine selectivities - each fleet contributes independently
@@ -365,8 +415,19 @@ evalMSE<-function(inputObject){
                 F_eq_by_fleet[ff] * selHist[[m]][[ff]]$removal[[l]][age]
               }))
             })
+
+            #debugging:
+            cat("total_fishing_mortality range:", range(total_fishing_mortality, na.rm = TRUE), "\n")
+            if(any(is.na(total_fishing_mortality))) {
+              cat("WARNING: total_fishing_mortality contains NA values\n")
+            }
+
             #total mortality shared by all fleets: Z = M + total_fishing_mortality
             Z[[l]][,1,m] <- total_fishing_mortality + lh$LifeHistory@M
+
+            #debugging:
+            cat("Z range:", range(Z[[l]][,1,m], na.rm = TRUE), "\n")
+            cat("===============================\n")
 
             #fleet-specific catch (using using Baranov equation with shared Z)
             catchNage_by_fleet[[f]][[l]][,1,m] <- F_eq_by_fleet[f] * selHist[[m]][[f]]$keep[[l]] /
@@ -689,7 +750,19 @@ evalMSE<-function(inputObject){
           P<-matrix(nrow=ageClasses*areas, ncol=ageClasses*areas)
           for(m in 1:areas){
             # no changes needed: it uses total Ftotal[j,k,m] which is correct for both single and multifleet
-            S<-SurvMat(ageClasses = ageClasses, M_in=lh$LifeHistory@M, F_in=Ftotal[j,k,m], S_in=selGroup[[m]]$removal[[l]])
+            #S<-SurvMat(ageClasses = ageClasses, M_in=lh$LifeHistory@M, F_in=Ftotal[j,k,m], S_in=selGroup[[m]]$removal[[l]])
+
+            # changes added - selectivity
+            if(is_multifleet) {
+              # use Fleet 1 (assuming this is the most representative fleet) selectivity for all areas in movement calculations
+              # I used this approach before too
+              S<-SurvMat(ageClasses = ageClasses, M_in=lh$LifeHistory@M, F_in=Ftotal[j,k,m], S_in=selGroup[[m]][[1]]$removal[[l]])
+            } else {
+              # single fleet as original code
+              S<-SurvMat(ageClasses = ageClasses, M_in=lh$LifeHistory@M, F_in=Ftotal[j,k,m], S_in=selGroup[[m]]$removal[[l]])
+            }
+
+
             rows<-c((m-1)*dim(N[[l]])[1]+1,m*dim(N[[l]])[1])
             cols<-c(1,(dim(N[[l]])[1]*areas))
             P[rows[1]:rows[2],cols[1]:cols[2]]<- MoveMat(Surv_in=S, Move_in=TimeAreaObj@move, area_in=m)
