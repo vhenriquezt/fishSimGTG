@@ -4,7 +4,7 @@
 # ============================================================================
 # initial testings
 rm(list=ls())
-#options(error = traceback)
+options(error = traceback)
 #devtools::install()
 devtools::load_all()
 # #devtools::document()
@@ -219,6 +219,91 @@ single_result$HCR$decisionData
 single_result$dynamics$Ftotal
 
 
+#---------------------------------------------------------------------#
+#   Testing multifleet
+simpleMP_multi <- function(phase, dataObject) {
+  # Unpack dataObject
+  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+
+  if(phase==1){
+    # Phase 1: No observations needed for this simple MP
+    return(list())
+  }
+
+  if(phase==2){
+    # Phase 2: No complex analysis needed for this simple MP
+    return(list())
+  }
+
+  if(phase==3){
+    # Phase 3: Return constant F for all areas
+    # Use a simple constant F = 0.15 for projection years
+
+    year = rep(j, areas)
+    iteration = rep(k, areas)
+    area = 1:areas
+    fleet = rep(0, areas)  # new add fleet column (0 = total F)
+    Flocal = rep(0.15, areas)  # Constant F = 0.15
+
+    # new return with fleet column for multifleet compatibility
+    return(list(year=year, iteration=iteration, area=area, fleet=fleet, Flocal=Flocal))
+  }
+}
+
+
+#simple strategy
+strategy_obj <- new("Strategy")
+strategy_obj@title <- "Simple Fixed F Strategy multif"
+strategy_obj@projectionYears <- 5
+strategy_obj@projectionName <- "simpleMP_multi"  # use the management procedure for projections
+strategy_obj@projectionParams <- list()
+
+
+
+
+#Testing simple multifleet
+#------------------------------------------------------#
+fishery_simple <- new("Fishery")
+fishery_simple@vulType <- "logistic"
+fishery_simple@vulParams <- c(10.2, 2)  # Same as hist_fishery
+fishery_simple@retType <- "full"
+fishery_simple@retMax <- 1
+fishery_simple@Dmort <- 0
+
+multifleet_simple <- new("Multifleet")
+multifleet_simple@nfleets <- 2
+multifleet_simple@fleet_proportions <- c(0.6, 0.4)
+multifleet_simple@allocation_type <- "effort"  #  "effort" instead of "catch"
+multifleet_simple@fleet_selectivity_list <- list(fishery_simple, fishery_simple)
+
+multifleet_result <- runProjection(
+  LifeHistoryObj = lh_obj,
+  TimeAreaObj = ta,
+  HistFisheryObj = hist_fishery,
+  ProFisheryObj_list = proj_fishery_list,
+  StrategyObj = strategy_obj,
+  StochasticObj = stochastic_obj,
+  MultifleetObj = multifleet_simple,  # Use simpler setup
+  wd = wd,
+  fileName = "multifleet_simple_test",
+  seed = 123,
+  doPlot = FALSE,
+  doDiagnostic = FALSE
+)
+
+
+multi_result<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "multifleet_simple_test")
+multi_result$dynamics$SB
+multi_result$dynamics$VB
+multi_result$dynamics$Ftotal
+multi_result$dynamics$multifleet$Ftotal_by_fleet
+multi_result$dynamics$multifleet$catchB_by_fleet
+multi_result$dynamics$multifleet$fleet_proportions
+multi_result$dynamics$multifleet$nfleets
+
+#------------------------------------------------------#
+
+
 #testing multifleet
 multifleet_result <- runProjection(
   LifeHistoryObj = lh_obj,
@@ -278,7 +363,17 @@ eq_multifleet <- solveD_multifleet2(
   allocation_type = multifleet_obj@allocation_type
 )
 
-stop()
+#stop()
+
+
+
+
+
+
+
+
+
+
 #
 # #selectivity list
 # hist_sel_list <- lapply(1:MultifleetObj@nfleets, function(f) {
