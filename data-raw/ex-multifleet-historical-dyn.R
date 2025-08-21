@@ -4,7 +4,7 @@
 # ============================================================================
 # initial testings
 rm(list=ls())
-options(error = traceback)
+#options(error = traceback)
 #devtools::install()
 devtools::load_all()
 # #devtools::document()
@@ -67,7 +67,7 @@ dim(ta@historicalEffort)
 hist_fishery <- new("Fishery")
 hist_fishery@title<-"Test"
 hist_fishery@vulType<-"logistic"
-hist_fishery@vulParams<-c(10.2,2)
+hist_fishery@vulParams<-c(9.0, 1.5)
 hist_fishery@retType<-"full"
 hist_fishery@retMax <- 1
 hist_fishery@Dmort <- 0
@@ -90,7 +90,7 @@ proj_fishery_area2@retParams <- c(10.2, 0.1)
 proj_fishery_area2@retMax <- 1
 proj_fishery_area2@Dmort <- 0
 
-proj_fishery_list <- list(proj_fishery_area1, proj_fishery_area2)  # FIXED: Create the list
+proj_fishery_list <- list(proj_fishery_area1, proj_fishery_area2)  # create the list
 
 
 #stochastic object set up
@@ -101,26 +101,6 @@ stochastic_obj@Steep= c(0.45, 0.75)
 
 lh <- LHwrapper(LifeHistoryObj = lh_obj, TimeAreaObj = ta)
 
-# Create multifleet object
-fishery1 <- new("Fishery")
-fishery1@vulType <- "logistic"
-fishery1@vulParams <- c(9.0, 1.5)
-fishery1@retType <- "full"
-fishery1@retMax <- 1
-fishery1@Dmort <- 0
-
-fishery2 <- new("Fishery")
-fishery2@vulType <- "logistic"
-fishery2@vulParams <- c(11.0, 2.0)
-fishery2@retType <- "full"
-fishery2@retMax <- 1
-fishery2@Dmort <- 0
-
-multifleet_obj <- new("Multifleet")
-multifleet_obj@nfleets <- 2
-multifleet_obj@fleet_proportions <- c(0.6, 0.4)
-multifleet_obj@allocation_type <- "catch"
-multifleet_obj@fleet_selectivity_list <- list(fishery1, fishery2)
 
 
 
@@ -220,8 +200,26 @@ single_result$dynamics$Ftotal
 
 
 #---------------------------------------------------------------------#
+
 #   Testing multifleet
-simpleMP_multi <- function(phase, dataObject) {
+
+#Testing simple multifleet example
+#------------------------------------------------------#
+fishery_simple <- new("Fishery")
+fishery_simple@vulType <- "logistic"
+fishery_simple@vulParams <- c(10.2, 2)  # Same as hist_fishery
+fishery_simple@retType <- "full"
+fishery_simple@retMax <- 1
+fishery_simple@Dmort <- 0
+
+multifleet_simple <- new("Multifleet")
+multifleet_simple@nfleets <- 2
+multifleet_simple@fleet_proportions <- c(0.6, 0.4)
+multifleet_simple@allocation_type <- "catch"  #  "effort" instead of "catch"
+multifleet_simple@fleet_selectivity_list <- list(fishery_simple, fishery_simple)
+
+
+simpleMP_multi1 <- function(phase, dataObject) {
   # Unpack dataObject
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
@@ -253,28 +251,11 @@ simpleMP_multi <- function(phase, dataObject) {
 
 #simple strategy
 strategy_obj <- new("Strategy")
-strategy_obj@title <- "Simple Fixed F Strategy multif"
+strategy_obj@title <- "Simple Fixed F Strategy multif1"
 strategy_obj@projectionYears <- 5
-strategy_obj@projectionName <- "simpleMP_multi"  # use the management procedure for projections
+strategy_obj@projectionName <- "simpleMP_multi1"  # use the management procedure for projections
 strategy_obj@projectionParams <- list()
 
-
-
-
-#Testing simple multifleet
-#------------------------------------------------------#
-fishery_simple <- new("Fishery")
-fishery_simple@vulType <- "logistic"
-fishery_simple@vulParams <- c(10.2, 2)  # Same as hist_fishery
-fishery_simple@retType <- "full"
-fishery_simple@retMax <- 1
-fishery_simple@Dmort <- 0
-
-multifleet_simple <- new("Multifleet")
-multifleet_simple@nfleets <- 2
-multifleet_simple@fleet_proportions <- c(0.6, 0.4)
-multifleet_simple@allocation_type <- "catch"  #  "effort" instead of "catch"
-multifleet_simple@fleet_selectivity_list <- list(fishery_simple, fishery_simple)
 
 multifleet_result <- runProjection(
   LifeHistoryObj = lh_obj,
@@ -285,14 +266,13 @@ multifleet_result <- runProjection(
   StochasticObj = stochastic_obj,
   MultifleetObj = multifleet_simple,  # Use simpler setup
   wd = wd,
-  fileName = "multifleet_simple_test",
+  fileName = "multifleet_simple_test1",
   seed = 123,
   doPlot = FALSE,
   doDiagnostic = FALSE
 )
 
-
-multi_result<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "multifleet_simple_test")
+multi_result<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "multifleet_simple_test1")
 multi_result$dynamics$SB
 multi_result$dynamics$VB
 multi_result$dynamics$Ftotal
@@ -308,6 +288,67 @@ multi_result$dynamics$multifleet$allocation_type
 
 
 #testing multifleet (more complex example)
+
+# Create multifleet object
+fishery1 <- new("Fishery")
+fishery1@vulType <- "logistic"
+fishery1@vulParams <- c(9.0, 1.5)
+fishery1@retType <- "full"
+fishery1@retMax <- 1
+fishery1@Dmort <- 0
+
+fishery2 <- new("Fishery")
+fishery2@vulType <- "logistic"
+fishery2@vulParams <- c(11.0, 2.0)
+fishery2@retType <- "full"
+fishery2@retMax <- 1
+fishery2@Dmort <- 0
+
+multifleet_obj <- new("Multifleet")
+multifleet_obj@nfleets <- 2
+multifleet_obj@fleet_proportions <- c(0.6, 0.4)
+multifleet_obj@allocation_type <- "catch"
+multifleet_obj@fleet_selectivity_list <- list(fishery1, fishery2)
+
+
+simpleMP_multi2 <- function(phase, dataObject) {
+  # Unpack dataObject
+  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+
+  if(phase==1){
+    # Phase 1: No observations needed for this simple MP
+    return(list())
+  }
+
+  if(phase==2){
+    # Phase 2: No complex analysis needed for this simple MP
+    return(list())
+  }
+
+  if(phase==3){
+    # Phase 3: Return constant F for all areas
+    # Use a simple constant F = 0.15 for projection years
+
+    year = rep(j, areas)
+    iteration = rep(k, areas)
+    area = 1:areas
+    fleet = rep(0, areas)  # new add fleet column (0 = total F)
+    Flocal = rep(0.15, areas)  # Constant F = 0.15
+
+    # new return with fleet column for multifleet compatibility
+    return(list(year=year, iteration=iteration, area=area, fleet=fleet, Flocal=Flocal))
+  }
+}
+
+
+#simple strategy
+strategy_obj <- new("Strategy")
+strategy_obj@title <- "Simple Fixed F Strategy multif2"
+strategy_obj@projectionYears <- 5
+strategy_obj@projectionName <- "simpleMP_multi2"  # use the management procedure for projections
+strategy_obj@projectionParams <- list()
+
+
 multifleet_result2 <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
@@ -326,6 +367,8 @@ multifleet_result2 <- runProjection(
 
 multi_result2<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "multifleet_simple_test2")
 multi_result2$dynamics$multifleet$fleet_proportions
+multi_result2$dynamics$multifleet$Ftotal_by_fleet
+
 
 
 # # ============================================================================
