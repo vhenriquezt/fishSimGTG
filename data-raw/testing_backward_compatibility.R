@@ -379,19 +379,20 @@ extract_complete_timeseries <- function(result, test_name) {
                 nfleets, mf$allocation_type))
 
     for(area in 1:areas) {
+      # get total values for this area (averaged across iterations)
+      total_catchB_ts <- rowMeans(result$dynamics$catchB[, , area])
+      total_F_ts <- rowMeans(result$dynamics$Ftotal[, , area])
+
       for(fleet in 1:nfleets) {
 
-        # calculate fleet proportions for this year/area
-        total_fleet_catchB <- rowMeans(mf$catchB_by_fleet[, , area, ])
-        total_fleet_F <- rowMeans(mf$Ftotal_by_fleet[, , area, ])
+        # get fleet-specific values (averaged across iterations)
+        fleet_catchB_ts <- rowMeans(mf$catchB_by_fleet[, , area, fleet])
+        fleet_F_ts <- rowMeans(mf$Ftotal_by_fleet[, , area, fleet])
 
-        # avoid division by zero
-        fleet_catchB_prop <- ifelse(total_fleet_catchB > 0,
-                                    rowMeans(mf$catchB_by_fleet[, , area, fleet]) / total_fleet_catchB,
-                                    0)
-        fleet_F_prop <- ifelse(total_fleet_F > 0,
-                               rowMeans(mf$Ftotal_by_fleet[, , area, fleet]) / total_fleet_F,
-                               0)
+
+        # CORRECT proportion calculation
+        fleet_catchB_prop <- ifelse(total_catchB_ts > 0, fleet_catchB_ts / total_catchB_ts, 0)
+        fleet_F_prop <- ifelse(total_F_ts > 0, fleet_F_ts / total_F_ts, 0)
 
         area_fleet_data <- data.frame(
           test = test_name,
@@ -412,7 +413,7 @@ extract_complete_timeseries <- function(result, test_name) {
           total_catchN = rowMeans(result$dynamics$catchN[, , area]),
           total_discB = rowMeans(result$dynamics$discB[, , area]),
           total_discN = rowMeans(result$dynamics$discN[, , area]),
-          total_F = rowMeans(result$dynamics$Ftotal[, , area]),
+          total_F = total_F_ts,
 
           # fleet-specific metrics (averaged across iterations)
           fleet_catchB = rowMeans(mf$catchB_by_fleet[, , area, fleet]),
@@ -558,23 +559,20 @@ for(test_name in names(scenarios)) {
 # EXPORT TO CSV FILES
 # ============================================================================
 
-cat("\nEXPORTING TO CSV FILES:\n")
-cat("======================\n")
+
+#fix the calculation of proportions, I did that manually in excel
 
 # Export complete time series
 write.csv(all_complete_data, "multifleet_validation_complete_timeseries.csv", row.names = FALSE)
 cat("Exported: multifleet_validation_complete_timeseries.csv\n")
-cat(sprintf("  %d rows × %d columns\n", nrow(all_complete_data), ncol(all_complete_data)))
 
 # Export period summary
 write.csv(period_summary, "multifleet_validation_period_summary.csv", row.names = FALSE)
 cat("Exported: multifleet_validation_period_summary.csv\n")
-cat(sprintf("  %d rows × %d columns\n", nrow(period_summary), ncol(period_summary)))
 
 # Export allocation summary
 write.csv(allocation_summary, "multifleet_validation_allocation_summary.csv", row.names = FALSE)
 cat("Exported: multifleet_validation_allocation_summary.csv\n")
-cat(sprintf("  %d rows × %d columns\n", nrow(allocation_summary), ncol(allocation_summary)))
 
 
 
