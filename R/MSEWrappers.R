@@ -25,7 +25,7 @@ evalMSE<-function(inputObject){
 
   #new addition: detect multifleet mode (maintain backward compatibility)
   #the code has now two paths: single and multifleet
-  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
 
   if(is_multifleet) {
     nfleets <- MultifleetObj@nfleets
@@ -403,19 +403,19 @@ evalMSE<-function(inputObject){
           # fleet-specific catches for year 1
           for(l in 1:lh$gtg){
             #debugging:
-            cat("=== Year 1 Multifleet Debug ===\n")
-            cat("m=", m, ", f=", f, ", l=", l, "\n")
-            cat("F_eq_by_fleet:", F_eq_by_fleet, "\n")
-            cat("nfleets:", nfleets, "\n")
-
-            # Checking if selHist structure is OK
-            if(is.null(selHist[[m]])) {
-              cat("ERROR: selHist[[", m, "]] is NULL\n")
-            } else if(is.null(selHist[[m]][[1]])) {
-              cat("ERROR: selHist[[", m, "]][[1]] is NULL\n")
-            } else {
-              cat("selHist[[", m, "]][[1]]$removal[[", l, "]] length:", length(selHist[[m]][[1]]$removal[[l]]), "\n")
-            }
+            # cat("=== Year 1 Multifleet Debug ===\n")
+            # cat("m=", m, ", f=", f, ", l=", l, "\n")
+            # cat("F_eq_by_fleet:", F_eq_by_fleet, "\n")
+            # cat("nfleets:", nfleets, "\n")
+            #
+            # # Checking if selHist structure is OK
+            # if(is.null(selHist[[m]])) {
+            #   cat("ERROR: selHist[[", m, "]] is NULL\n")
+            # } else if(is.null(selHist[[m]][[1]])) {
+            #   cat("ERROR: selHist[[", m, "]][[1]] is NULL\n")
+            # } else {
+            #   cat("selHist[[", m, "]][[1]]$removal[[", l, "]] length:", length(selHist[[m]][[1]]$removal[[l]]), "\n")
+            # }
 
 
 
@@ -432,17 +432,17 @@ evalMSE<-function(inputObject){
             })
 
             #debugging:
-            cat("total_fishing_mortality range:", range(total_fishing_mortality, na.rm = TRUE), "\n")
-            if(any(is.na(total_fishing_mortality))) {
-              cat("WARNING: total_fishing_mortality contains NA values\n")
-            }
+            # cat("total_fishing_mortality range:", range(total_fishing_mortality, na.rm = TRUE), "\n")
+            # if(any(is.na(total_fishing_mortality))) {
+            #   cat("WARNING: total_fishing_mortality contains NA values\n")
+            # }
 
             #total mortality shared by all fleets: Z = M + total_fishing_mortality
             Z[[l]][,1,m] <- total_fishing_mortality + lh$LifeHistory@M
 
             #debugging:
-            cat("Z range:", range(Z[[l]][,1,m], na.rm = TRUE), "\n")
-            cat("===============================\n")
+            # cat("Z range:", range(Z[[l]][,1,m], na.rm = TRUE), "\n")
+            # cat("===============================\n")
 
             #fleet-specific catch (using using Baranov equation with shared Z)
             catchNage_by_fleet[[f]][[l]][,1,m] <- F_eq_by_fleet[f] * selHist[[m]][[f]]$keep[[l]] /
@@ -918,7 +918,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   TimeAreaObj@recArea <- TimeAreaObj@recArea / sum(TimeAreaObj@recArea) #Make sure this sums to 1
 
   #new addition: adding basic multifleet detection and validation
-  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
 
   if(is_multifleet) {
     nfleets <- MultifleetObj@nfleets

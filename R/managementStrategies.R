@@ -20,7 +20,7 @@ fixedStrategy<-function(phase, dataObject){
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
   #new addition: detecting multifleet mode
-  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
 
   if(is_multifleet) {
     nfleets <- MultifleetObj@nfleets
@@ -105,7 +105,7 @@ fixedStrategy<-function(phase, dataObject){
 
       for (m in 1:areas) {
 
-        cat("Processing area m =", m, "\n")
+        #cat("Processing area m =", m, "\n")
 
         #total F for this area (will be distributed among fleets)- this approach for now, for testing
         total_F_area <- 0
