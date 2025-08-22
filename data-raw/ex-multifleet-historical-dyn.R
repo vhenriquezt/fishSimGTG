@@ -98,11 +98,30 @@ stochastic_obj <- new("Stochastic")
 stochastic_obj@historicalBio = c(0.3, 0.6)
 stochastic_obj@Steep= c(0.45, 0.75)
 
+#multifleet object
+# Create multifleet object
+fishery1 <- new("Fishery")
+fishery1@vulType <- "logistic"
+fishery1@vulParams <- c(9.0, 1.5)
+fishery1@retType <- "full"
+fishery1@retMax <- 1
+fishery1@Dmort <- 0
 
-lh <- LHwrapper(LifeHistoryObj = lh_obj, TimeAreaObj = ta)
+fishery2 <- new("Fishery")
+fishery2@vulType <- "logistic"
+fishery2@vulParams <- c(11.0, 2.0)
+fishery2@retType <- "full"
+fishery2@retMax <- 1
+fishery2@Dmort <- 0
+
+multifleet_obj <- new("Multifleet")
+multifleet_obj@nfleets <- 2
+multifleet_obj@fleet_proportions <- c(0.6, 0.4)
+multifleet_obj@allocation_type <- "catch"
+multifleet_obj@fleet_selectivity_list <- list(fishery1, fishery2)
 
 
-
+# lh <- LHwrapper(LifeHistoryObj = lh_obj, TimeAreaObj = ta)
 
 #adding a simple strategy (based on the template)
 simpleMP <- function(phase, dataObject) {
@@ -140,12 +159,10 @@ strategy_obj@projectionYears <- 5
 strategy_obj@projectionName <- "simpleMP"  # use the management procedure for projections
 strategy_obj@projectionParams <- list()
 
-
+#test basic functionality
 lh <- LHwrapper(LifeHistoryObj = lh_obj, TimeAreaObj = ta)
 cat("Testing basic functionality...\n")
 
-
-#test basic functionality
 sel_test <- selWrapper(lh, ta, hist_fishery, doPlot = FALSE)
 
 #test equilibrium
@@ -174,6 +191,10 @@ cat(sprintf("  - Achieved depletion: %.4f\n", eq_multifleet$D))
 wd <- getwd()
 cat("Working directory:", wd, "\n")
 
+#------------------------------#
+# single fleet example         #
+#------------------------------#
+
 #testing single fleet
 single_result <- runProjection(
   LifeHistoryObj = lh_obj,
@@ -199,15 +220,13 @@ single_result$HCR$decisionData
 single_result$dynamics$Ftotal
 
 
-#---------------------------------------------------------------------#
+#------------------------------#
+# multifleet simple example         #
+#------------------------------#
 
-#   Testing multifleet
-
-#Testing simple multifleet example
-#------------------------------------------------------#
 fishery_simple <- new("Fishery")
 fishery_simple@vulType <- "logistic"
-fishery_simple@vulParams <- c(10.2, 2)  # Same as hist_fishery
+fishery_simple@vulParams <- c(9, 1.5)  # Same as hist_fishery
 fishery_simple@retType <- "full"
 fishery_simple@retMax <- 1
 fishery_simple@Dmort <- 0
@@ -286,30 +305,9 @@ multi_result$dynamics$multifleet$actual_catch_proportions
 multi_result$dynamics$multifleet$allocation_type
 #------------------------------------------------------#
 
-
-#testing multifleet (more complex example)
-
-# Create multifleet object
-fishery1 <- new("Fishery")
-fishery1@vulType <- "logistic"
-fishery1@vulParams <- c(9.0, 1.5)
-fishery1@retType <- "full"
-fishery1@retMax <- 1
-fishery1@Dmort <- 0
-
-fishery2 <- new("Fishery")
-fishery2@vulType <- "logistic"
-fishery2@vulParams <- c(11.0, 2.0)
-fishery2@retType <- "full"
-fishery2@retMax <- 1
-fishery2@Dmort <- 0
-
-multifleet_obj <- new("Multifleet")
-multifleet_obj@nfleets <- 2
-multifleet_obj@fleet_proportions <- c(0.6, 0.4)
-multifleet_obj@allocation_type <- "catch"
-multifleet_obj@fleet_selectivity_list <- list(fishery1, fishery2)
-
+#---------------------------------#
+# multifleet more complex example #
+#---------------------------------#
 
 simpleMP_multi2 <- function(phase, dataObject) {
   # Unpack dataObject
@@ -370,34 +368,103 @@ multi_result2$dynamics$multifleet$fleet_proportions
 multi_result2$dynamics$multifleet$Ftotal_by_fleet
 
 
+#--------------------------- #
+# multifleet as single fleet #
+#----------------------------#
+
+fishery_simple <- new("Fishery")
+fishery_simple@vulType <- "logistic"
+fishery_simple@vulParams <- c(9, 1.5)  # Same as hist_fishery
+fishery_simple@retType <- "full"
+fishery_simple@retMax <- 1
+fishery_simple@Dmort <- 0
+
+multifleet_simple <- new("Multifleet")
+multifleet_simple@nfleets <- 1
+multifleet_simple@fleet_proportions <- c(0.6, 0.4)
+multifleet_simple@allocation_type <- "catch"  #  "effort" instead of "catch"
+multifleet_simple@fleet_selectivity_list <- list(fishery_simple)
+
+
+
+
+simpleMP_multi3 <- function(phase, dataObject) {
+  # Unpack dataObject
+  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+
+  if(phase==1){
+    # Phase 1: No observations needed for this simple MP
+    return(list())
+  }
+
+  if(phase==2){
+    # Phase 2: No complex analysis needed for this simple MP
+    return(list())
+  }
+
+  if(phase==3){
+    # Phase 3: Return constant F for all areas
+    # Use a simple constant F = 0.15 for projection years
+
+    year = rep(j, areas)
+    iteration = rep(k, areas)
+    area = 1:areas
+    fleet = rep(0, areas)  # new add fleet column (0 = total F)
+    Flocal = rep(0.15, areas)  # Constant F = 0.15
+
+    # new return with fleet column for multifleet compatibility
+    return(list(year=year, iteration=iteration, area=area, fleet=fleet, Flocal=Flocal))
+  }
+}
+
+
+#simple strategy
+strategy_obj <- new("Strategy")
+strategy_obj@title <- "Simple Fixed F Strategy multif3"
+strategy_obj@projectionYears <- 5
+strategy_obj@projectionName <- "simpleMP_multi3"  # use the management procedure for projections
+strategy_obj@projectionParams <- list()
+
+
+multifleet_result3 <- runProjection(
+  LifeHistoryObj = lh_obj,
+  TimeAreaObj = ta,
+  HistFisheryObj = hist_fishery,
+  ProFisheryObj_list = proj_fishery_list,
+  StrategyObj = strategy_obj,
+  StochasticObj = stochastic_obj,
+  MultifleetObj = multifleet_obj,  # this enables multifleet mode
+  #customToCluster = "simpleMP",    # for multi core
+  wd = wd,
+  fileName = "multifleet_simple_test3",
+  seed = 123,
+  doPlot = FALSE,
+  doDiagnostic = FALSE
+)
+
+multi_result3<-readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "multifleet_simple_test3")
+multi_result3$dynamics$multifleet$fleet_proportions
+multi_result3$dynamics$multifleet$Ftotal_by_fleet
+
 
 # # ============================================================================
 # # TEST BACKWARD COMPATIBILITY
 # # ============================================================================
-#
-# # Test that multifleet with 1 fleet gives same results as single fleet
-# single_fleet_multi <- new("Multifleet")
-# single_fleet_multi@nfleets <- 1
-# single_fleet_multi@fleet_proportions <- c(1.0)
-# single_fleet_multi@allocation_type <- "effort"
-# single_fleet_multi@fleet_selectivity_list <- list(hist_fishery)
-#
-#
-#   compat_result <- runProjection(
-#     LifeHistoryObj = lh_obj,
-#     TimeAreaObj = ta_obj,
-#     HistFisheryObj = hist_fishery,
-#     ProFisheryObj_list = proj_fishery_list,
-#     StrategyObj = strategy_obj,
-#     StochasticObj = stochastic_obj,
-#     MultifleetObj = single_fleet_multi,  # Single fleet via multifleet
-#     wd = wd,
-#     fileName = "compatibility_test",
-#     seed = 123,
-#     doPlot = FALSE,
-#     doDiagnostic = FALSE
-#   )
-#
-#   compat_final_ssb <- compat_result$dynamics$SB[nrow(compat_result$dynamics$SB), 1, 1]
-#
-#
+
+single_result$dynamics$SB
+multi_result$dynamics$SB
+multi_result2$dynamics$SB
+multi_result3$dynamics$SB
+
+single_result$dynamics$Ftotal
+multi_result$dynamics$Ftotal
+multi_result2$dynamics$Ftotal
+multi_result3$dynamics$Ftotal
+
+multi_result$dynamics$multifleet$Ftotal_by_fleet
+multi_result2$dynamics$multifleet$Ftotal_by_fleet
+multi_result3$dynamics$multifleet$Ftotal_by_fleet
+
+multi_result$dynamics$multifleet$final_effort_proportions
+multi_result2$dynamics$multifleet$final_effort_proportions
+multi_result3$dynamics$multifleet$final_effort_proportions
