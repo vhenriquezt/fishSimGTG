@@ -373,7 +373,8 @@ setClass("LCompObs",
 #' @param nfleets Number of fleets
 #' @param fleet_proportions Numeric vector of fleet proportions (must sum to 1)
 #' @param allocation_type Either "effort" or "catch" for equilibrium allocation
-#' @param fleet_selectivity_list List of Fishery objects (length = nfleets)
+#' @param fleet_selectivity_hist_list List of Fishery objects (length = nfleets)
+#' @param fleet_selectivity_proj_list List of Fishery objects (length = nfleets)
 #' @importFrom methods new
 
 setClass("Multifleet",
