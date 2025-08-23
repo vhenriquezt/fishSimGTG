@@ -51,7 +51,7 @@ ta@historicalEffort <- matrix(c(1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6
                                 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6),
                               nrow = 10, ncol = 2, byrow = FALSE)
 
-# Historical fishery - IDENTICAL for all tests
+# Historical fishery (for the single fleet appraoch)
 hist_fishery <- new("Fishery")
 hist_fishery@title<-"Historical Fishery"
 hist_fishery@vulType<-"logistic"
@@ -60,7 +60,7 @@ hist_fishery@retType<-"full"
 hist_fishery@retMax <- 1
 hist_fishery@Dmort <- 0
 
-# Projection fisheries - IDENTICAL for all tests
+# Projection fisheries (for the single fleet approach)
 proj_fishery_area1 <- new("Fishery")
 proj_fishery_area1@title<-"Proj Area 1"
 proj_fishery_area1@vulType<-"logistic"
@@ -161,31 +161,53 @@ cat("Single fleet simulation completed\n")
 # TEST SCENARIO 2: MULTIFLEET WITH 2 FLEETS (IDENTICAL SELECTIVITY)
 # ============================================================================
 
-cat("=========================================\n")
-cat("RUNNING TEST 2: MULTIFLEET (2 IDENTICAL)\n")
-cat("=========================================\n")
+cat("============================================\n")
+cat("RUNNING TEST 2: MULTIFLEET (2 IDENTICAL SEL)\n")
+cat("============================================\n")
 
 
-#Create IDENTICAL fleets for comparison
-fleet1_identical <- new("Fishery")
-fleet1_identical@vulType <- "logistic"
-fleet1_identical@vulParams <- c(9.0, 1.5)  # SAME as hist_fishery
-fleet1_identical@retType <- "full"
-fleet1_identical@retMax <- 1
-fleet1_identical@Dmort <- 0
+# Historical fleet selectivities
 
-fleet2_identical <- new("Fishery")
-fleet2_identical@vulType <- "logistic"
-fleet2_identical@vulParams <- c(9.0, 1.5)  # SAME as hist_fishery
-fleet2_identical@retType <- "full"
-fleet2_identical@retMax <- 1
-fleet2_identical@Dmort <- 0
+fleet1_hist  <- new("Fishery")
+fleet1_hist @vulType <- "logistic"
+fleet1_hist @vulParams <- c(10.2, 0.1)
+fleet1_hist @retType <- "full"
+fleet1_hist @retMax <- 1
+fleet1_hist @Dmort <- 0
+
+fleet2_hist  <- new("Fishery")
+fleet2_hist @vulType <- "logistic"
+fleet2_hist @vulParams <- c(10.2, 0.1)
+fleet2_hist @retType <- "full"
+fleet2_hist @retMax <- 1
+fleet2_hist @Dmort <- 0
+
+
+# Projection fleet selectivities
+fleet1_proj <- new("Fishery")
+fleet1_proj@vulType <- "logistic"
+fleet1_proj@vulParams <- c(10.2, 0.1)
+fleet1_proj@retType <- "full"
+fleet1_proj@retMax <- 1
+fleet1_proj@Dmort <- 0
+
+fleet2_proj <- new("Fishery")
+fleet2_proj@vulType <- "logistic"
+fleet2_proj@vulParams <- c(10.2, 0.1)
+fleet2_proj@retType <- "full"
+fleet2_proj@retMax <- 1
+fleet2_proj@Dmort <- 0
+
+
+#multifleet object
 
 multifleet_identical <- new("Multifleet")
 multifleet_identical@nfleets <- 2
 multifleet_identical@fleet_proportions <- c(0.6, 0.4)
 multifleet_identical@allocation_type <- "catch"  # Use effort allocation for comparison
-multifleet_identical@fleet_selectivity_list <- list(fleet1_identical, fleet2_identical)
+multifleet_identical@fleet_selectivity_hist_list  <- list(fleet1_hist, fleet2_hist)
+multifleet_identical@fleet_selectivity_proj_list  <- list(fleet1_proj, fleet2_proj)
+
 
 strategy_multi2 <- new("Strategy")
 strategy_multi2@title <- "Multifleet 2 Identical Validation"
@@ -218,18 +240,30 @@ cat("======================================\n")
 cat("RUNNING TEST 3: MULTIFLEET (1 FLEET)\n")
 cat("======================================\n")
 
-fleet1_single <- new("Fishery")
-fleet1_single@vulType <- "logistic"
-fleet1_single@vulParams <- c(9.0, 1.5)  # SAME as hist_fishery
-fleet1_single@retType <- "full"
-fleet1_single@retMax <- 1
-fleet1_single@Dmort <- 0
+fleet1_single_hist <- new("Fishery")
+fleet1_single_hist@vulType <- "logistic"
+fleet1_single_hist@vulParams <- c(10.2, 0.1)
+fleet1_single_hist@retType <- "full"
+fleet1_single_hist@retMax <- 1
+fleet1_single_hist@Dmort <- 0
+
+fleet1_single_proj <- new("Fishery")
+fleet1_single_proj@vulType <- "logistic"
+fleet1_single_proj@vulParams <- c(10.2, 0.1)
+fleet1_single_proj@retType <- "full"
+fleet1_single_proj@retMax <- 1
+fleet1_single_proj@Dmort <- 0
+
+
 
 multifleet_single <- new("Multifleet")
 multifleet_single@nfleets <- 1
 multifleet_single@fleet_proportions <- c(1.0)  # 100% to single fleet
 multifleet_single@allocation_type <- "catch"
-multifleet_single@fleet_selectivity_list <- list(fleet1_single)
+multifleet_single@fleet_selectivity_hist_list  <- list(fleet1_single_hist)
+multifleet_single@fleet_selectivity_proj_list  <- list(fleet1_single_proj)
+
+
 
 strategy_multi1 <- new("Strategy")
 strategy_multi1@title <- "Multifleet 1 Fleet Validation"
@@ -260,30 +294,50 @@ cat("Multifleet (1 fleet) simulation completed\n")
 # TEST SCENARIO 4: MULTIFLEET WITH DIFFERENT SELECTIVITIES
 # ============================================================================
 
-
 cat("============================================\n")
 cat("RUNNING TEST 4: MULTIFLEET (DIFFERENT SELECT)\n")
 cat("============================================\n")
 
-fleet1_diff <- new("Fishery")
-fleet1_diff@vulType <- "logistic"
-fleet1_diff@vulParams <- c(8.0, 1.2)
-fleet1_diff@retType <- "full"
-fleet1_diff@retMax <- 1
-fleet1_diff@Dmort <- 0
+fleet1_diff_hist <- new("Fishery")
+fleet1_diff_hist@vulType <- "logistic"
+fleet1_diff_hist@vulParams <- c(8.0, 1.2)
+fleet1_diff_hist@retType <- "full"
+fleet1_diff_hist@retMax <- 1
+fleet1_diff_hist@Dmort <- 0
 
-fleet2_diff <- new("Fishery")
-fleet2_diff@vulType <- "logistic"
-fleet2_diff@vulParams <- c(11.0, 2.0)
-fleet2_diff@retType <- "full"
-fleet2_diff@retMax <- 1
-fleet2_diff@Dmort <- 0
+fleet2_diff_hist <- new("Fishery")
+fleet2_diff_hist@vulType <- "logistic"
+fleet2_diff_hist@vulParams <- c(11.0, 2.0)
+fleet2_diff_hist@retType <- "full"
+fleet2_diff_hist@retMax <- 1
+fleet2_diff_hist@Dmort <- 0
+
+fleet1_diff_proj <- new("Fishery")
+fleet1_diff_proj@vulType <- "logistic"
+fleet1_diff_proj@vulParams <- c(9.0, 1.2)
+fleet1_diff_proj@retType <- "full"
+fleet1_diff_proj@retMax <- 1
+fleet1_diff_proj@Dmort <- 0
+
+fleet2_diff_proj <- new("Fishery")
+fleet2_diff_proj@vulType <- "logistic"
+fleet2_diff_proj@vulParams <- c(12.0, 2.0)
+fleet2_diff_proj@retType <- "full"
+fleet2_diff_proj@retMax <- 1
+fleet2_diff_proj@Dmort <- 0
+
+
+
 
 multifleet_different <- new("Multifleet")
 multifleet_different@nfleets <- 2
 multifleet_different@fleet_proportions <- c(0.7, 0.3)
 multifleet_different@allocation_type <- "catch"  # Use catch allocation
-multifleet_different@fleet_selectivity_list <- list(fleet1_diff, fleet2_diff)
+multifleet_different@fleet_selectivity_hist_list  <- list(fleet1_diff_hist, fleet2_diff_hist)
+multifleet_different@fleet_selectivity_proj_list  <- list(fleet1_diff_proj, fleet2_diff_proj)
+
+
+
 
 strategy_multi_diff <- new("Strategy")
 strategy_multi_diff@title <- "Multifleet Different Selectivities"
