@@ -113,29 +113,60 @@ evalMSE<-function(inputObject){
     #change from selHist[[area]] to selHist[[area]][[fleet]] structure
     #each fleet has it own sel
     #Hist. sel: uses MultifleetObj@fleet_selectivity_list[[f]] for each fleet
-    if(is_multifleet) {
-      selHist<-lapply(1:TimeAreaObj@areas, function(area){
+    # if(is_multifleet) {
+    #   selHist<-lapply(1:TimeAreaObj@areas, function(area){
+    #     lapply(1:nfleets, function(f) {
+    #       selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
+    #     })
+    #   })
+
+      #changed:
+      selHist <- lapply(1:TimeAreaObj@areas, function(area){
         lapply(1:nfleets, function(f) {
-          selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
+          selWrapper(lh, TimeAreaObj,
+                     FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]],
+                     doPlot = FALSE)
         })
       })
+
+
 
 
       # modif: projection selectivity handling "THIS NEED TO BE IMPROVED"
 
-      # selPro[[area]][[fleet]] structure
-      selPro<-lapply(1:TimeAreaObj@areas, function(area){
+      # the structure of selPro[[area]][[fleet]]
+      # selPro<-lapply(1:TimeAreaObj@areas, function(area){
+      #   lapply(1:nfleets, function(f) {
+      #     #If ProFisheryObj_list exists, use area-specific projection fishery
+      #     if(!is.null(ProFisheryObj_list) && length(ProFisheryObj_list) >= area) {
+      #       #each fleet has it own sel per area
+      #       selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_list[[area]], doPlot = FALSE)
+      #     } else {
+      #       #otherwise fall back to hist fleet sel.
+      #       selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
+      #     }
+      #   })
+      # })
+
+      #changed- fleet 1-sel1 - area 1/ fleet 1-sel1 - area 2
+      #         fleet 2-sel2 - area 1/ fleet 2-sel2 - area 2
+      selPro <- lapply(1:TimeAreaObj@areas, function(area){
         lapply(1:nfleets, function(f) {
-          #If ProFisheryObj_list exists, use area-specific projection fishery
-          if(!is.null(ProFisheryObj_list) && length(ProFisheryObj_list) >= area) {
-            #each fleet has it own sel per area
-            selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_list[[area]], doPlot = FALSE)
-          } else {
-            #otherwise fall back to hist fleet sel.
-            selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
-          }
+          # Use fleet-specific projection selectivity
+          selWrapper(lh, TimeAreaObj,
+                     FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[f]],
+                     doPlot = FALSE)
         })
       })
+
+
+
+
+
+
+
+
+
       #Note: I am using area 1 and fleet 1 for this calculation (it could be changed)
       refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]][[1]])
 
