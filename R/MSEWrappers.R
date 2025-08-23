@@ -113,7 +113,7 @@ evalMSE<-function(inputObject){
     #change from selHist[[area]] to selHist[[area]][[fleet]] structure
     #each fleet has it own sel
     #Hist. sel: uses MultifleetObj@fleet_selectivity_list[[f]] for each fleet
-    # if(is_multifleet) {
+    if(is_multifleet) {
     #   selHist<-lapply(1:TimeAreaObj@areas, function(area){
     #     lapply(1:nfleets, function(f) {
     #       selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_list[[f]], doPlot = FALSE)
@@ -158,14 +158,6 @@ evalMSE<-function(inputObject){
                      doPlot = FALSE)
         })
       })
-
-
-
-
-
-
-
-
 
       #Note: I am using area 1 and fleet 1 for this calculation (it could be changed)
       refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]][[1]])
@@ -959,9 +951,16 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       stop(paste("Fleet proportions must sum to 1.0. current sum:", sum(MultifleetObj@fleet_proportions)))
     }
 
-    if(length(MultifleetObj@fleet_selectivity_list) != nfleets) {
-      stop(paste("fleet_selectivity_list must contain", nfleets, "Fishery objects"))
+    # if(length(MultifleetObj@fleet_selectivity_list) != nfleets) {
+    #   stop(paste("fleet_selectivity_list must contain", nfleets, "Fishery objects"))
+    # }
+
+    #changed:
+    if(length(MultifleetObj@fleet_selectivity_hist_list) != nfleets ||
+       length(MultifleetObj@fleet_selectivity_proj_list) != nfleets) {
+      stop(paste("fleet_selectivity_hist_list and fleet_selectivity_proj_list must each contain", nfleets, "Fishery objects"))
     }
+
 
     cat("Multifleet mode enabled with", nfleets, "fleets\n")
     cat("Fleet proportions:", paste(round(MultifleetObj@fleet_proportions, 3), collapse = ", "), "\n")
@@ -1145,12 +1144,22 @@ cat("histEffortDev validation passed!\n")
   #new additions for multfleet validations
   if(proceedMSE && is_multifleet) {
     # validate fleet selectivity objects
+    # for(f in 1:nfleets) {
+    #   if(is.null(MultifleetObj@fleet_selectivity_list[[f]])) {
+    #     proceedMSE<-FALSE
+    #     print(paste("Fleet", f, "selectivity object is missing"))
+    #   }
+    # }
+
+    #changed
     for(f in 1:nfleets) {
-      if(is.null(MultifleetObj@fleet_selectivity_list[[f]])) {
+      if(is.null(MultifleetObj@fleet_selectivity_hist_list[[f]]) ||
+         is.null(MultifleetObj@fleet_selectivity_proj_list[[f]])) {
         proceedMSE<-FALSE
-        print(paste("Fleet", f, "selectivity object is missing"))
+        print(paste("Fleet", f, "historical or projection selectivity object is missing"))
       }
     }
+
 
     # validate allocation type
     if(!MultifleetObj@allocation_type %in% c("effort", "catch")) {

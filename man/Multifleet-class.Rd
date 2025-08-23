@@ -13,7 +13,9 @@
 
 \item{allocation_type}{Either "effort" or "catch" for equilibrium allocation}
 
-\item{fleet_selectivity_list}{List of Fishery objects (length = nfleets)}
+\item{fleet_selectivity_hist_list}{List of Fishery objects (length = nfleets)}
+
+\item{fleet_selectivity_proj_list}{List of Fishery objects (length = nfleets)}
 }
 \description{
 An S4 object that holds multifleet configuration for historical and projection periods

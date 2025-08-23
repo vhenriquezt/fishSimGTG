@@ -4,7 +4,7 @@
 \alias{histEffortDev}
 \title{Historical effort deviations}
 \usage{
-histEffortDev(TimeAreaObj, StochasticObj, nfleets = 3)
+histEffortDev(TimeAreaObj, StochasticObj, nfleets = 1)
 }
 \arguments{
 \item{TimeAreaObj}{A TimeArea object}
