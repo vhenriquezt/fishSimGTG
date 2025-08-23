@@ -481,9 +481,21 @@ evalMSE<-function(inputObject){
 
         #area totals (sum across fleets)
         #VB now sums across all fleets (each fleet contributes to vulnerable biomass)
-        VB[1,k,m] <- sum(sapply(1:nfleets, function(f) {
-          sum(sapply(1:lh$gtg, FUN=function(x) sum(N[[x]][,1,m]*selHist[[m]][[f]]$vul[[x]]*lh$W[[x]])))
+        # VB[1,k,m] <- sum(sapply(1:nfleets, function(f) {
+        #   sum(sapply(1:lh$gtg, FUN=function(x) sum(N[[x]][,1,m]*selHist[[m]][[f]]$vul[[x]]*lh$W[[x]])))
+        # }))
+
+        #changed:
+        #VB uses maximum vulnerability across fleets (otherwise I would double-counting VB)
+        VB[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) {
+          max_vuln_by_age <- sapply(1:lh$ageClasses, function(age) {
+            max(sapply(1:nfleets, function(f) selHist[[m]][[f]]$vul[[x]][age]))
+          })
+          sum(N[[x]][,1,m] * max_vuln_by_age * lh$W[[x]])
         }))
+
+
+
         #RB now sums fleet-specific catches
         RB[1,k,m] <- sum(catchB_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
         #Ftotal now sums all fleet F values
@@ -746,10 +758,21 @@ evalMSE<-function(inputObject){
 
           #calculate area totals for existing arrays (backward compatibility)
           # each fleet sees different vulnerable biomass
-          VB[j,k,m] <- sum(sapply(1:nfleets, function(f) {
-            sum(sapply(1:lh$gtg, FUN=function(x)
-              sum(N[[x]][,j,m] * selGroup[[m]][[f]]$vul[[x]] * lh$W[[x]])))
+          # VB[j,k,m] <- sum(sapply(1:nfleets, function(f) {
+          #   sum(sapply(1:lh$gtg, FUN=function(x)
+          #     sum(N[[x]][,j,m] * selGroup[[m]][[f]]$vul[[x]] * lh$W[[x]])))
+          # }))
+
+          #changed:
+          # VB uses maximum vulnerability across fleets (no double-counting)
+          VB[j,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) {
+            max_vuln_by_age <- sapply(1:lh$ageClasses, function(age) {
+              max(sapply(1:nfleets, function(f) selGroup[[m]][[f]]$vul[[x]][age]))
+            })
+            sum(N[[x]][,j,m] * max_vuln_by_age * lh$W[[x]])
           }))
+
+
 
           RB[j,k,m] <- sum(catchB_by_fleet[j,k,m,1:nfleets], na.rm = TRUE)
 
