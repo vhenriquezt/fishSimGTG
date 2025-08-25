@@ -250,9 +250,9 @@ result_multi2$dynamics$Ftotal
 result_multi2$dynamics$SPR
 result_multi2$dynamics$multifleet$Ftotal_by_fleet
 result_multi2$dynamics$multifleet$catchB_by_fleet
-
-
-
+result_multi2$dynamics$multifleet$final_effort_proportions
+result_multi2$dynamics$multifleet$actual_catch_proportions
+result_multi2$dynamics$multifleet$target_catch_proportions
 
 # ============================================================================
 # TEST SCENARIO 3: MULTIFLEET WITH 1 FLEET (SHOULD MATCH SINGLE FLEET)
@@ -383,7 +383,7 @@ result_multi2$dynamics$multifleet$allocation_type
 result_multi2$dynamics$multifleet$fleet_proportions          # [0.6, 0.4]
 result_multi2$dynamics$multifleet$target_catch_proportions   # [0.6, 0.4]
 result_multi2$dynamics$multifleet$actual_catch_proportions   # Should be close to [0.6, 0.4]
-result_multi2$dynamics$multifleet$final_effort_proportions   # Different from catch proportions
+result_multi2$dynamics$multifleet$final_effort_proportions
 
 # Check allocation accuracy
 allocation_error <- abs(result_multi2$dynamics$multifleet$actual_catch_proportions -
@@ -391,13 +391,6 @@ allocation_error <- abs(result_multi2$dynamics$multifleet$actual_catch_proportio
 max(allocation_error)  # Should be < 0.05 (5% tolerance)
 
 
-#comparing metrics
-compare_biomass_metrics <- function() {
-
-  years <- dim(result_single$dynamics$SB)[1]
-  areas <- dim(result_single$dynamics$SB)[3]
-
-  cat("=== BIOMASS METRICS COMPARISON ===\n")
 
   # Test 1: Single vs Multi1 (should be identical)
   cat("\n1. BACKWARD COMPATIBILITY (Single vs Multi1):\n")
@@ -432,10 +425,7 @@ compare_biomass_metrics <- function() {
     rb_multi2 <- result_multi2$dynamics$RB[final_year, 1, area]
     rb_diff_pct <- abs(rb_single - rb_multi2) / rb_single * 100
 
-    cat(sprintf("   Area %d - SB difference: %.2f%%\n", area, sb_diff_pct))
-    cat(sprintf("   Area %d - VB difference: %.2f%%\n", area, vb_diff_pct))
-    cat(sprintf("   Area %d - RB difference: %.2f%%\n", area, rb_diff_pct))
-  }
+
 
   return(list(
     backward_compatible = sb_identical && vb_identical && rb_identical,
@@ -446,10 +436,6 @@ compare_biomass_metrics <- function() {
     )
   ))
 }
-
-
-
-
 
 
 
@@ -620,6 +606,10 @@ result_multi_diff <- runProjection(
 )
 
 cat("Multifleet (different selectivities) simulation completed\n")
+
+result_multi_diff <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_different")
+result_multi_diff$dynamics$multifleet$final_effort_proportions
+result_multi_diff$dynamics$multifleet$actual_catch_proportions
 
 # ============================================================================
 # VALIDATION ANALYSIS
