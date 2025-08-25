@@ -55,7 +55,7 @@ ta@historicalEffort <- matrix(c(1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6
 hist_fishery <- new("Fishery")
 hist_fishery@title<-"Historical Fishery"
 hist_fishery@vulType<-"logistic"
-hist_fishery@vulParams<-c(9.0, 1.5)
+hist_fishery@vulParams<-c(10.2, 0.1)
 hist_fishery@retType<-"full"
 hist_fishery@retMax <- 1
 hist_fishery@Dmort <- 0
@@ -65,8 +65,7 @@ proj_fishery_area1 <- new("Fishery")
 proj_fishery_area1@title<-"Proj Area 1"
 proj_fishery_area1@vulType<-"logistic"
 proj_fishery_area1@vulParams<-c(10.2, 0.1)
-proj_fishery_area1@retType<-"logistic"
-proj_fishery_area1@retParams <- c(10.2, 0.1)
+proj_fishery_area1@retType<-"full"
 proj_fishery_area1@retMax <- 1
 proj_fishery_area1@Dmort <- 0
 
@@ -74,8 +73,7 @@ proj_fishery_area2 <- new("Fishery")
 proj_fishery_area2@title<-"Proj Area 2"
 proj_fishery_area2@vulType<-"logistic"
 proj_fishery_area2@vulParams<-c(10.2, 0.1)
-proj_fishery_area2@retType<-"logistic"
-proj_fishery_area2@retParams <- c(10.2, 0.1)
+proj_fishery_area2@retType<-"full"
 proj_fishery_area2@retMax <- 1
 proj_fishery_area2@Dmort <- 0
 
@@ -156,6 +154,16 @@ result_single <- runProjection(
 )
 cat("Single fleet simulation completed\n")
 
+result_single <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_single_fleet")
+result_single$dynamics$SB # 1 set of vectors for each area for n iterations
+result_single$dynamics$VB
+result_single$dynamics$RB
+result_single$dynamics$catchB
+result_single$dynamics$catchN
+result_single$dynamics$Ftotal # 1 set of vectors for each area for n iterations
+result_single$dynamics$SPR # 1 set of vectors area-combined
+
+
 
 # ============================================================================
 # TEST SCENARIO 2: MULTIFLEET WITH 2 FLEETS (IDENTICAL SELECTIVITY)
@@ -232,6 +240,20 @@ result_multi2 <- runProjection(
 
 cat("Multifleet (2 identical) simulation completed\n")
 
+result_multi2 <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_2identical")
+result_multi2$dynamics$SB
+result_multi2$dynamics$VB
+result_multi2$dynamics$RB
+result_multi2$dynamics$catchB
+result_multi2$dynamics$catchN
+result_multi2$dynamics$Ftotal
+result_multi2$dynamics$SPR
+result_multi2$dynamics$multifleet$Ftotal_by_fleet
+result_multi2$dynamics$multifleet$catchB_by_fleet
+
+
+
+
 # ============================================================================
 # TEST SCENARIO 3: MULTIFLEET WITH 1 FLEET (SHOULD MATCH SINGLE FLEET)
 # ============================================================================
@@ -287,6 +309,243 @@ result_multi1 <- runProjection(
 )
 
 cat("Multifleet (1 fleet) simulation completed\n")
+
+result_multi1 <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_1fleet")
+
+result_multi1$dynamics$SB
+result_multi1$dynamics$VB
+result_multi1$dynamics$RB
+result_multi1$dynamics$catchB
+result_multi1$dynamics$catchN
+result_multi1$dynamics$Ftotal
+result_multi1$dynamics$SPR
+result_multi1$dynamics$multifleet$Ftotal_by_fleet
+result_multi1$dynamics$multifleet$catchB_by_fleet
+
+
+# ============================================================================
+# COMPARING THE THREE PREVIOUS EXAMPLES
+# ============================================================================
+
+cat("=========================================================================\n")
+cat("COMPARING: single fleet - multifleet (2 identical)- multifleet (1 fleet))\n")
+cat("=========================================================================\n")
+
+#Single Fleet vs Multifleet (1 fleet) - must be identical
+identical(result_single$dynamics$SB, result_multi1$dynamics$SB)
+identical(result_single$dynamics$VB, result_multi1$dynamics$VB)
+identical(result_single$dynamics$catchB, result_multi1$dynamics$catchB)
+identical(result_single$dynamics$Ftotal, result_multi1$dynamics$Ftotal)
+
+
+# Check 1-fleet multifleet has correct fleet dimensions
+dim(result_multi1$dynamics$multifleet$Ftotal_by_fleet)     # [years, iter, areas, 1]
+dim(result_multi1$dynamics$multifleet$catchB_by_fleet)     # [years, iter, areas, 1]
+
+# Fleet values should equal total values for 1-fleet case
+identical(result_multi1$dynamics$Ftotal, result_multi1$dynamics$multifleet$Ftotal_by_fleet[,,,1])
+identical(result_multi1$dynamics$catchB, result_multi1$dynamics$multifleet$catchB_by_fleet[,,,1])
+
+
+#Multifleet (2 identical) fleet summation
+
+# Fleet catches must sum to total
+fleet_sum_catchB <- result_multi2$dynamics$multifleet$catchB_by_fleet[,,,1] +
+  result_multi2$dynamics$multifleet$catchB_by_fleet[,,,2]
+
+
+max(abs(fleet_sum_catchB - result_multi2$dynamics$catchB))
+
+
+# Fleet F must sum to total
+fleet_sum_F <- result_multi2$dynamics$multifleet$Ftotal_by_fleet[,,,1] +
+  result_multi2$dynamics$multifleet$Ftotal_by_fleet[,,,2]
+
+max(abs(fleet_sum_F - result_multi2$dynamics$Ftotal))  # Should be ~0
+
+# Since selectivities are identical, population should be very similar
+# (Small differences expected due to allocation algorithm)
+
+# Check relative differences
+rel_diff_SB <- abs(result_single$dynamics$SB - result_multi2$dynamics$SB) /
+  result_single$dynamics$SB
+
+max(rel_diff_SB, na.rm = TRUE)  # Should be < 5%
+
+# Same for catches
+rel_diff_catch <- abs(result_single$dynamics$catchB - result_multi2$dynamics$catchB) /
+  result_single$dynamics$catchB
+
+max(rel_diff_catch, na.rm = TRUE)  # Should be < 5%
+
+# Check multifleet allocation worked
+result_multi2$dynamics$multifleet$allocation_type
+result_multi2$dynamics$multifleet$fleet_proportions          # [0.6, 0.4]
+result_multi2$dynamics$multifleet$target_catch_proportions   # [0.6, 0.4]
+result_multi2$dynamics$multifleet$actual_catch_proportions   # Should be close to [0.6, 0.4]
+result_multi2$dynamics$multifleet$final_effort_proportions   # Different from catch proportions
+
+# Check allocation accuracy
+allocation_error <- abs(result_multi2$dynamics$multifleet$actual_catch_proportions -
+                          result_multi2$dynamics$multifleet$target_catch_proportions)
+max(allocation_error)  # Should be < 0.05 (5% tolerance)
+
+
+#comparing metrics
+compare_biomass_metrics <- function() {
+
+  years <- dim(result_single$dynamics$SB)[1]
+  areas <- dim(result_single$dynamics$SB)[3]
+
+  cat("=== BIOMASS METRICS COMPARISON ===\n")
+
+  # Test 1: Single vs Multi1 (should be identical)
+  cat("\n1. BACKWARD COMPATIBILITY (Single vs Multi1):\n")
+  sb_identical <- identical(result_single$dynamics$SB, result_multi1$dynamics$SB)
+  vb_identical <- identical(result_single$dynamics$VB, result_multi1$dynamics$VB)
+  rb_identical <- identical(result_single$dynamics$RB, result_multi1$dynamics$RB)
+
+  cat(sprintf("   SB identical: %s\n", sb_identical))
+  cat(sprintf("   VB identical: %s\n", vb_identical))
+  cat(sprintf("   RB identical: %s\n", rb_identical))
+
+  if(!sb_identical) {
+    max_sb_diff <- max(abs(result_single$dynamics$SB - result_multi1$dynamics$SB))
+    cat(sprintf("   Max SB difference: %e\n", max_sb_diff))
+  }
+
+  # Test 2: Population similarity (Single vs Multi2)
+  cat("\n2. POPULATION SIMILARITY (Single vs Multi2):\n")
+  for(area in 1:areas) {
+    # Compare final year values (iteration 1)
+    final_year <- years
+
+    sb_single <- result_single$dynamics$SB[final_year, 1, area]
+    sb_multi2 <- result_multi2$dynamics$SB[final_year, 1, area]
+    sb_diff_pct <- abs(sb_single - sb_multi2) / sb_single * 100
+
+    vb_single <- result_single$dynamics$VB[final_year, 1, area]
+    vb_multi2 <- result_multi2$dynamics$VB[final_year, 1, area]
+    vb_diff_pct <- abs(vb_single - vb_multi2) / vb_single * 100
+
+    rb_single <- result_single$dynamics$RB[final_year, 1, area]
+    rb_multi2 <- result_multi2$dynamics$RB[final_year, 1, area]
+    rb_diff_pct <- abs(rb_single - rb_multi2) / rb_single * 100
+
+    cat(sprintf("   Area %d - SB difference: %.2f%%\n", area, sb_diff_pct))
+    cat(sprintf("   Area %d - VB difference: %.2f%%\n", area, vb_diff_pct))
+    cat(sprintf("   Area %d - RB difference: %.2f%%\n", area, rb_diff_pct))
+  }
+
+  return(list(
+    backward_compatible = sb_identical && vb_identical && rb_identical,
+    max_differences = list(
+      sb_single_multi2 = max(abs(result_single$dynamics$SB - result_multi2$dynamics$SB)),
+      vb_single_multi2 = max(abs(result_single$dynamics$VB - result_multi2$dynamics$VB)),
+      rb_single_multi2 = max(abs(result_single$dynamics$RB - result_multi2$dynamics$RB))
+    )
+  ))
+}
+
+
+
+
+
+
+
+
+
+create_biomass_plots <- function() {
+
+  years <- dim(result_single$dynamics$SB)[1]
+  areas <- dim(result_single$dynamics$SB)[3]
+  year_seq <- 1:years
+
+  #create data frame for plotting (using iteration 1, area 1)
+  plot_data <- data.frame(
+    Year = rep(year_seq, 9),  # 3 scenarios × 3 metrics
+    Value = c(
+      # SB values
+      result_single$dynamics$SB[, 1, 1],
+      result_multi1$dynamics$SB[, 1, 1],
+      result_multi2$dynamics$SB[, 1, 1],
+      # VB values
+      result_single$dynamics$VB[, 1, 1],
+      result_multi1$dynamics$VB[, 1, 1],
+      result_multi2$dynamics$VB[, 1, 1],
+      # RB values
+      result_single$dynamics$RB[, 1, 1],
+      result_multi1$dynamics$RB[, 1, 1],
+      result_multi2$dynamics$RB[, 1, 1]
+    ),
+    Scenario = rep(rep(c("Single_Fleet", "Multi_1Fleet", "Multi_2Identical"), each = years), 3),
+    Metric = rep(c("Spawning_Biomass", "Vulnerable_Biomass", "Retained_Biomass"), each = years * 3)
+  )
+
+  #add period classification
+  plot_data <- plot_data %>%
+    mutate(
+      Period = case_when(
+        Year == 1 ~ "Equilibrium",
+        Year <= 11 ~ "Historical",
+        Year > 11 ~ "Projection"
+      )
+    )
+
+  #create the plot
+  p1 <- ggplot(plot_data, aes(x = Year, y = Value, color = Scenario, linetype = Scenario)) +
+    geom_line(size = 1) +
+    geom_vline(xintercept = 1.5, linetype = "dotted", alpha = 0.7, color = "gray") +
+    geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.7, color = "red") +
+    facet_wrap(~Metric, scales = "free_y", ncol = 1) +
+    labs(
+      title = "Biomass Metrics Comparison - Area 1, Iteration 1",
+      subtitle = "Dotted line = End Equilibrium | Dashed line = End Historical",
+      x = "Year",
+      y = "Biomass",
+      color = "Scenario",
+      linetype = "Scenario"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "bottom",
+      strip.text = element_text(size = 10, face = "bold")
+    )
+
+  #create difference plot (Multi2 - Single)
+  diff_data <- data.frame(
+    Year = rep(year_seq, 3),
+    Difference = c(
+      result_multi2$dynamics$SB[, 1, 1] - result_single$dynamics$SB[, 1, 1],
+      result_multi2$dynamics$VB[, 1, 1] - result_single$dynamics$VB[, 1, 1],
+      result_multi2$dynamics$RB[, 1, 1] - result_single$dynamics$RB[, 1, 1]
+    ),
+    Metric = rep(c("SB_Difference", "VB_Difference", "RB_Difference"), each = years)
+  )
+
+  p2 <- ggplot(diff_data, aes(x = Year, y = Difference)) +
+    geom_line(color = "blue", size = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.7, color = "gray") +
+    facet_wrap(~Metric, scales = "free_y", ncol = 1) +
+    labs(
+      title = "Difference: Multi2 - Single Fleet",
+      subtitle = "Should be small differences (identical selectivities)",
+      x = "Year",
+      y = "Difference"
+    ) +
+    theme_minimal()
+
+  return(list(comparison = p1, differences = p2))
+}
+
+#run the analysis and create plots
+comparison_results <- compare_biomass_metrics()
+plots <- create_biomass_plots()
+
+#display plots
+print(plots$comparison)
+print(plots$differences)
 
 
 
