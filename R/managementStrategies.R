@@ -128,7 +128,7 @@ fixedStrategy<-function(phase, dataObject){
           Flocal<-rbind(Flocal, c(j, k, m, f, F_fleet))
         }
         # add total F row (for backward compatibility)
-        Flocal<-rbind(Flocal, c(j, k, m, 0, total_F_area))  # fleet=0 indicates total
+        Flocal<-rbind(Flocal, c(j, k, m, 0, total_F_area))  # fleet=0 indicates total-  indicates this row contains the total F across all fleets rather than an individual F fleet
       }
 
       colnames(Flocal) <- c("year", "iteration", "area", "fleet", "Flocal")

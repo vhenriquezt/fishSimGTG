@@ -109,7 +109,7 @@ simpleMP_single <- function(phase, dataObject) {
   }
 }
 
-# Strategy for multifleet (with fleet column)
+# Strategy for multifleet (with fleet column) to maintain maintain data structure consistency with
 simpleMP_multi <- function(phase, dataObject) {
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
@@ -371,6 +371,11 @@ result_single <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_s
 result_multi2 <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_2identical")
 result_multi1 <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_1fleet")
 result_multi_diff <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_different")
+
+
+result_multi_diff$dynamics$multifleet
+
+
 
 
 extract_complete_timeseries <- function(result, test_name) {
