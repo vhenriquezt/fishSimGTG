@@ -282,6 +282,17 @@ evalMSE<-function(inputObject){
     actual_catch_proportions <- is$actual_catch_proportions
     allocation_type <- is$allocation_type
 
+    #debugging
+    cat("=== evalMSE EQUILIBRIUM DEBUG (iteration", k, ") ===\n")
+    cat("is$allocation_type:", is$allocation_type, "\n")
+    cat("is$final_effort_proportions:", is$final_effort_proportions, "\n")
+    cat("is$actual_catch_proportions:", is$actual_catch_proportions, "\n")
+    cat("is$target_catch_proportions:", is$target_catch_proportions, "\n")
+    cat("stored final_effort_proportions:", final_effort_proportions, "\n")
+    cat("stored actual_catch_proportions:", actual_catch_proportions, "\n")
+    cat("Are stored values equal?", identical(final_effort_proportions, actual_catch_proportions), "\n")
+    cat("===============================================\n")
+
 
 
     total_Feq <- is$Feq                # total F for population

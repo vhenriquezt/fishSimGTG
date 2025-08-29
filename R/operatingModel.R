@@ -1171,13 +1171,28 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
 
 
       final_effort_proportions <- effort_proportions
+      #save immediately after iteration
+      saved_final_effort_proportions <- effort_proportions
+
+      #debugging:
+      cat("DEBUG: effort_proportions =", effort_proportions, "\n")
+      cat("DEBUG: saved_final_effort_proportions =", saved_final_effort_proportions, "\n")
+      cat("DEBUG: Are they equal?", identical(effort_proportions, saved_final_effort_proportions), "\n")
+
+      cat("Final effort proportions:", round(final_effort_proportions, 3), "\n")
+
+
+
       cat("Final effort proportions:", round(final_effort_proportions, 3), "\n")
 
     } else {
       # Effort allocation: use original proportions directly
       target_catch_proportions <- NULL  # Not applicable for effort allocation
       final_effort_proportions <- original_fleet_proportions
+      saved_final_effort_proportions <- original_fleet_proportions
     }
+
+
 
 
     # This fucntion is the same as solveD_multifleet, and this calculates
@@ -1187,12 +1202,6 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
                                                final_effort_proportions, stepsPerYear, totalSteps)
 
 
-    #debugging
-    cat("DEBUG - Before return:\n")
-    cat("  target_catch_proportions:", result$target_catch_proportions, "\n")
-    cat("  actual_catch_proportions:", result$actual_catch_proportions, "\n")
-    cat("  final_effort_proportions:", result$final_effort_proportions, "\n")
-    cat("  final_actual_catch_proportions:", final_actual_catch_proportions, "\n")
 
 
     if(is.null(result)) return(NULL)
@@ -1202,22 +1211,41 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     if(allocation_type == "catch") {
       result$allocation_type <- allocation_type
       result$fleet_proportions <- original_fleet_proportions # what i want
-      result$target_catch_proportions <- target_catch_proportions # what is needed
-      result$final_effort_proportions <- final_effort_proportions
+      result$target_catch_proportions <- target_catch_proportions  #target_catch_proportions # what is needed
+      result$final_effort_proportions <- saved_final_effort_proportions  #final_effort_proportions
       #result$final_effort_proportions <- fleet_proportions
-      #result$actual_catch_proportions <- result$catchB_by_fleet / sum(result$catchB_by_fleet)
+      result$actual_catch_proportions <- final_actual_catch_proportions#result$catchB_by_fleet / sum(result$catchB_by_fleet)
+
+      # total_final_catch <- sum(result$catchB_by_fleet)
+      # if(total_final_catch > 1e-10) {
+      #   result$actual_catch_proportions <- final_actual_catch_proportions
+      # }
+      #
+
       total_final_catch <- sum(result$catchB_by_fleet)
-      if(total_final_catch > 1e-10) {
-        result$actual_catch_proportions <- final_actual_catch_proportions
+      if (total_final_catch > 1e-10) {
+        result$actual_catch_proportions <- as.numeric(result$catchB_by_fleet) / total_final_catch
+      } else {
+        result$actual_catch_proportions <- rep(NA_real_, length(result$catchB_by_fleet))
       }
+
+
 
     } else {
       result$allocation_type <- allocation_type
       result$fleet_proportions <- original_fleet_proportions
-      result$final_effort_proportions <- final_effort_proportions
+      result$final_effort_proportions <- saved_final_effort_proportions
       result$target_catch_proportions <- NULL
       result$actual_catch_proportions <- NULL
     }
+
+    #debugging
+    cat("DEBUG - Before return:\n")
+    cat("  target_catch_proportions:", result$target_catch_proportions, "\n")
+    cat("  actual_catch_proportions:", result$actual_catch_proportions, "\n")
+    cat("  final_effort_proportions:", result$final_effort_proportions, "\n")
+    cat("  final_actual_catch_proportions:", final_actual_catch_proportions, "\n")
+
 
     if(doPlot) {
       tmp1<-data.frame(
@@ -1243,6 +1271,21 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
 
       gridExtra::grid.arrange(p1, p2, nrow = 1)
     }
+
+ #debugging
+    cat("=== FINAL solveD_multifleet2 DEBUG ===\n")
+    cat("allocation_type:", allocation_type, "\n")
+    if(allocation_type == "catch") {
+      cat("saved_final_effort_proportions:", saved_final_effort_proportions, "\n")
+      cat("final_actual_catch_proportions:", final_actual_catch_proportions, "\n")
+    }
+    cat("result$final_effort_proportions:", result$final_effort_proportions, "\n")
+    cat("result$actual_catch_proportions:", result$actual_catch_proportions, "\n")
+    cat("result$target_catch_proportions:", result$target_catch_proportions, "\n")
+    cat("Are they equal? final_effort == actual_catch:",
+        identical(result$final_effort_proportions, result$actual_catch_proportions), "\n")
+    cat("======================================\n")
+
 
     #------------
     #Return list
