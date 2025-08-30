@@ -1156,6 +1156,9 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       break
     }
 
+    # store this before updating effort (for non-converged iterations)
+    #if(iter < 50) final_actual_catch_proportions <- actual_catch_proportions
+
     #We applied and adjustment logic that adjust effort proportions based on error
     #increase or decrease effort depending on the error
     #if a fleet needs more catch (positive error), factor > 1 (increase effort) need more
@@ -1169,10 +1172,25 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
         "Effort:", round(effort_proportions, 3), "\n")
       } # end iterations
 
+      cat("BEFORE final assignment:\n")
+      cat("effort_proportions after loop:", effort_proportions, "\n")
+      cat("final_actual_catch_proportions after loop:", final_actual_catch_proportions, "\n")
+
+      # final_effort_proportions <- effort_proportions
+      #
+      # cat("AFTER final assignment:\n")
+      # cat("final_effort_proportions:", final_effort_proportions, "\n")
 
       final_effort_proportions <- effort_proportions
+
       #save immediately after iteration
       saved_final_effort_proportions <- effort_proportions
+
+
+
+      result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
+                                                 final_effort_proportions, stepsPerYear, totalSteps)
+
 
       #debugging:
       cat("DEBUG: effort_proportions =", effort_proportions, "\n")
@@ -1198,9 +1216,9 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     # This fucntion is the same as solveD_multifleet, and this calculates
     # final equilibrium with the chosen fleet proportions
 
-    result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
-                                               final_effort_proportions, stepsPerYear, totalSteps)
-
+    # result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
+    #                                            final_effort_proportions, stepsPerYear, totalSteps)
+    #
 
 
 
@@ -1222,12 +1240,12 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       # }
       #
 
-      total_final_catch <- sum(result$catchB_by_fleet)
-      if (total_final_catch > 1e-10) {
-        result$actual_catch_proportions <- as.numeric(result$catchB_by_fleet) / total_final_catch
-      } else {
-        result$actual_catch_proportions <- rep(NA_real_, length(result$catchB_by_fleet))
-      }
+      # total_final_catch <- sum(result$catchB_by_fleet)
+      # if (total_final_catch > 1e-10) {
+      #   result$actual_catch_proportions <- as.numeric(result$catchB_by_fleet) / total_final_catch
+      # } else {
+      #   result$actual_catch_proportions <- rep(NA_real_, length(result$catchB_by_fleet))
+      # }
 
 
 
@@ -1287,9 +1305,17 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     cat("======================================\n")
 
 
+    cat("DEBUG - Just before return:\n")
+    cat("final_actual_catch_proportions:", final_actual_catch_proportions, "\n")
+    cat("saved_final_effort_proportions:", saved_final_effort_proportions, "\n")
+    cat("result$actual_catch_proportions:", result$actual_catch_proportions, "\n")
+    cat("result$final_effort_proportions:", result$final_effort_proportions, "\n")
     #------------
     #Return list
     #------------
+
+
+
     return(result)
   }
 
