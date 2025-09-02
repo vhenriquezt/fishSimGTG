@@ -1114,19 +1114,35 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       }
     }
 
+
+    #initialize variables outside conditional blocks
+    final_effort_proportions <- original_fleet_proportions
+    target_catch_proportions <- NULL
+    final_actual_catch_proportions <- NULL
+
+
+    # allocation logic
     # This section is designed to be used for catch-based allocation
     if(allocation_type == "catch") {
-      # reinterpret user's fleet_proportions as target catch proportions
+      # reinterpret user fleet_proportions as target catch proportions
       # for example: I want 70% of catch from fleet 1, 30% from fleet 2
-      # so the fucntion will find Function what effort proportions achieve this
+      # so the fucntion will find what effort proportions achieve this
 
-      target_catch_proportions <- fleet_proportions
-      cat("finding effort proportions to achieve catch proportions:", target_catch_proportions, "\n")
+      target_catch_proportions <- original_fleet_proportions
+      cat("Target catch proportions:", target_catch_proportions, "\n")
 
       # initial guess to start iterations - start with equal effort proportions
       effort_proportions <- rep(1/nfleets, nfleets)
 
-      final_actual_catch_proportions <- NULL  # store the final achieved proportions
+      #new addition:
+      # initialize to track variables
+      converged_successfully <- FALSE
+      final_effort_proportions <- NULL
+      final_actual_catch_proportions <- NULL
+
+      #track convergence history to  debug
+      convergence_history <- list()
+
 
       # we can do some iterative adjustment/tuning (limiting iteratons to 20)
       # test current effort proportions by calculating equilibrium
@@ -1144,22 +1160,48 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
     if(total_catch < 1e-10) break
 
     # here we calculate what catch proportions the current effort actually produces
-    # for example flle1 = 40 and fleet 2 60 <- props c(0.4, 0.6)
+    # for example fleet1 = 40 and fleet 2 = 60 <- props c(0.4, 0.6)
+    # we calculate actual catch proportions achieved with current effort proportions
     actual_catch_proportions <- test_result$catchB_by_fleet / total_catch
-    final_actual_catch_proportions <- actual_catch_proportions  # store this iteration result
+    #final_actual_catch_proportions <- actual_catch_proportions  # store this iteration result
 
-    #check if the calcs is close enough to the target proportions
+    # Add new: store in history for debugging
+    convergence_history[[iter]] <- list(
+      effort = effort_proportions,
+      catch = actual_catch_proportions
+    )
+
+
+
+    #check if the calcs is close enough to the target proportions (check convergence)
     error <- target_catch_proportions - actual_catch_proportions # error: target - actual
     # for example: we want c(0.7, 0.3), we got c(0.6, 0.4) <- error = c(0.1, -0.1)
-    if(max(abs(error)) < 0.005) { # 1% tolerance error
+    if(max(abs(error)) < 0.005) { # 0.5% tolerance error
       cat("Converged after", iter, "iterations\n")
-      break
-    }
 
-    # store this before updating effort (for non-converged iterations)
-    #if(iter < 50) final_actual_catch_proportions <- actual_catch_proportions
 
-    #We applied and adjustment logic that adjust effort proportions based on error
+    # store the converged values immediately
+    final_effort_proportions <- effort_proportions
+
+    # We need to recalculate actual_catch_proportions  with the converged effort
+    final_test <- calculate_multifleet_equilibrium(lh, sel_list, doFit,
+                                                   F_in, D_type, D_in,
+                                                   effort_proportions,  # use final effort
+                                                   stepsPerYear, totalSteps)
+
+    final_total_catch <- sum(final_test$catchB_by_fleet)
+    final_actual_catch_proportions <- final_test$catchB_by_fleet / final_total_catch
+    converged_successfully <- TRUE
+
+    # Debug output to verify stored values are different
+    cat("STORED VALUES:\n")
+    cat("  final_effort_proportions:     ", round(final_effort_proportions, 4), "\n")
+    cat("  final_actual_catch_proportions:", round(final_actual_catch_proportions, 4), "\n")
+    cat("  These should be DIFFERENT with different selectivities!\n")
+    break
+      }
+
+    #We applied and adjustment logic for the next iteration that adjust effort proportions based on error
     #increase or decrease effort depending on the error
     #if a fleet needs more catch (positive error), factor > 1 (increase effort) need more
     #if fleet needs less catch (negative error), factor < 1 (decrease effort)   need less
@@ -1172,97 +1214,88 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
         "Effort:", round(effort_proportions, 3), "\n")
       } # end iterations
 
-      cat("BEFORE final assignment:\n")
-      cat("effort_proportions after loop:", effort_proportions, "\n")
-      cat("final_actual_catch_proportions after loop:", final_actual_catch_proportions, "\n")
+    #what to do when the loop did not converge
+      if(!converged_successfully || is.null(final_actual_catch_proportions)) {
+        cat("WARNING: Did not converge, using final iteration values\n")
+        final_effort_proportions <- effort_proportions
 
-      # final_effort_proportions <- effort_proportions
-      #
-      # cat("AFTER final assignment:\n")
-      # cat("final_effort_proportions:", final_effort_proportions, "\n")
+      # recalculate for final actual catch proportions
+      test_result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
+                                                      final_effort_proportions, stepsPerYear, totalSteps)
+      if(!is.null(test_result)) {
+        total_catch <- sum(test_result$catchB_by_fleet)
+        if(total_catch > 1e-10) {
+          final_actual_catch_proportions <- test_result$catchB_by_fleet / total_catch
+        } else {
+          final_actual_catch_proportions <- rep(0, nfleets)
+        }
+      } else {
+        final_actual_catch_proportions <- rep(0, nfleets)
+      }
+      }
 
-      final_effort_proportions <- effort_proportions
+      #debugging: print convergence history summary
+      if(length(convergence_history) > 0) {
+        cat("\nCONVERGENCE HISTORY SUMMARY:\n")
+        cat("First iteration - Effort:", round(convergence_history[[1]]$effort, 4),
+            "Catch:", round(convergence_history[[1]]$catch, 4), "\n")
+        last_iter <- length(convergence_history)
+        cat("Last iteration  - Effort:", round(convergence_history[[last_iter]]$effort, 4),
+            "Catch:", round(convergence_history[[last_iter]]$catch, 4), "\n")
+      }
 
-      #save immediately after iteration
-      saved_final_effort_proportions <- effort_proportions
 
+} else {
+  # effort allocation: use proportions directly as effort proportions
+  final_effort_proportions <- original_fleet_proportions
+  target_catch_proportions <- NULL
+  final_actual_catch_proportions <- NULL
+  converged_successfully <- FALSE
+}
 
-
+    # calculate final equilibrium using the determined effort proportions
+    # only recalculate if we didnt converge successfully in catch allocation
+    if(allocation_type == "catch" && converged_successfully) {
+      # Use the converged test_result instead of recalculating
+      result <- test_result
+    } else {
+      # either effort allocation or failed convergence - need to calculate
       result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
                                                  final_effort_proportions, stepsPerYear, totalSteps)
-
-
-      #debugging:
-      cat("DEBUG: effort_proportions =", effort_proportions, "\n")
-      cat("DEBUG: saved_final_effort_proportions =", saved_final_effort_proportions, "\n")
-      cat("DEBUG: Are they equal?", identical(effort_proportions, saved_final_effort_proportions), "\n")
-
-      cat("Final effort proportions:", round(final_effort_proportions, 3), "\n")
-
-
-
-      cat("Final effort proportions:", round(final_effort_proportions, 3), "\n")
-
-    } else {
-      # Effort allocation: use original proportions directly
-      target_catch_proportions <- NULL  # Not applicable for effort allocation
-      final_effort_proportions <- original_fleet_proportions
-      saved_final_effort_proportions <- original_fleet_proportions
     }
-
-
-
-
-    # This fucntion is the same as solveD_multifleet, and this calculates
-    # final equilibrium with the chosen fleet proportions
-
-    # result <- calculate_multifleet_equilibrium(lh, sel_list, doFit, F_in, D_type, D_in,
-    #                                            final_effort_proportions, stepsPerYear, totalSteps)
-    #
-
 
 
     if(is.null(result)) return(NULL)
 
+
+      #assign the stored values, dont overwrite with new calculations
+      result$allocation_type <- allocation_type
+      result$fleet_proportions <- original_fleet_proportions
+
     # inform whether "effort" or "catch" method was used
     # saves target vs actual catch proportions and final effort proportions
     if(allocation_type == "catch") {
-      result$allocation_type <- allocation_type
-      result$fleet_proportions <- original_fleet_proportions # what i want
       result$target_catch_proportions <- target_catch_proportions  #target_catch_proportions # what is needed
-      result$final_effort_proportions <- saved_final_effort_proportions  #final_effort_proportions
-      #result$final_effort_proportions <- fleet_proportions
-      result$actual_catch_proportions <- final_actual_catch_proportions#result$catchB_by_fleet / sum(result$catchB_by_fleet)
+      result$final_effort_proportions <- final_effort_proportions    #final_effort_proportions
+      result$actual_catch_proportions <- final_actual_catch_proportions  #result$catchB_by_fleet / sum(result$catchB_by_fleet)
 
-      # total_final_catch <- sum(result$catchB_by_fleet)
-      # if(total_final_catch > 1e-10) {
-      #   result$actual_catch_proportions <- final_actual_catch_proportions
-      # }
-      #
-
-      # total_final_catch <- sum(result$catchB_by_fleet)
-      # if (total_final_catch > 1e-10) {
-      #   result$actual_catch_proportions <- as.numeric(result$catchB_by_fleet) / total_final_catch
-      # } else {
-      #   result$actual_catch_proportions <- rep(NA_real_, length(result$catchB_by_fleet))
-      # }
-
+      # final verification
+      cat("=== FINAL RESULT VERIFICATION ===\n")
+      cat("target_catch_proportions: ", round(result$target_catch_proportions, 4), "\n")
+      cat("final_effort_proportions: ", round(result$final_effort_proportions, 4), "\n")
+      cat("actual_catch_proportions: ", round(result$actual_catch_proportions, 4), "\n")
+      cat("Are effort/catch identical?", identical(result$final_effort_proportions, result$actual_catch_proportions), "\n")
+      if(!is.null(result$final_effort_proportions) && !is.null(result$actual_catch_proportions)) {
+        cat("Max difference:", max(abs(result$final_effort_proportions - result$actual_catch_proportions)), "\n")
+      }
+      cat("================================\n")
 
 
     } else {
-      result$allocation_type <- allocation_type
-      result$fleet_proportions <- original_fleet_proportions
-      result$final_effort_proportions <- saved_final_effort_proportions
+      result$final_effort_proportions <- final_effort_proportions
       result$target_catch_proportions <- NULL
       result$actual_catch_proportions <- NULL
     }
-
-    #debugging
-    cat("DEBUG - Before return:\n")
-    cat("  target_catch_proportions:", result$target_catch_proportions, "\n")
-    cat("  actual_catch_proportions:", result$actual_catch_proportions, "\n")
-    cat("  final_effort_proportions:", result$final_effort_proportions, "\n")
-    cat("  final_actual_catch_proportions:", final_actual_catch_proportions, "\n")
 
 
     if(doPlot) {
@@ -1289,31 +1322,6 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
 
       gridExtra::grid.arrange(p1, p2, nrow = 1)
     }
-
- #debugging
-    cat("=== FINAL solveD_multifleet2 DEBUG ===\n")
-    cat("allocation_type:", allocation_type, "\n")
-    if(allocation_type == "catch") {
-      cat("saved_final_effort_proportions:", saved_final_effort_proportions, "\n")
-      cat("final_actual_catch_proportions:", final_actual_catch_proportions, "\n")
-    }
-    cat("result$final_effort_proportions:", result$final_effort_proportions, "\n")
-    cat("result$actual_catch_proportions:", result$actual_catch_proportions, "\n")
-    cat("result$target_catch_proportions:", result$target_catch_proportions, "\n")
-    cat("Are they equal? final_effort == actual_catch:",
-        identical(result$final_effort_proportions, result$actual_catch_proportions), "\n")
-    cat("======================================\n")
-
-
-    cat("DEBUG - Just before return:\n")
-    cat("final_actual_catch_proportions:", final_actual_catch_proportions, "\n")
-    cat("saved_final_effort_proportions:", saved_final_effort_proportions, "\n")
-    cat("result$actual_catch_proportions:", result$actual_catch_proportions, "\n")
-    cat("result$final_effort_proportions:", result$final_effort_proportions, "\n")
-    #------------
-    #Return list
-    #------------
-
 
 
     return(result)
@@ -1455,6 +1463,17 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
           }))
         })
       })
+
+      # debug: check if selectivities are actually different
+      if(nfleets == 2) {
+        cat("\n=== SELECTIVITY CHECK in calculate_multifleet_equilibrium ===\n")
+        cat("GTG 1, Age 10 selectivities:\n")
+        cat("  Fleet 1 removal:", sel_list[[1]]$removal[[1]][10], "\n")
+        cat("  Fleet 2 removal:", sel_list[[2]]$removal[[1]][10], "\n")
+        cat("  Are they identical?",
+            identical(sel_list[[1]]$removal[[1]][10], sel_list[[2]]$removal[[1]][10]), "\n")
+        cat("===============================================\n")
+      }
 
       # Recalculate equilibrium abundance with final F values
       N<-lapply(1:lh$gtg, FUN=function(x) {
@@ -1787,7 +1806,7 @@ bioDev<-function(TimeAreaObj, StochasticObj = NULL){
     } else {
       Dtmp <- c(TimeAreaObj@historicalBio, TimeAreaObj@historicalBio)
     }
-    Dtmp<-ifelse(Dtmp < 0.01, 0.01, Dtmp) #Does your fishery even exist below 0.01?
+    Dtmp<-ifelse(Dtmp < 0.01, 0.01, Dtmp) #Does the fishery even exist below 0.01?
     Dtmp<-ifelse(Dtmp > 0.95, 0.95, Dtmp) #Must start in fished state - Need initial F > 0
     iterations <- floor(TimeAreaObj@iterations)
     Ddev <- runif(n=iterations, min=Dtmp[1], max=Dtmp[2])

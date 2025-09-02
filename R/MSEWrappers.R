@@ -264,10 +264,20 @@ evalMSE<-function(inputObject){
     #-----------------------------------------
     #new addition
     if(is_multifleet) {
-      # create selectivity list for multifleet equilibrium
+      # create selectivity list from fleet-specific fishery objects
       hist_sel_list <- lapply(1:nfleets, function(f) {
-        selHist[[1]][[f]]  # Use area 1 selectivity for equilibrium
+        selWrapper(lh, TimeAreaObj,
+                   FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]],
+                   doPlot = FALSE)
       })
+
+
+
+      #new modification
+      # # create selectivity list for multifleet equilibrium
+      # hist_sel_list <- lapply(1:nfleets, function(f) {
+      #   selHist[[1]][[f]]  # Use area 1 selectivity for equilibrium
+      # })
 
     #new addition: multifleet
     is <- solveD_multifleet2(lh = lh, sel_list = hist_sel_list,doFit = TRUE,D_type = TimeAreaObj@historicalBioType,
@@ -283,15 +293,20 @@ evalMSE<-function(inputObject){
     allocation_type <- is$allocation_type
 
     #debugging
-    cat("=== evalMSE EQUILIBRIUM DEBUG (iteration", k, ") ===\n")
-    cat("is$allocation_type:", is$allocation_type, "\n")
-    cat("is$final_effort_proportions:", is$final_effort_proportions, "\n")
-    cat("is$actual_catch_proportions:", is$actual_catch_proportions, "\n")
-    cat("is$target_catch_proportions:", is$target_catch_proportions, "\n")
-    cat("stored final_effort_proportions:", final_effort_proportions, "\n")
-    cat("stored actual_catch_proportions:", actual_catch_proportions, "\n")
-    cat("Are stored values equal?", identical(final_effort_proportions, actual_catch_proportions), "\n")
-    cat("===============================================\n")
+    #CRITICAL: Verify values immediately after equilibrium calculation
+    cat("=== CRITICAL DEBUG in evalMSE (iteration", k, ") ===\n")
+    cat("IMMEDIATELY after solveD_multifleet2() call:\n")
+    cat("  is$final_effort_proportions:", if(!is.null(is$final_effort_proportions)) round(is$final_effort_proportions, 4) else "NULL", "\n")
+    cat("  is$actual_catch_proportions:", if(!is.null(is$actual_catch_proportions)) round(is$actual_catch_proportions, 4) else "NULL", "\n")
+    cat("  is$target_catch_proportions:", if(!is.null(is$target_catch_proportions)) round(is$target_catch_proportions, 4) else "NULL", "\n")
+    cat("  is$allocation_type:", is$allocation_type, "\n")
+
+
+    if(!is.null(is$final_effort_proportions) && !is.null(is$actual_catch_proportions)) {
+      cat("  Are effort/catch identical in evalMSE?", identical(is$final_effort_proportions, is$actual_catch_proportions), "\n")
+      cat("  Max difference:", max(abs(is$final_effort_proportions - is$actual_catch_proportions)), "\n")
+    }
+    cat("================================================\n")
 
 
 
@@ -915,6 +930,20 @@ evalMSE<-function(inputObject){
       actual_catch_proportions = actual_catch_proportions,
       allocation_type = allocation_type
     )
+
+    # Final verification before storage
+    cat("=== FINAL VERIFICATION in evalMSE (iteration", k, ") ===\n")
+    cat("final_effort_proportions: ", if(!is.null(final_effort_proportions)) round(final_effort_proportions, 4) else "NULL", "\n")
+    cat("actual_catch_proportions: ", if(!is.null(actual_catch_proportions)) round(actual_catch_proportions, 4) else "NULL", "\n")
+
+    # if(!is.null(final_effort_proportions) && !is.null(actual_catch_proportions)) {
+    #   cat("Are they identical in final storage?", identical(final_effort_proportions, actual_catch_proportions), "\n")
+    #   cat("Max difference:", max(abs(final_effort_proportions - actual_catch_proportions)), "\n")
+    # }
+    cat("==============================================\n")
+
+
+
 
 
   #save
