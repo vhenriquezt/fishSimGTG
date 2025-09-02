@@ -273,12 +273,6 @@ evalMSE<-function(inputObject){
 
 
 
-      #new modification
-      # # create selectivity list for multifleet equilibrium
-      # hist_sel_list <- lapply(1:nfleets, function(f) {
-      #   selHist[[1]][[f]]  # Use area 1 selectivity for equilibrium
-      # })
-
     #new addition: multifleet
     is <- solveD_multifleet2(lh = lh, sel_list = hist_sel_list,doFit = TRUE,D_type = TimeAreaObj@historicalBioType,
                                D_in = Ddev[k], fleet_proportions = fleet_proportions,
@@ -522,8 +516,14 @@ evalMSE<-function(inputObject){
 
 
 
-        #RB now sums fleet-specific catches
-        RB[1,k,m] <- sum(catchB_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
+        #RB uses maximum retention across fleets (otherwise I would double-counting RB)
+        #RB[1,k,m] <- sum(catchB_by_fleet[1,k,m,1:nfleets], na.rm = TRUE)
+        RB[1,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) {
+          max_keep_by_age <- sapply(1:lh$ageClasses, function(age) {
+            max(sapply(1:nfleets, function(f) selHist[[m]][[f]]$keep[[x]][age]))
+          })
+          sum(N[[x]][,1,m] * max_keep_by_age * lh$W[[x]])
+        }))
         #Ftotal now sums all fleet F values
         Ftotal[1,k,m] <- sum(F_eq_by_fleet)  # Total F
 
@@ -798,9 +798,15 @@ evalMSE<-function(inputObject){
             sum(N[[x]][,j,m] * max_vuln_by_age * lh$W[[x]])
           }))
 
+          # RB uses maximum retention across fleets (no double-counting)
 
-
-          RB[j,k,m] <- sum(catchB_by_fleet[j,k,m,1:nfleets], na.rm = TRUE)
+          #RB[j,k,m] <- sum(catchB_by_fleet[j,k,m,1:nfleets], na.rm = TRUE)
+          RB[j,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) {
+            max_keep_by_age <- sapply(1:lh$ageClasses, function(age) {
+              max(sapply(1:nfleets, function(f) selGroup[[m]][[f]]$keep[[x]][age]))
+            })
+            sum(N[[x]][,j,m] * max_keep_by_age * lh$W[[x]])
+          }))
 
           catchN[j,k,m] <- sum(catchN_by_fleet[j,k,m,1:nfleets], na.rm = TRUE)
           catchB[j,k,m] <- sum(catchB_by_fleet[j,k,m,1:nfleets], na.rm = TRUE)
