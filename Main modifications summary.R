@@ -1,8 +1,9 @@
 General summary of changes to covert single fleet to multifleet approach
+(Multiple fleets with distinct selectivities)
 
 1. S4 class structure
 
-1) Adding S4 multifleet class 
+1) Adding S4 multifleet class
 
 setClass("Multifleet",
          representation(
@@ -10,12 +11,12 @@ setClass("Multifleet",
            nfleets = "numeric",
            fleet_proportions = "numeric",        # Proportional allocation
            allocation_type = "character",        # "effort" or "catch"
-           allocation_type = "character",        
+           allocation_type = "character",
            fleet_selectivity_hist_list = "list", # Historical selectivity per fleet
            fleet_selectivity_proj_list = "list"  # Projection selectivity per fleet
          )
 )
-
+#Key features
 # uses lists of Fishery objects
 # historical vs projection selectivity
 # flexible allocation - both effort-based and catch-based
@@ -29,7 +30,7 @@ setClass("Multifleet",
 Z = M + F × selectivity
 2) multifleet:
 # Shared mortality
-# each fleet contributes independently to total mortality
+# each fleet contributes independently to total mortality (Z)
 # fleets interact through shared mortality rather than averaging selectivities.
 Z = M + sum(F_fleet × selectivity_fleet)
 
@@ -60,31 +61,31 @@ histEffortDev <- array(dim=c(years, iterations, areas, nfleets))  # 4D
 
 
 
-4. Selectivity structure
+Selectivity structure
 
 1) Single fleet:
 Simple selectivity: selHist[[area]]
 
 # Simple nested structure
-selHist[[area]]$vul[[gtg]]
-selPro[[area]]$keep[[gtg]]
+selHist[[area]]$vul[[gtg]][age]
+selPro[[area]]$keep[[gtg]][age]
 
 
-2) Multifleet: 
+2) Multifleet:
 
 Selectivity
 Nested selectivity: selHist[[area]][[fleet]]
 
 # Double-nested structure for fleet-specific selectivity
-selHist[[area]][[fleet]]$vul[[gtg]]
-selPro[[area]][[fleet]]$keep[[gtg]]
+selHist[[area]][[fleet]]$vul[[gtg]][age]
+selPro[[area]][[fleet]]$keep[[gtg]][age]
 
 # Separate historical and projection selectivity lists
 MultifleetObj@fleet_selectivity_hist_list[[f]]
 MultifleetObj@fleet_selectivity_proj_list[[f]]
 
 
-5. Equilibrium calcs.
+4. Equilibrium calcs.
 
 1) Single Fleet: solveD()
 
@@ -93,27 +94,29 @@ is <- solveD(lh, sel = selHist[[1]], doFit = TRUE, ...)
 
 2) Multifleet: solveD_multifleet2()
 # Multi-fleet equilibrium with iterative allocation
-is <- solveD_multifleet2(lh = lh, sel_list = hist_sel_list, 
+is <- solveD_multifleet2(lh = lh, sel_list = hist_sel_list,
                         fleet_proportions = fleet_proportions,
                         allocation_type = "effort" or "catch")
 
-# Returns: 
+# Returns:
 # - Feq (total F)
 # - F_by_fleet (vector of fleet-specific F)
 # - final_effort_proportions, target_catch_proportions, actual_catch_proportions
 
 
-When allocation_type= "catch" 
+When allocation_type= "catch"
 #Iterative process to find effort proportions that achieve target catch proportions.
-#We specify the target catch proportions, and the algorithm finds the effort 
+#We specify the target catch proportions, and the algorithm finds the effort
 #proportions needed to achieve those catch splits.
+#Iterates until: actual_catch_proportions ≈ target_catch_proportions
+#Maximum 50 iterations, 0.5% tolerance
 
 fleet_proportions <- c(0.7, 0.3)  # want Fleet 1 to catch 70%, Fleet 2 to catch 30%
 allocation_type <- "catch"
 # Final: effort split [0.67, 0.33] achieves target catch split [0.7, 0.3]
 
 
-allocation_type = "effort"
+allocation_type = "effort" #Direct F distribution
 #Specify how fishing effort (F values) should be split among fleets.
 fleet_proportions <- c(0.6, 0.4)  # Fleet 1 gets 60% of effort, Fleet 2 gets 40%
 
@@ -123,7 +126,7 @@ F_fleet1 = 0.5 × 0.6 = 0.3
 F_fleet2 = 0.5 × 0.4 = 0.2
 
 
-6. Flet detection, mode switching, and backward compatibility (handle both single and multi)
+5. Flet detection, mode switching, and backward compatibility (handle both single and multi)
 
 1) mode swithcing
 
@@ -138,7 +141,7 @@ if(is_multifleet) {
 }
 
 
-7. Historical Effort Deviations
+6. Historical Effort Deviations
 
 1) Single Fleet:
 
@@ -152,18 +155,23 @@ histEffortDev <- function(TimeAreaObj, StochasticObj) {
 histEffortDev <- function(TimeAreaObj, StochasticObj, nfleets = 1) {
     # Creates 4D array [years, iterations, areas, nfleets]
     Emult <- array(dim=c(years, iterations, areas, nfleets))
-    
+
     # Backward compatibility handling
     if(nfleets == 1) {
     # return 3D version for single fleet
     }
 }
 
-8. Management Strategy 
+#Single fleet: 3D array [years, iterations, areas]
+#Multifleet: 4D array [years, iterations, areas, fleets]
+#Backward compatible through dimension checking
+
+
+7. Management Strategy
 # Now this section includes an Area loop + Fleet loop and fleet specific data  (histEffortDev[j,k,m,f]) # 4D array (added fleet dimension))
 # the returning structure was modified: return(year, iteration, area, fleet, F)
 
-# The function now returns multiple F values per area (one per fleet + one total), 
+# The function now returns multiple F values per area (one per fleet + one total),
 # So evalMSE() uses:
 
 # total F for population mortality/survival
@@ -173,7 +181,7 @@ histEffortDev <- function(TimeAreaObj, StochasticObj, nfleets = 1) {
 
 fixedStrategy <- function(phase, dataObject) {
     # Simple F calculation
-    Flocal <- rbind(Flocal, c(j, k, m, 
+    Flocal <- rbind(Flocal, c(j, k, m,
         TimeAreaObj@historicalEffort[yr,m] * is$Feq * histEffortDev[j,k,m]))
 }
 
@@ -187,24 +195,30 @@ return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3], Flocal=Floca
 fixedStrategy <- function(phase, dataObject) {
     # Fleet detection
     is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
-    
+
     if(is_multifleet) {
         # Fleet-specific F calculations
         for(f in 1:nfleets) {
-            F_fleet <- F_eq_by_fleet[f] * TimeAreaObj@historicalEffort[yr,m] * 
+            F_fleet <- F_eq_by_fleet[f] * TimeAreaObj@historicalEffort[yr,m] *
                       histEffortDev[yr + 1, k, m, f]  # 4D indexing
-        }
-        # Returns fleet-specific and total F
-    } else {
-        # Original single fleet logic unchanged
-    }
-}
+   # fleet-specific F calculation
+          F_fleet <- F_eq_by_fleet[f] * TimeAreaObj@historicalEffort[yr,m] * effort_dev_value
+          total_F_area <- total_F_area + F_fleet
 
-# NEW (Multifleet):
-colnames(Flocal) <- c("year", "iteration", "area", "fleet", "Flocal")
-return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],
-            fleet=Flocal[,4], Flocal=Flocal[,5]))
-#           5 columns: year, iteration, area, fleet, F
+          #add fleet-specific row (for tracking purposes)
+          Flocal<-rbind(Flocal, c(j, k, m, f, F_fleet))
+        }
+        # add total F row (for backward compatibility)
+        Flocal<-rbind(Flocal, c(j, k, m, 0, total_F_area))  # fleet=0 indicates total-  indicates this row contains the total F across all fleets rather than an individual F fleet
+      }
+
+      colnames(Flocal) <- c("year", "iteration", "area", "fleet", "Flocal")
+      return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],
+                  fleet=Flocal[,4], Flocal=Flocal[,5]))
+
+    } else {
+
+##otherwise continue with original implementation
 
 
 #very similar integration in evalMSE() as single fleet
@@ -214,8 +228,8 @@ return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],
 #The total F value (fleet=0) is identical to what single fleet would return
 
 
-9. Population Dynamics - Time Loop
-# Main differences: 
+8. Population Dynamics - Time Loop
+# Main differences:
 #how mortality and catches are calculated
 #data structure changes (ues 3D + 4D arrays)
 #nested selectivity: selGroup[[m]][[f]]
@@ -238,19 +252,34 @@ total_fishing_mortality <- sapply(1:ageClasses, function(age) {
 })
 Z[[l]][,j,m] <- total_fishing_mortality + lh$LifeHistory@M
 
-# Fleet-specific catches using shared Z 
+# Fleet-specific catches using shared Z
 for(f in 1:nfleets) {
-    catchNage_by_fleet[[f]][[l]][,j,m] <- 
+    catchNage_by_fleet[[f]][[l]][,j,m] <-
         F_by_fleet_current[f] * selGroup[[m]][[f]]$keep[[l]] /
         Z[[l]][,j,m] * (1-exp(-Z[[l]][,j,m])) * N[[l]][,j,m]
 }
+
+
+9) Vulnerable/Retained Biomass
+# Changes to avoid double counting (ask bill)
+
+# Use MAXIMUM vulnerability across fleets (not sum)
+VB[j,k,m] <- sum(sapply(1:lh$gtg, FUN=function(x) {
+    max_vuln_by_age <- sapply(1:ageClasses, function(age) {
+        max(sapply(1:nfleets, function(f) 
+            selGroup[[m]][[f]]$vul[[x]][age]))
+    })
+    sum(N[[x]][,j,m] * max_vuln_by_age * lh$W[[x]])
+}))
+
+
 
 
 10) Results structure
 
 1) single fleet:
 
-dynamics <- list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, 
+dynamics <- list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN,
                 Ftotal=Ftotal, ...)
 
 
@@ -259,14 +288,14 @@ dynamics <- list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN,
 dynamics <- list(
     # Original single fleet results (backward compatible)
     SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, Ftotal=Ftotal,
-    
+
     # NEW: Multifleet-specific results
     multifleet = list(
-        Ftotal_by_fleet = Ftotal_by_fleet,
-        catchB_by_fleet = catchB_by_fleet,
-        catchN_by_fleet = catchN_by_fleet,
-        discB_by_fleet = discB_by_fleet,
-        discN_by_fleet = discN_by_fleet,
+        Ftotal_by_fleet = Ftotal_by_fleet, # 4D array
+        catchB_by_fleet = catchB_by_fleet, # 4D array
+        catchN_by_fleet = catchN_by_fleet, # 4D array
+        discB_by_fleet = discB_by_fleet,   # 4D array
+        discN_by_fleet = discN_by_fleet,   # 4D array
         fleet_proportions = fleet_proportions,
         final_effort_proportions = final_effort_proportions,
         target_catch_proportions = target_catch_proportions,
@@ -279,11 +308,31 @@ dynamics <- list(
 11. Some validations (there are more along the code)
 
 # validation checks
-sum(F_by_fleet) == Ftotal  # Fleet F values sum to total F
-sum(catchB_by_fleet) == catchB  # Fleet catches sum to total catch
-abs(actual_catch_proportions - target_catch_proportions) < 0.01  # 1% tolerance
+all.equal(sum(F_by_fleet), Ftotal)              # Fleet F sums to total
+all.equal(sum(catchB_by_fleet), catchB)         # Fleet catches sum to total
+max(abs(actual - target)) < 0.005               # Allocation convergence
 
 
 12. Basic MP (the cistomized MP)
-# added the fleet column to simpleMP_multi to maintain data structure 
+# added the fleet column to simpleMP_multi to maintain data structure
 # consistency with the multifleet fixedStrategy() format.
+
+
+Some assumptions (Ask Bill):
+
+Movement calculations: Use Fleet 1 selectivity
+Benchmark calculations: Use Fleet 1 for reference points
+Burn-in period: Use Fleet 1 for equilibrium distribution
+
+Main principles in this codification:
+No selectivity averaging: each fleet maintains independent selectivity
+Shared mortality principle: all fleets contribute to total Z
+Baranov equation consistency: shared Z in denominator
+Backward compatibility: single fleet code continues to work
+Flexible allocation: both effort and catch-based options
+Complete tracking: maintain both total and fleet-specific metrics
+
+
+To do list:
+Observation models fleet-specific support (in progress)
+Newton-Rapson (in progress)
