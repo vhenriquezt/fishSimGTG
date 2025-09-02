@@ -327,212 +327,221 @@ result_multi1$dynamics$multifleet$catchB_by_fleet
 # COMPARING THE THREE PREVIOUS EXAMPLES
 # ============================================================================
 
-# cat("=========================================================================\n")
-# cat("COMPARING: single fleet - multifleet (2 identical)- multifleet (1 fleet))\n")
-# cat("=========================================================================\n")
-#
-# #Single Fleet vs Multifleet (1 fleet) - must be identical
-# identical(result_single$dynamics$SB, result_multi1$dynamics$SB)
-# identical(result_single$dynamics$VB, result_multi1$dynamics$VB)
-# identical(result_single$dynamics$catchB, result_multi1$dynamics$catchB)
-# identical(result_single$dynamics$Ftotal, result_multi1$dynamics$Ftotal)
-#
-#
-# # Check 1-fleet multifleet has correct fleet dimensions
-# dim(result_multi1$dynamics$multifleet$Ftotal_by_fleet)     # [years, iter, areas, 1]
-# dim(result_multi1$dynamics$multifleet$catchB_by_fleet)     # [years, iter, areas, 1]
-#
-# # Fleet values should equal total values for 1-fleet case
-# identical(result_multi1$dynamics$Ftotal, result_multi1$dynamics$multifleet$Ftotal_by_fleet[,,,1])
-# identical(result_multi1$dynamics$catchB, result_multi1$dynamics$multifleet$catchB_by_fleet[,,,1])
-#
-#
-# #Multifleet (2 identical) fleet summation
-#
-# # Fleet catches must sum to total
-# fleet_sum_catchB <- result_multi2$dynamics$multifleet$catchB_by_fleet[,,,1] +
-#   result_multi2$dynamics$multifleet$catchB_by_fleet[,,,2]
-#
-#
-# max(abs(fleet_sum_catchB - result_multi2$dynamics$catchB))
-#
-#
-# # Fleet F must sum to total
-# fleet_sum_F <- result_multi2$dynamics$multifleet$Ftotal_by_fleet[,,,1] +
-#   result_multi2$dynamics$multifleet$Ftotal_by_fleet[,,,2]
-#
-# max(abs(fleet_sum_F - result_multi2$dynamics$Ftotal))  # Should be ~0
-#
-# # Since selectivities are identical, population should be very similar
-# # (Small differences expected due to allocation algorithm)
-#
-# # Check relative differences
-# rel_diff_SB <- abs(result_single$dynamics$SB - result_multi2$dynamics$SB) /
-#   result_single$dynamics$SB
-#
-# max(rel_diff_SB, na.rm = TRUE)  # Should be < 5%
-#
-# # Same for catches
-# rel_diff_catch <- abs(result_single$dynamics$catchB - result_multi2$dynamics$catchB) /
-#   result_single$dynamics$catchB
-#
-# max(rel_diff_catch, na.rm = TRUE)  # Should be < 5%
-#
-# # Check multifleet allocation worked
-# result_multi2$dynamics$multifleet$allocation_type
-# result_multi2$dynamics$multifleet$fleet_proportions          # [0.6, 0.4]
-# result_multi2$dynamics$multifleet$target_catch_proportions   # [0.6, 0.4]
-# result_multi2$dynamics$multifleet$actual_catch_proportions   # Should be close to [0.6, 0.4]
-# result_multi2$dynamics$multifleet$final_effort_proportions
-#
-# # Check allocation accuracy
-# allocation_error <- abs(result_multi2$dynamics$multifleet$actual_catch_proportions -
-#                           result_multi2$dynamics$multifleet$target_catch_proportions)
-# max(allocation_error)  # Should be < 0.05 (5% tolerance)
-#
-#
-#
-#   # Test 1: Single vs Multi1 (should be identical)
-#   cat("\n1. BACKWARD COMPATIBILITY (Single vs Multi1):\n")
-#   sb_identical <- identical(result_single$dynamics$SB, result_multi1$dynamics$SB)
-#   vb_identical <- identical(result_single$dynamics$VB, result_multi1$dynamics$VB)
-#   rb_identical <- identical(result_single$dynamics$RB, result_multi1$dynamics$RB)
-#
-#   cat(sprintf("   SB identical: %s\n", sb_identical))
-#   cat(sprintf("   VB identical: %s\n", vb_identical))
-#   cat(sprintf("   RB identical: %s\n", rb_identical))
-#
-#   if(!sb_identical) {
-#     max_sb_diff <- max(abs(result_single$dynamics$SB - result_multi1$dynamics$SB))
-#     cat(sprintf("   Max SB difference: %e\n", max_sb_diff))
-#   }
-#
-#   # Test 2: Population similarity (Single vs Multi2)
-#   cat("\n2. POPULATION SIMILARITY (Single vs Multi2):\n")
-#   for(area in 1:areas) {
-#     # Compare final year values (iteration 1)
-#     final_year <- years
-#
-#     sb_single <- result_single$dynamics$SB[final_year, 1, area]
-#     sb_multi2 <- result_multi2$dynamics$SB[final_year, 1, area]
-#     sb_diff_pct <- abs(sb_single - sb_multi2) / sb_single * 100
-#
-#     vb_single <- result_single$dynamics$VB[final_year, 1, area]
-#     vb_multi2 <- result_multi2$dynamics$VB[final_year, 1, area]
-#     vb_diff_pct <- abs(vb_single - vb_multi2) / vb_single * 100
-#
-#     rb_single <- result_single$dynamics$RB[final_year, 1, area]
-#     rb_multi2 <- result_multi2$dynamics$RB[final_year, 1, area]
-#     rb_diff_pct <- abs(rb_single - rb_multi2) / rb_single * 100
-#
-#
-#
-#   return(list(
-#     backward_compatible = sb_identical && vb_identical && rb_identical,
-#     max_differences = list(
-#       sb_single_multi2 = max(abs(result_single$dynamics$SB - result_multi2$dynamics$SB)),
-#       vb_single_multi2 = max(abs(result_single$dynamics$VB - result_multi2$dynamics$VB)),
-#       rb_single_multi2 = max(abs(result_single$dynamics$RB - result_multi2$dynamics$RB))
-#     )
-#   ))
-# }
-#
-#
-#
-#
-#
-# create_biomass_plots <- function() {
-#
-#   years <- dim(result_single$dynamics$SB)[1]
-#   areas <- dim(result_single$dynamics$SB)[3]
-#   year_seq <- 1:years
-#
-#   #create data frame for plotting (using iteration 1, area 1)
-#   plot_data <- data.frame(
-#     Year = rep(year_seq, 9),  # 3 scenarios × 3 metrics
-#     Value = c(
-#       # SB values
-#       result_single$dynamics$SB[, 1, 1],
-#       result_multi1$dynamics$SB[, 1, 1],
-#       result_multi2$dynamics$SB[, 1, 1],
-#       # VB values
-#       result_single$dynamics$VB[, 1, 1],
-#       result_multi1$dynamics$VB[, 1, 1],
-#       result_multi2$dynamics$VB[, 1, 1],
-#       # RB values
-#       result_single$dynamics$RB[, 1, 1],
-#       result_multi1$dynamics$RB[, 1, 1],
-#       result_multi2$dynamics$RB[, 1, 1]
-#     ),
-#     Scenario = rep(rep(c("Single_Fleet", "Multi_1Fleet", "Multi_2Identical"), each = years), 3),
-#     Metric = rep(c("Spawning_Biomass", "Vulnerable_Biomass", "Retained_Biomass"), each = years * 3)
-#   )
-#
-#   #add period classification
-#   plot_data <- plot_data %>%
-#     mutate(
-#       Period = case_when(
-#         Year == 1 ~ "Equilibrium",
-#         Year <= 11 ~ "Historical",
-#         Year > 11 ~ "Projection"
-#       )
-#     )
-#
-#   #create the plot
-#   p1 <- ggplot(plot_data, aes(x = Year, y = Value, color = Scenario, linetype = Scenario)) +
-#     geom_line(size = 1) +
-#     geom_vline(xintercept = 1.5, linetype = "dotted", alpha = 0.7, color = "gray") +
-#     geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.7, color = "red") +
-#     facet_wrap(~Metric, scales = "free_y", ncol = 1) +
-#     labs(
-#       title = "Biomass Metrics Comparison - Area 1, Iteration 1",
-#       subtitle = "Dotted line = End Equilibrium | Dashed line = End Historical",
-#       x = "Year",
-#       y = "Biomass",
-#       color = "Scenario",
-#       linetype = "Scenario"
-#     ) +
-#     theme_minimal() +
-#     theme(
-#       legend.position = "bottom",
-#       strip.text = element_text(size = 10, face = "bold")
-#     )
-#
-#   #create difference plot (Multi2 - Single)
-#   diff_data <- data.frame(
-#     Year = rep(year_seq, 3),
-#     Difference = c(
-#       result_multi2$dynamics$SB[, 1, 1] - result_single$dynamics$SB[, 1, 1],
-#       result_multi2$dynamics$VB[, 1, 1] - result_single$dynamics$VB[, 1, 1],
-#       result_multi2$dynamics$RB[, 1, 1] - result_single$dynamics$RB[, 1, 1]
-#     ),
-#     Metric = rep(c("SB_Difference", "VB_Difference", "RB_Difference"), each = years)
-#   )
-#
-#   p2 <- ggplot(diff_data, aes(x = Year, y = Difference)) +
-#     geom_line(color = "blue", size = 1) +
-#     geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-#     geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.7, color = "gray") +
-#     facet_wrap(~Metric, scales = "free_y", ncol = 1) +
-#     labs(
-#       title = "Difference: Multi2 - Single Fleet",
-#       subtitle = "Should be small differences (identical selectivities)",
-#       x = "Year",
-#       y = "Difference"
-#     ) +
-#     theme_minimal()
-#
-#   return(list(comparison = p1, differences = p2))
-# }
-#
-# #run the analysis and create plots
-# comparison_results <- compare_biomass_metrics()
-# plots <- create_biomass_plots()
-#
-# #display plots
-# print(plots$comparison)
-# print(plots$differences)
-#
+cat("=========================================================================\n")
+cat("COMPARING: single fleet - multifleet (2 identical)- multifleet (1 fleet))\n")
+cat("=========================================================================\n")
+
+#Single Fleet vs Multifleet (1 fleet) - must be identical
+identical(result_single$dynamics$SB, result_multi1$dynamics$SB)
+identical(result_single$dynamics$VB, result_multi1$dynamics$VB)
+identical(result_single$dynamics$catchB, result_multi1$dynamics$catchB)
+identical(result_single$dynamics$Ftotal, result_multi1$dynamics$Ftotal)
+
+
+# Check 1-fleet multifleet has correct fleet dimensions
+dim(result_multi1$dynamics$multifleet$Ftotal_by_fleet)     # [years, iter, areas, 1]
+dim(result_multi1$dynamics$multifleet$catchB_by_fleet)     # [years, iter, areas, 1]
+
+# Fleet values should equal total values for 1-fleet case
+identical(result_multi1$dynamics$Ftotal, result_multi1$dynamics$multifleet$Ftotal_by_fleet[,,,1])
+identical(result_multi1$dynamics$catchB, result_multi1$dynamics$multifleet$catchB_by_fleet[,,,1])
+
+
+#Multifleet (2 identical) fleet summation
+
+# Fleet catches must sum to total
+fleet_sum_catchB <- result_multi2$dynamics$multifleet$catchB_by_fleet[,,,1] +
+  result_multi2$dynamics$multifleet$catchB_by_fleet[,,,2]
+
+
+max(abs(fleet_sum_catchB - result_multi2$dynamics$catchB))
+
+
+# Fleet F must sum to total
+fleet_sum_F <- result_multi2$dynamics$multifleet$Ftotal_by_fleet[,,,1] +
+  result_multi2$dynamics$multifleet$Ftotal_by_fleet[,,,2]
+
+max(abs(fleet_sum_F - result_multi2$dynamics$Ftotal))  # Should be ~0
+
+# Since selectivities are identical, population should be very similar
+# (Small differences expected due to allocation algorithm)
+
+# Check relative differences
+rel_diff_SB <- abs(result_single$dynamics$SB - result_multi2$dynamics$SB) /
+  result_single$dynamics$SB
+
+max(rel_diff_SB, na.rm = TRUE)  # Should be < 5%
+
+# Same for catches
+rel_diff_catch <- abs(result_single$dynamics$catchB - result_multi2$dynamics$catchB) /
+  result_single$dynamics$catchB
+
+max(rel_diff_catch, na.rm = TRUE)  # Should be < 5%
+
+# Check multifleet allocation worked
+result_multi2$dynamics$multifleet$allocation_type
+result_multi2$dynamics$multifleet$fleet_proportions          # [0.6, 0.4]
+result_multi2$dynamics$multifleet$target_catch_proportions   # [0.6, 0.4]
+result_multi2$dynamics$multifleet$actual_catch_proportions   # Should be close to [0.6, 0.4]
+result_multi2$dynamics$multifleet$final_effort_proportions
+
+# Check allocation accuracy
+allocation_error <- abs(result_multi2$dynamics$multifleet$actual_catch_proportions -
+                          result_multi2$dynamics$multifleet$target_catch_proportions)
+max(allocation_error)  # Should be < 0.05 (5% tolerance)
+
+
+
+  # Test 1: Single vs Multi1 (should be identical)
+  cat("\n1. BACKWARD COMPATIBILITY (Single vs Multi1):\n")
+  sb_identical <- identical(result_single$dynamics$SB, result_multi1$dynamics$SB)
+  vb_identical <- identical(result_single$dynamics$VB, result_multi1$dynamics$VB)
+  rb_identical <- identical(result_single$dynamics$RB, result_multi1$dynamics$RB)
+
+  cat(sprintf("   SB identical: %s\n", sb_identical))
+  cat(sprintf("   VB identical: %s\n", vb_identical))
+  cat(sprintf("   RB identical: %s\n", rb_identical))
+
+  if(!sb_identical) {
+    max_sb_diff <- max(abs(result_single$dynamics$SB - result_multi1$dynamics$SB))
+    cat(sprintf("   Max SB difference: %e\n", max_sb_diff))
+  }
+
+  # Test 2: Population similarity (Single vs Multi2)
+  years <- dim(result_single$dynamics$SB)[1]
+  areas <- dim(result_single$dynamics$SB)[3]
+  final_year <- years
+
+  cat("\n2. POPULATION SIMILARITY (Single vs Multi2):\n")
+  for(area in 1:areas) {
+    # Compare final year values (iteration 1)
+    final_year <- years
+
+    sb_single <- result_single$dynamics$SB[final_year, 1, area]
+    sb_multi2 <- result_multi2$dynamics$SB[final_year, 1, area]
+    sb_diff_pct <- abs(sb_single - sb_multi2) / sb_single * 100
+
+    vb_single <- result_single$dynamics$VB[final_year, 1, area]
+    vb_multi2 <- result_multi2$dynamics$VB[final_year, 1, area]
+    vb_diff_pct <- abs(vb_single - vb_multi2) / vb_single * 100
+
+    rb_single <- result_single$dynamics$RB[final_year, 1, area]
+    rb_multi2 <- result_multi2$dynamics$RB[final_year, 1, area]
+    rb_diff_pct <- abs(rb_single - rb_multi2) / rb_single * 100
+
+    #print results for each area
+    cat(sprintf("  Area %d:\n", area))
+    cat(sprintf("    SB difference: %.2f%%\n", sb_diff_pct))
+    cat(sprintf("    VB difference: %.2f%%\n", vb_diff_pct))
+    cat(sprintf("    RB difference: %.2f%%\n", rb_diff_pct))
+  }
+
+  # Store results in a variable instead of return (since this isn't inside a function)
+  comparison_results <- list(
+    backward_compatible = sb_identical && vb_identical && rb_identical,
+    max_differences = list(
+      sb_single_multi2 = max(abs(result_single$dynamics$SB - result_multi2$dynamics$SB)),
+      vb_single_multi2 = max(abs(result_single$dynamics$VB - result_multi2$dynamics$VB)),
+      rb_single_multi2 = max(abs(result_single$dynamics$RB - result_multi2$dynamics$RB))
+    )
+  )
+
+  print(comparison_results)
+
+
+  #create some plots
+
+create_biomass_plots <- function() {
+
+  years <- dim(result_single$dynamics$SB)[1]
+  areas <- dim(result_single$dynamics$SB)[3]
+  year_seq <- 1:years
+
+  #create data frame for plotting (using iteration 1, area 1)
+  plot_data <- data.frame(
+    Year = rep(year_seq, 9),  # 3 scenarios × 3 metrics
+    Value = c(
+      # SB values
+      result_single$dynamics$SB[, 1, 1],
+      result_multi1$dynamics$SB[, 1, 1],
+      result_multi2$dynamics$SB[, 1, 1],
+      # VB values
+      result_single$dynamics$VB[, 1, 1],
+      result_multi1$dynamics$VB[, 1, 1],
+      result_multi2$dynamics$VB[, 1, 1],
+      # RB values
+      result_single$dynamics$RB[, 1, 1],
+      result_multi1$dynamics$RB[, 1, 1],
+      result_multi2$dynamics$RB[, 1, 1]
+    ),
+    Scenario = rep(rep(c("Single_Fleet", "Multi_1Fleet", "Multi_2Identical"), each = years), 3),
+    Metric = rep(c("Spawning_Biomass", "Vulnerable_Biomass", "Retained_Biomass"), each = years * 3)
+  )
+
+  #add period classification
+  plot_data <- plot_data %>%
+    mutate(
+      Period = case_when(
+        Year == 1 ~ "Equilibrium",
+        Year <= 11 ~ "Historical",
+        Year > 11 ~ "Projection"
+      )
+    )
+
+  #create the plot
+  p1 <- ggplot(plot_data, aes(x = Year, y = Value, color = Scenario, linetype = Scenario)) +
+    geom_line(size = 1) +
+    geom_vline(xintercept = 1.5, linetype = "dotted", alpha = 0.7, color = "gray") +
+    geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.7, color = "red") +
+    facet_wrap(~Metric, scales = "free_y", ncol = 1) +
+    labs(
+      title = "Biomass Metrics Comparison - Area 1, Iteration 1",
+      subtitle = "Dotted line = End Equilibrium | Dashed line = End Historical",
+      x = "Year",
+      y = "Biomass",
+      color = "Scenario",
+      linetype = "Scenario"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "bottom",
+      strip.text = element_text(size = 10, face = "bold")
+    )
+
+  #create difference plot (Multi2 - Single)
+  diff_data <- data.frame(
+    Year = rep(year_seq, 3),
+    Difference = c(
+      result_multi2$dynamics$SB[, 1, 1] - result_single$dynamics$SB[, 1, 1],
+      result_multi2$dynamics$VB[, 1, 1] - result_single$dynamics$VB[, 1, 1],
+      result_multi2$dynamics$RB[, 1, 1] - result_single$dynamics$RB[, 1, 1]
+    ),
+    Metric = rep(c("SB_Difference", "VB_Difference", "RB_Difference"), each = years)
+  )
+
+  p2 <- ggplot(diff_data, aes(x = Year, y = Difference)) +
+    geom_line(color = "blue", size = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.7, color = "gray") +
+    facet_wrap(~Metric, scales = "free_y", ncol = 1) +
+    labs(
+      title = "Difference: Multi2 - Single Fleet",
+      subtitle = "Should be small differences (identical selectivities)",
+      x = "Year",
+      y = "Difference"
+    ) +
+    theme_minimal()
+
+  return(list(comparison = p1, differences = p2))
+}
+
+#run the analysis and create plots
+plots <- create_biomass_plots()
+
+#display plots
+print(plots$comparison)
+print(plots$differences)
+
 
 
 # ============================================================================
@@ -621,593 +630,274 @@ result_multi2 <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_m
 result_multi1 <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_1fleet")
 result_multi_diff <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_different")
 
-#
-# result_multi_diff$dynamics$multifleet
-#
-#
-#
-#
-# extract_complete_timeseries <- function(result, test_name) {
-#
-#   years <- dim(result$dynamics$SB)[1]
-#   iterations <- dim(result$dynamics$SB)[2]
-#   areas <- dim(result$dynamics$SB)[3]
-#   year_seq <- 1:years
-#
-#   cat(sprintf("Processing %s: %d years, %d iterations, %d areas\n",
-#               test_name, years, iterations, areas))
-#
-#   complete_data <- data.frame()
-#   if(is.null(result$dynamics$multifleet)) {
-#     # Single fleet case
-#     cat("  Single fleet mode\n")
-#     for(area in 1:areas) {
-#       # average across iterations for each metric
-#       area_data <- data.frame(
-#         test = test_name,
-#         year = year_seq,
-#         area = area,
-#         fleet = 1,
-#         nfleets = 1,
-#         allocation_type = "single_fleet",
-#         fleet_proportion = 1.0,
-#
-#         # population-level metrics (averaged across iterations)
-#         SB = rowMeans(result$dynamics$SB[, , area]),
-#         VB = rowMeans(result$dynamics$VB[, , area]),
-#         RB = rowMeans(result$dynamics$RB[, , area]),
-#
-#         # total catch and mortality (averaged across iterations)
-#         total_catchB = rowMeans(result$dynamics$catchB[, , area]),
-#         total_catchN = rowMeans(result$dynamics$catchN[, , area]),
-#         total_discB = rowMeans(result$dynamics$discB[, , area]),
-#         total_discN = rowMeans(result$dynamics$discN[, , area]),
-#         total_F = rowMeans(result$dynamics$Ftotal[, , area]),
-#
-#         # fleet-specific metrics (same as total for single fleet)
-#         fleet_catchB = rowMeans(result$dynamics$catchB[, , area]),
-#         fleet_catchN = rowMeans(result$dynamics$catchN[, , area]),
-#         fleet_discB = rowMeans(result$dynamics$discB[, , area]),
-#         fleet_discN = rowMeans(result$dynamics$discN[, , area]),
-#         fleet_F = rowMeans(result$dynamics$Ftotal[, , area]),
-#
-#         # proportions (always 1.0 for single fleet)
-#         fleet_catchB_proportion = 1.0,
-#         fleet_F_proportion = 1.0
-#       )
-#
-#       complete_data <- rbind(complete_data, area_data)
-#     }
-#   } else {
-#     # Multifleet case
-#     mf <- result$dynamics$multifleet
-#     nfleets <- mf$nfleets
-#
-#     cat(sprintf("  Multifleet mode: %d fleets, allocation: %s\n",
-#                 nfleets, mf$allocation_type))
-#
-#     for(area in 1:areas) {
-#       # get total values for this area (averaged across iterations)
-#       total_catchB_ts <- rowMeans(result$dynamics$catchB[, , area])
-#       total_F_ts <- rowMeans(result$dynamics$Ftotal[, , area])
-#
-#       for(fleet in 1:nfleets) {
-#
-#         # get fleet-specific values (averaged across iterations)
-#         fleet_catchB_ts <- rowMeans(mf$catchB_by_fleet[, , area, fleet])
-#         fleet_F_ts <- rowMeans(mf$Ftotal_by_fleet[, , area, fleet])
-#
-#
-#         # CORRECT proportion calculation
-#         fleet_catchB_prop <- ifelse(total_catchB_ts > 0, fleet_catchB_ts / total_catchB_ts, 0)
-#         fleet_F_prop <- ifelse(total_F_ts > 0, fleet_F_ts / total_F_ts, 0)
-#
-#         area_fleet_data <- data.frame(
-#           test = test_name,
-#           year = year_seq,
-#           area = area,
-#           fleet = fleet,
-#           nfleets = nfleets,
-#           allocation_type = mf$allocation_type,
-#           fleet_proportion = mf$fleet_proportions[fleet],
-#
-#           # population-level metrics (same for all fleets in an area)
-#           SB = rowMeans(result$dynamics$SB[, , area]),
-#           VB = rowMeans(result$dynamics$VB[, , area]),
-#           RB = rowMeans(result$dynamics$RB[, , area]),
-#
-#           # total catch and mortality (same for all fleets in an area)
-#           total_catchB = rowMeans(result$dynamics$catchB[, , area]),
-#           total_catchN = rowMeans(result$dynamics$catchN[, , area]),
-#           total_discB = rowMeans(result$dynamics$discB[, , area]),
-#           total_discN = rowMeans(result$dynamics$discN[, , area]),
-#           total_F = total_F_ts,
-#
-#           # fleet-specific metrics (averaged across iterations)
-#           fleet_catchB = rowMeans(mf$catchB_by_fleet[, , area, fleet]),
-#           fleet_catchN = rowMeans(mf$catchN_by_fleet[, , area, fleet]),
-#           fleet_discB = rowMeans(mf$discB_by_fleet[, , area, fleet]),
-#           fleet_discN = rowMeans(mf$discN_by_fleet[, , area, fleet]),
-#           fleet_F = rowMeans(mf$Ftotal_by_fleet[, , area, fleet]),
-#
-#           # fleet proportions over time
-#           fleet_catchB_proportion = fleet_catchB_prop,
-#           fleet_F_proportion = fleet_F_prop
-#         )
-#
-#         complete_data <- rbind(complete_data, area_fleet_data)
-#       }
-#     }
-#
-#     # add allocation details for multifleet
-#     if(!is.null(mf$target_catch_proportions)) {
-#       cat(sprintf("  Target catch proportions: %s\n",
-#                   paste(round(mf$target_catch_proportions, 3), collapse = ", ")))
-#     }
-#     if(!is.null(mf$actual_catch_proportions)) {
-#       cat(sprintf("  Actual catch proportions: %s\n",
-#                   paste(round(mf$actual_catch_proportions, 3), collapse = ", ")))
-#     }
-#     if(!is.null(mf$final_effort_proportions)) {
-#       cat(sprintf("  Final effort proportions: %s\n",
-#                   paste(round(mf$final_effort_proportions, 3), collapse = ", ")))
-#     }
-#   }
-#
-#   return(complete_data)
-# }
-#
-# # ============================================================================
-# # EXTRACT DATA FROM ALL SCENARIOS
-# # ============================================================================
-# # extract time series for all scenarios
-# complete_single <- extract_complete_timeseries(result_single, "Single_Fleet")
-# complete_multi2 <- extract_complete_timeseries(result_multi2, "Multifleet_2_Identical")
-# complete_multi1 <- extract_complete_timeseries(result_multi1, "Multifleet_1_Fleet")
-# complete_multi_diff <- extract_complete_timeseries(result_multi_diff, "Multifleet_Different")
-#
-# #combine all scenarios
-# all_complete_data <- rbind(
-#   complete_single,
-#   complete_multi2,
-#   complete_multi1,
-#   complete_multi_diff
-# )
-#
-# #add period classification
-# all_complete_data <- all_complete_data %>%
-#   mutate(
-#     period = case_when(
-#       year == 1 ~ "Equilibrium",
-#       year <= 11 ~ "Historical",
-#       year > 11 ~ "Projection"
-#     ),
-#     period_year = case_when(
-#       year == 1 ~ 0,
-#       year <= 11 ~ year - 1,
-#       year > 11 ~ year - 11
-#     )
-#   )
-#
-#
-# cat(sprintf("\nCombined dataset: %d rows, %d columns\n",
-#             nrow(all_complete_data), ncol(all_complete_data)))
-#
-#
-# # ============================================================================
-# # CREATE SUMMARY BY PERIOD
-# # ============================================================================
-#
-# # summary by test, area, fleet, and period
-# period_summary <- all_complete_data %>%
-#   group_by(test, area, fleet, nfleets, allocation_type, fleet_proportion, period) %>%
-#   summarise(
-#     years_in_period = n(),
-#
-#     # population metrics
-#     SB_mean = mean(SB, na.rm = TRUE),
-#     SB_final = last(SB),
-#     VB_mean = mean(VB, na.rm = TRUE),
-#     VB_final = last(VB),
-#
-#     # total metrics
-#     total_catchB_mean = mean(total_catchB, na.rm = TRUE),
-#     total_catchB_final = last(total_catchB),
-#     total_F_mean = mean(total_F, na.rm = TRUE),
-#     total_F_final = last(total_F),
-#
-#     # fleet-specific metrics
-#     fleet_catchB_mean = mean(fleet_catchB, na.rm = TRUE),
-#     fleet_catchB_final = last(fleet_catchB),
-#     fleet_catchN_mean = mean(fleet_catchN, na.rm = TRUE),
-#     fleet_F_mean = mean(fleet_F, na.rm = TRUE),
-#     fleet_F_final = last(fleet_F),
-#
-#     # proportions
-#     fleet_catchB_prop_mean = mean(fleet_catchB_proportion, na.rm = TRUE),
-#     fleet_F_prop_mean = mean(fleet_F_proportion, na.rm = TRUE),
-#
-#     .groups = "drop"
-#   )
-#
-# # extract allocation results for multifleet scenarios
-# allocation_summary <- data.frame()
-#
-# scenarios <- list(
-#   "Multifleet_2_Identical" = result_multi2,
-#   "Multifleet_1_Fleet" = result_multi1,
-#   "Multifleet_Different" = result_multi_diff
-# )
-#
-# for(test_name in names(scenarios)) {
-#   result <- scenarios[[test_name]]
-#
-#   if(!is.null(result$dynamics$multifleet)) {
-#     mf <- result$dynamics$multifleet
-#
-#     for(fleet in 1:mf$nfleets) {
-#       allocation_summary <- rbind(allocation_summary, data.frame(
-#         test = test_name,
-#         fleet = fleet,
-#         nfleets = mf$nfleets,
-#         allocation_type = mf$allocation_type,
-#         original_fleet_proportion = mf$fleet_proportions[fleet],
-#         target_catch_proportion = if(!is.null(mf$target_catch_proportions)) mf$target_catch_proportions[fleet] else NA,
-#         actual_catch_proportion = if(!is.null(mf$actual_catch_proportions)) mf$actual_catch_proportions[fleet] else NA,
-#         final_effort_proportion = if(!is.null(mf$final_effort_proportions)) mf$final_effort_proportions[fleet] else NA,
-#         allocation_error = if(!is.null(mf$target_catch_proportions) && !is.null(mf$actual_catch_proportions)) {
-#           abs(mf$actual_catch_proportions[fleet] - mf$target_catch_proportions[fleet])
-#         } else NA
-#       ))
-#     }
-#   }
-# }
-#
-# # ============================================================================
-# # EXPORT TO CSV FILES
-# # ============================================================================
-#
-#
-# #fix the calculation of proportions, I did that manually in excel
-#
-# # Export complete time series
-# write.csv(all_complete_data, "multifleet_validation_complete_timeseries.csv", row.names = FALSE)
-# cat("Exported: multifleet_validation_complete_timeseries.csv\n")
-#
-# # Export period summary
-# write.csv(period_summary, "multifleet_validation_period_summary.csv", row.names = FALSE)
-# cat("Exported: multifleet_validation_period_summary.csv\n")
-#
-# # Export allocation summary
-# write.csv(allocation_summary, "multifleet_validation_allocation_summary.csv", row.names = FALSE)
-# cat("Exported: multifleet_validation_allocation_summary.csv\n")
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-# # # extract key metrics for comparison
-# # extract_metrics <- function(result, test_name) {
-# #   list(
-# #     test = test_name,
-# #     SB_final = result$dynamics$SB[16, 1, 1],  # Final year, iter 1, area 1
-# #     VB_final = result$dynamics$VB[16, 1, 1],
-# #     catchB_final = result$dynamics$catchB[16, 1, 1],
-# #     Ftotal_final = result$dynamics$Ftotal[16, 1, 1],
-# #     SB_hist_mean = mean(result$dynamics$SB[2:11, 1, 1]),  # Historical period
-# #     catchB_hist_mean = mean(result$dynamics$catchB[2:11, 1, 1]),
-# #     Ftotal_hist_mean = mean(result$dynamics$Ftotal[2:11, 1, 1]),
-# #     has_multifleet = !is.null(result$dynamics$multifleet),
-# #     nfleets = if(!is.null(result$dynamics$multifleet)) result$dynamics$multifleet$nfleets else 1
-# #   )
-# # }
-# #
-# # # extract from all scenarios
-# # metrics_single <- extract_metrics(result_single, "Single Fleet")
-# # metrics_multi2 <- extract_metrics(result_multi2, "Multifleet (2 identical)")
-# # metrics_multi1 <- extract_metrics(result_multi1, "Multifleet (1 fleet)")
-# # metrics_multi_diff <- extract_metrics(result_multi_diff, "Multifleet (different)")
-# #
-# # # combine into data frame for analysis
-# # validation_df <- bind_rows(
-# #   data.frame(metrics_single),
-# #   data.frame(metrics_multi2),
-# #   data.frame(metrics_multi1),
-# #   data.frame(metrics_multi_diff)
-# # )
-# #
-# # print(validation_df)
-# #
-# #
-# #
-# # # ============================================================================
-# # # BACKWARD COMPATIBILITY TESTS
-# # # ============================================================================
-# #
-# # # test 1: Single Fleet vs Multifleet (1 fleet) - SHOULD BE IDENTICAL
-# # tolerance <- 1e-6
-# # cat("TEST 1: Single Fleet vs Multifleet (1 fleet)\n")
-# # cat("============================================\n")
-# #
-# # sb_match <- all(abs(result_single$dynamics$SB - result_multi1$dynamics$SB) < tolerance)
-# # vb_match <- all(abs(result_single$dynamics$VB - result_multi1$dynamics$VB) < tolerance)
-# # catch_match <- all(abs(result_single$dynamics$catchB - result_multi1$dynamics$catchB) < tolerance)
-# # f_match <- all(abs(result_single$dynamics$Ftotal - result_multi1$dynamics$Ftotal) < tolerance)
-# #
-# # cat(sprintf("  SB arrays match: %s\n", ifelse(sb_match, "PASS", "FAIL")))
-# # cat(sprintf("  VB arrays match: %s\n", ifelse(vb_match, "PASS", "FAIL")))
-# # cat(sprintf("  Catch arrays match: %s\n", ifelse(catch_match, "PASS", "FAIL")))
-# # cat(sprintf("  F arrays match: %s\n", ifelse(f_match, "PASS", "FAIL")))
-# #
-# # backward_compatible <- sb_match && vb_match && catch_match && f_match
-# # cat(sprintf("  OVERALL: %s\n", ifelse(backward_compatible, "BACKWARD COMPATIBLE", "COMPATIBILITY ISSUE")))
-# #
-# # # test 2: Multifleet (2 identical) should have similar total results to single fleet
-# # cat("\nTEST 2: Single Fleet vs Multifleet (2 identical)\n")
-# # cat("===============================================\n")
-# #
-# # # when fleets are identical with effort allocation, totals should be very similar
-# # sb_similar <- all(abs(result_single$dynamics$SB - result_multi2$dynamics$SB) < 0.01)
-# # catch_similar <- all(abs(result_single$dynamics$catchB - result_multi2$dynamics$catchB) < 0.01)
-# #
-# # cat(sprintf("  SB similarity (<1%% diff): %s\n", ifelse(sb_similar, "PASS", "FAIL")))
-# # cat(sprintf("  Catch similarity (<1%% diff): %s\n", ifelse(catch_similar, "PASS", "FAIL")))
-# #
-# # # ============================================================================
-# # # MULTIFLEET-SPECIFIC VALIDATION
-# # # ============================================================================
-# #
-# # # test multifleet outputs exist and are reasonable
-# # if(!is.null(result_multi2$dynamics$multifleet)) {
-# #   mf <- result_multi2$dynamics$multifleet
-# #
-# #   cat("Multifleet (2 identical) Structure:\n")
-# #   cat(sprintf("  Number of fleets: %d\n", mf$nfleets))
-# #   cat(sprintf("  Fleet proportions: [%.3f, %.3f]\n", mf$fleet_proportions[1], mf$fleet_proportions[2]))
-# #   cat(sprintf("  Allocation type: %s\n", mf$allocation_type))
-# #
-# #   # check that fleet catches sum to total
-# #   total_fleet_catch <- mf$catchB_by_fleet[16,1,1,1] + mf$catchB_by_fleet[16,1,1,2]
-# #   total_catch <- result_multi2$dynamics$catchB[16,1,1]
-# #   catch_sum_match <- abs(total_fleet_catch - total_catch) < tolerance
-# #
-# #   cat(sprintf("  Fleet catches sum to total: %s\n", ifelse(catch_sum_match, "PASS", "FAIL")))
-# #
-# #   # check fleet F values sum to total F
-# #   total_fleet_F <- mf$Ftotal_by_fleet[16,1,1,1] + mf$Ftotal_by_fleet[16,1,1,2]
-# #   total_F <- result_multi2$dynamics$Ftotal[16,1,1]
-# #   f_sum_match <- abs(total_fleet_F - total_F) < tolerance
-# #
-# #   cat(sprintf("  Fleet F values sum to total: %s\n", ifelse(f_sum_match, "PASS", "FAIL")))
-# # }
-# #
-# # # test catch allocation results for different selectivities
-# # if(!is.null(result_multi_diff$dynamics$multifleet)) {
-# #   mf_diff <- result_multi_diff$dynamics$multifleet
-# #
-# #   cat("\nMultifleet (different selectivities) Results:\n")
-# #   cat(sprintf("  Target catch proportions: [%.3f, %.3f]\n",
-# #               mf_diff$target_catch_proportions[1], mf_diff$target_catch_proportions[2]))
-# #   cat(sprintf("  Actual catch proportions: [%.3f, %.3f]\n",
-# #               mf_diff$actual_catch_proportions[1], mf_diff$actual_catch_proportions[2]))
-# #   cat(sprintf("  Final effort proportions: [%.3f, %.3f]\n",
-# #               mf_diff$final_effort_proportions[1], mf_diff$final_effort_proportions[2]))
-# #
-# #   # check if catch allocation achieved target (within tolerance)
-# #   catch_target_achieved <- all(abs(mf_diff$actual_catch_proportions - mf_diff$target_catch_proportions) < 0.05)
-# #   cat(sprintf("  Catch allocation within 5%%: %s\n", ifelse(catch_target_achieved, "PASS", "NEEDS TUNING")))
-# # }
-# #
-# # # ============================================================================
-# # # VISUAL VALIDATION PLOTS
-# # # ============================================================================
-# #
-# # # create comparison plots
-# # create_validation_plots <- function() {
-# #   # prepare data for plotting
-# #   years <- 1:16
-# #
-# #   # SB comparison
-# #   sb_data <- data.frame(
-# #     Year = rep(years, 4),
-# #     SB = c(result_single$dynamics$SB[,1,1],
-# #            result_multi1$dynamics$SB[,1,1],
-# #            result_multi2$dynamics$SB[,1,1],
-# #            result_multi_diff$dynamics$SB[,1,1]),
-# #     Test = rep(c("Single Fleet", "Multifleet (1)", "Multifleet (2 id)", "Multifleet (diff)"), each = 16)
-# #   )
-# #
-# #   p1 <- ggplot(sb_data, aes(x = Year, y = SB, color = Test, linetype = Test)) +
-# #     geom_line(size = 1) +
-# #     geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.5) +
-# #     labs(title = "Spawning Biomass Comparison",
-# #          subtitle = "Vertical line = end of historical period",
-# #          y = "Spawning Biomass") +
-# #     theme_minimal()
-# #
-# #   # catch comparison
-# #   catch_data <- data.frame(
-# #     Year = rep(years, 4),
-# #     Catch = c(result_single$dynamics$catchB[,1,1],
-# #               result_multi1$dynamics$catchB[,1,1],
-# #               result_multi2$dynamics$catchB[,1,1],
-# #               result_multi_diff$dynamics$catchB[,1,1]),
-# #     Test = rep(c("Single Fleet", "Multifleet (1)", "Multifleet (2 id)", "Multifleet (diff)"), each = 16)
-# #   )
-# #
-# #   p2 <- ggplot(catch_data, aes(x = Year, y = Catch, color = Test, linetype = Test)) +
-# #     geom_line(size = 1) +
-# #     geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.5) +
-# #     labs(title = "Catch Biomass Comparison",
-# #          subtitle = "Vertical line = end of historical period",
-# #          y = "Catch Biomass") +
-# #     theme_minimal()
-# #
-# #   # F comparison
-# #   f_data <- data.frame(
-# #     Year = rep(years, 4),
-# #     F = c(result_single$dynamics$Ftotal[,1,1],
-# #           result_multi1$dynamics$Ftotal[,1,1],
-# #           result_multi2$dynamics$Ftotal[,1,1],
-# #           result_multi_diff$dynamics$Ftotal[,1,1]),
-# #     Test = rep(c("Single Fleet", "Multifleet (1)", "Multifleet (2 id)", "Multifleet (diff)"), each = 16)
-# #   )
-# #
-# #   p3 <- ggplot(f_data, aes(x = Year, y = F, color = Test, linetype = Test)) +
-# #     geom_line(size = 1) +
-# #     geom_vline(xintercept = 11.5, linetype = "dashed", alpha = 0.5) +
-# #     labs(title = "Fishing Mortality Comparison",
-# #          subtitle = "Vertical line = end of historical period",
-# #          y = "Fishing Mortality (F)") +
-# #     theme_minimal()
-# #
-# #   return(list(sb = p1, catch = p2, f = p3))
-# # }
-# #
-# # plots <- create_validation_plots()
-# #
-# # # save plots
-# # ggsave("validation_SB_comparison.jpeg", plots$sb, width = 10, height = 6, dpi = 300)
-# # ggsave("validation_catch_comparison.jpeg", plots$catch, width = 10, height = 6, dpi = 300)
-# # ggsave("validation_F_comparison.jpeg", plots$f, width = 10, height = 6, dpi = 300)
-# #
-# # cat("Validation plots saved\n")
-# #
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-# #debugging
-#
-# # cat("================================================================\n")
-# # cat("TESTING MULTIFLEET DETECTION LOGIC\n")
-# # cat("================================================================\n\n")
-# #
-# # test_detection_with_real_objects <- function() {
-# #
-# #   # Test 1: NULL (single fleet)
-# #   cat("TEST 1: NULL MultifleetObj (Single Fleet)\n")
-# #   cat("-----------------------------------------\n")
-# #   MultifleetObj <- NULL
-# #   is_multifleet_current <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
-# #   is_multifleet_fixed <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
-# #
-# #   cat(sprintf("  MultifleetObj: NULL\n"))
-# #   cat(sprintf("  Current logic (>1):  %s\n", is_multifleet_current))
-# #   cat(sprintf("  Fixed logic (>=1):   %s\n", is_multifleet_fixed))
-# #   cat(sprintf("  Expected: FALSE (single fleet)\n"))
-# #   cat(sprintf("  Status: %s\n\n", ifelse(is_multifleet_current == FALSE, "CORRECT", "WRONG")))
-# #
-# #   # Test 2: 1 fleet multifleet
-# #   cat("TEST 2: 1 Fleet Multifleet\n")
-# #   cat("---------------------------\n")
-# #
-# #   # Create real Multifleet object with 1 fleet
-# #   fishery1 <- new("Fishery")
-# #   fishery1@vulType <- "logistic"
-# #   fishery1@vulParams <- c(9.0, 1.5)
-# #   fishery1@retType <- "full"
-# #   fishery1@retMax <- 1
-# #   fishery1@Dmort <- 0
-# #
-# #   MultifleetObj <- new("Multifleet")
-# #   MultifleetObj@nfleets <- 1
-# #   MultifleetObj@fleet_proportions <- c(1.0)
-# #   MultifleetObj@allocation_type <- "effort"
-# #   MultifleetObj@fleet_selectivity_list <- list(fishery1)
-# #
-# #   is_multifleet_current <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
-# #   is_multifleet_fixed <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
-# #
-# #   cat(sprintf("  nfleets: %d\n", MultifleetObj@nfleets))
-# #   cat(sprintf("  Current logic (>1):  %s\n", is_multifleet_current))
-# #   cat(sprintf("  Fixed logic (>=1):   %s\n", is_multifleet_fixed))
-# #   cat(sprintf("  Expected: TRUE (should use multifleet structures)\n"))
-# #   cat(sprintf("  Status: %s ← THIS IS THE ISSUE!\n\n",
-# #               ifelse(is_multifleet_current == TRUE, "CORRECT", "WRONG")))
-# #
-# #   # Test 3: 2 fleet multifleet
-# #   cat("TEST 3: 2 Fleet Multifleet\n")
-# #   cat("---------------------------\n")
-# #
-# #   fishery2 <- new("Fishery")
-# #   fishery2@vulType <- "logistic"
-# #   fishery2@vulParams <- c(11.0, 2.0)
-# #   fishery2@retType <- "full"
-# #   fishery2@retMax <- 1
-# #   fishery2@Dmort <- 0
-# #
-# #   MultifleetObj@nfleets <- 2
-# #   MultifleetObj@fleet_proportions <- c(0.6, 0.4)
-# #   MultifleetObj@fleet_selectivity_list <- list(fishery1, fishery2)
-# #
-# #   is_multifleet_current <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1
-# #   is_multifleet_fixed <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
-# #
-# #   cat(sprintf("  nfleets: %d\n", MultifleetObj@nfleets))
-# #   cat(sprintf("  Current logic (>1):  %s\n", is_multifleet_current))
-# #   cat(sprintf("  Fixed logic (>=1):   %s\n", is_multifleet_fixed))
-# #   cat(sprintf("  Expected: TRUE (multifleet)\n"))
-# #   cat(sprintf("  Status: %s\n\n", ifelse(is_multifleet_current == TRUE, "CORRECT", "WRONG")))
-# #
-# #   return(list(
-# #     test1_correct = is_multifleet_current == FALSE,
-# #     test2_correct = is_multifleet_fixed == TRUE,  # Should be TRUE with fixed logic
-# #     test3_correct = is_multifleet_current == TRUE
-# #   ))
-# # }
-# #
-# # # Run the test
-# # results <- test_detection_with_real_objects()
-# #
-# # cat("================================================================\n")
-# # cat("SUMMARY\n")
-# # cat("================================================================\n\n")
-# #
-# # cat("PROBLEM IDENTIFIED:\n")
-# # cat("When nfleets = 1, current logic returns FALSE\n")
-# # cat("but multifleet data structures are already created!\n\n")
-# #
-# # cat("SOLUTION:\n")
-# # cat("Change detection logic from:\n")
-# # cat("  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets > 1\n")
-# # cat("To:\n")
-# # cat("  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1\n\n")
-# #
-# # cat("WHAT HAPPENS WITH CURRENT LOGIC:\n")
-# # cat("1. MultifleetObj with 1 fleet created\n")
-# # cat("2. 4D arrays (histEffortDev) created for multifleet\n")
-# # cat("3. Detection logic says is_multifleet = FALSE\n")
-# # cat("4. Code tries to use single fleet logic on multifleet arrays\n")
-# # cat("5. rbind() fails due to column mismatch\n\n")
-# #
-# # cat("WHAT HAPPENS WITH FIXED LOGIC:\n")
-# # cat("1. MultifleetObj with 1 fleet created\n")
-# # cat("2. 4D arrays created for multifleet\n")
-# # cat("3. Detection logic says is_multifleet = TRUE\n")
-# # cat("4. Code uses multifleet logic consistently\n")
-# # cat("5. All functions return same column structure\n\n")
-# #
-# # cat("CONCLUSION: change > 1 to >= 1\n")
-# #
-# # cat("CHANGES:\n")
-# # cat("MSEWrappers.R (evalMSE function)\n")
-# # cat("managementStrategies.R (fixedStrategy function)\n")
-# # cat("MSEWrappers.R (runProjection function)\n\n")
-# #
-# #
-# #
+
+result_multi_diff$dynamics$multifleet
+
+
+
+
+extract_complete_timeseries <- function(result, test_name) {
+
+  years <- dim(result$dynamics$SB)[1]
+  iterations <- dim(result$dynamics$SB)[2]
+  areas <- dim(result$dynamics$SB)[3]
+  year_seq <- 1:years
+
+  cat(sprintf("Processing %s: %d years, %d iterations, %d areas\n",
+              test_name, years, iterations, areas))
+
+  complete_data <- data.frame()
+  if(is.null(result$dynamics$multifleet)) {
+    # Single fleet case
+    cat("  Single fleet mode\n")
+    for(area in 1:areas) {
+      # average across iterations for each metric
+      area_data <- data.frame(
+        test = test_name,
+        year = year_seq,
+        area = area,
+        fleet = 1,
+        nfleets = 1,
+        allocation_type = "single_fleet",
+        fleet_proportion = 1.0,
+
+        # population-level metrics (averaged across iterations)
+        SB = rowMeans(result$dynamics$SB[, , area]),
+        VB = rowMeans(result$dynamics$VB[, , area]),
+        RB = rowMeans(result$dynamics$RB[, , area]),
+
+        # total catch and mortality (averaged across iterations)
+        total_catchB = rowMeans(result$dynamics$catchB[, , area]),
+        total_catchN = rowMeans(result$dynamics$catchN[, , area]),
+        total_discB = rowMeans(result$dynamics$discB[, , area]),
+        total_discN = rowMeans(result$dynamics$discN[, , area]),
+        total_F = rowMeans(result$dynamics$Ftotal[, , area]),
+
+        # fleet-specific metrics (same as total for single fleet)
+        fleet_catchB = rowMeans(result$dynamics$catchB[, , area]),
+        fleet_catchN = rowMeans(result$dynamics$catchN[, , area]),
+        fleet_discB = rowMeans(result$dynamics$discB[, , area]),
+        fleet_discN = rowMeans(result$dynamics$discN[, , area]),
+        fleet_F = rowMeans(result$dynamics$Ftotal[, , area]),
+
+        # proportions (always 1.0 for single fleet)
+        fleet_catchB_proportion = 1.0,
+        fleet_F_proportion = 1.0
+      )
+
+      complete_data <- rbind(complete_data, area_data)
+    }
+  } else {
+    # Multifleet case
+    mf <- result$dynamics$multifleet
+    nfleets <- mf$nfleets
+
+    cat(sprintf("  Multifleet mode: %d fleets, allocation: %s\n",
+                nfleets, mf$allocation_type))
+
+    for(area in 1:areas) {
+      # get total values for this area (averaged across iterations)
+      total_catchB_ts <- rowMeans(result$dynamics$catchB[, , area])
+      total_F_ts <- rowMeans(result$dynamics$Ftotal[, , area])
+
+      for(fleet in 1:nfleets) {
+
+        # get fleet-specific values (averaged across iterations)
+        fleet_catchB_ts <- rowMeans(mf$catchB_by_fleet[, , area, fleet])
+        fleet_F_ts <- rowMeans(mf$Ftotal_by_fleet[, , area, fleet])
+
+
+        # CORRECT proportion calculation
+        fleet_catchB_prop <- ifelse(total_catchB_ts > 0, fleet_catchB_ts / total_catchB_ts, 0)
+        fleet_F_prop <- ifelse(total_F_ts > 0, fleet_F_ts / total_F_ts, 0)
+
+        area_fleet_data <- data.frame(
+          test = test_name,
+          year = year_seq,
+          area = area,
+          fleet = fleet,
+          nfleets = nfleets,
+          allocation_type = mf$allocation_type,
+          fleet_proportion = mf$fleet_proportions[fleet],
+
+          # population-level metrics (same for all fleets in an area)
+          SB = rowMeans(result$dynamics$SB[, , area]),
+          VB = rowMeans(result$dynamics$VB[, , area]),
+          RB = rowMeans(result$dynamics$RB[, , area]),
+
+          # total catch and mortality (same for all fleets in an area)
+          total_catchB = rowMeans(result$dynamics$catchB[, , area]),
+          total_catchN = rowMeans(result$dynamics$catchN[, , area]),
+          total_discB = rowMeans(result$dynamics$discB[, , area]),
+          total_discN = rowMeans(result$dynamics$discN[, , area]),
+          total_F = total_F_ts,
+
+          # fleet-specific metrics (averaged across iterations)
+          fleet_catchB = rowMeans(mf$catchB_by_fleet[, , area, fleet]),
+          fleet_catchN = rowMeans(mf$catchN_by_fleet[, , area, fleet]),
+          fleet_discB = rowMeans(mf$discB_by_fleet[, , area, fleet]),
+          fleet_discN = rowMeans(mf$discN_by_fleet[, , area, fleet]),
+          fleet_F = rowMeans(mf$Ftotal_by_fleet[, , area, fleet]),
+
+          # fleet proportions over time
+          fleet_catchB_proportion = fleet_catchB_prop,
+          fleet_F_proportion = fleet_F_prop
+        )
+
+        complete_data <- rbind(complete_data, area_fleet_data)
+      }
+    }
+
+    # add allocation details for multifleet
+    if(!is.null(mf$target_catch_proportions)) {
+      cat(sprintf("  Target catch proportions: %s\n",
+                  paste(round(mf$target_catch_proportions, 3), collapse = ", ")))
+    }
+    if(!is.null(mf$actual_catch_proportions)) {
+      cat(sprintf("  Actual catch proportions: %s\n",
+                  paste(round(mf$actual_catch_proportions, 3), collapse = ", ")))
+    }
+    if(!is.null(mf$final_effort_proportions)) {
+      cat(sprintf("  Final effort proportions: %s\n",
+                  paste(round(mf$final_effort_proportions, 3), collapse = ", ")))
+    }
+  }
+
+  return(complete_data)
+}
+
+# ============================================================================
+# EXTRACT DATA FROM ALL SCENARIOS
+# ============================================================================
+# extract time series for all scenarios
+complete_single <- extract_complete_timeseries(result_single, "Single_Fleet")
+complete_multi2 <- extract_complete_timeseries(result_multi2, "Multifleet_2_Identical")
+complete_multi1 <- extract_complete_timeseries(result_multi1, "Multifleet_1_Fleet")
+complete_multi_diff <- extract_complete_timeseries(result_multi_diff, "Multifleet_Different")
+
+#combine all scenarios
+all_complete_data <- rbind(
+  complete_single,
+  complete_multi2,
+  complete_multi1,
+  complete_multi_diff
+)
+
+#add period classification
+all_complete_data <- all_complete_data %>%
+  mutate(
+    period = case_when(
+      year == 1 ~ "Equilibrium",
+      year <= 11 ~ "Historical",
+      year > 11 ~ "Projection"
+    ),
+    period_year = case_when(
+      year == 1 ~ 0,
+      year <= 11 ~ year - 1,
+      year > 11 ~ year - 11
+    )
+  )
+
+
+cat(sprintf("\nCombined dataset: %d rows, %d columns\n",
+            nrow(all_complete_data), ncol(all_complete_data)))
+
+
+# ============================================================================
+# CREATE SUMMARY BY PERIOD
+# ============================================================================
+
+# summary by test, area, fleet, and period
+period_summary <- all_complete_data %>%
+  group_by(test, area, fleet, nfleets, allocation_type, fleet_proportion, period) %>%
+  summarise(
+    years_in_period = n(),
+
+    # population metrics
+    SB_mean = mean(SB, na.rm = TRUE),
+    SB_final = last(SB),
+    VB_mean = mean(VB, na.rm = TRUE),
+    VB_final = last(VB),
+
+    # total metrics
+    total_catchB_mean = mean(total_catchB, na.rm = TRUE),
+    total_catchB_final = last(total_catchB),
+    total_F_mean = mean(total_F, na.rm = TRUE),
+    total_F_final = last(total_F),
+
+    # fleet-specific metrics
+    fleet_catchB_mean = mean(fleet_catchB, na.rm = TRUE),
+    fleet_catchB_final = last(fleet_catchB),
+    fleet_catchN_mean = mean(fleet_catchN, na.rm = TRUE),
+    fleet_F_mean = mean(fleet_F, na.rm = TRUE),
+    fleet_F_final = last(fleet_F),
+
+    # proportions
+    fleet_catchB_prop_mean = mean(fleet_catchB_proportion, na.rm = TRUE),
+    fleet_F_prop_mean = mean(fleet_F_proportion, na.rm = TRUE),
+
+    .groups = "drop"
+  )
+
+# extract allocation results for multifleet scenarios
+allocation_summary <- data.frame()
+
+scenarios <- list(
+  "Multifleet_2_Identical" = result_multi2,
+  "Multifleet_1_Fleet" = result_multi1,
+  "Multifleet_Different" = result_multi_diff
+)
+
+for(test_name in names(scenarios)) {
+  result <- scenarios[[test_name]]
+
+  if(!is.null(result$dynamics$multifleet)) {
+    mf <- result$dynamics$multifleet
+
+    for(fleet in 1:mf$nfleets) {
+      allocation_summary <- rbind(allocation_summary, data.frame(
+        test = test_name,
+        fleet = fleet,
+        nfleets = mf$nfleets,
+        allocation_type = mf$allocation_type,
+        original_fleet_proportion = mf$fleet_proportions[fleet],
+        target_catch_proportion = if(!is.null(mf$target_catch_proportions)) mf$target_catch_proportions[fleet] else NA,
+        actual_catch_proportion = if(!is.null(mf$actual_catch_proportions)) mf$actual_catch_proportions[fleet] else NA,
+        final_effort_proportion = if(!is.null(mf$final_effort_proportions)) mf$final_effort_proportions[fleet] else NA,
+        allocation_error = if(!is.null(mf$target_catch_proportions) && !is.null(mf$actual_catch_proportions)) {
+          abs(mf$actual_catch_proportions[fleet] - mf$target_catch_proportions[fleet])
+        } else NA
+      ))
+    }
+  }
+}
+
+# ============================================================================
+# EXPORT TO CSV FILES
+# ============================================================================
+
+
+#fix the calculation of proportions, I did that manually in excel
+
+# Export complete time series
+write.csv(all_complete_data, "multifleet_validation_complete_timeseries.csv", row.names = FALSE)
+cat("Exported: multifleet_validation_complete_timeseries.csv\n")
+
+# Export period summary
+write.csv(period_summary, "multifleet_validation_period_summary.csv", row.names = FALSE)
+cat("Exported: multifleet_validation_period_summary.csv\n")
+
+# Export allocation summary
+write.csv(allocation_summary, "multifleet_validation_allocation_summary.csv", row.names = FALSE)
+cat("Exported: multifleet_validation_allocation_summary.csv\n")
+
+
+
+
+
+
+
+
+
+
+
