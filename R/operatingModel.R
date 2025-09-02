@@ -1144,7 +1144,7 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
       convergence_history <- list()
 
 
-      # we can do some iterative adjustment/tuning (limiting iteratons to 20)
+      # we can do some iterative adjustment/tuning (limiting iterations to 50 or less)
       # test current effort proportions by calculating equilibrium
       # calls  function with current guess of effort proportions
       for(iter in 1:50) {
