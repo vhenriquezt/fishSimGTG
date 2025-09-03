@@ -193,6 +193,15 @@ evalMSE<-function(inputObject){
     #-----------------------------------------------------------------
     #check if stochastic parameters exist
     if(NROW(LHList) > 0 | NROW(selListHist) > 0 | NROW(unlist(selListPro)) > 0){
+
+    #New addition:
+    # adding a specific block indicating that is not supported (stop to prevent)
+    # removing multifleet sel form stochastic section
+    #check for non supported combination of multifleet with selectivity stochasticity
+    if(is_multifleet && (NROW(selListHist) > 0 | NROW(unlist(selListPro)) > 0)) {
+    stop("Selectivity stochasticity is not supported in multifleet mode. Use deterministic selectivity parameters only.")
+      }
+
       #Stochastic LH and Fishery objects
       #applies iteration-specific stochastic values to life history and fishery objects
       #creates _TMP objects with stochastic parameters for this iteration
@@ -220,32 +229,6 @@ evalMSE<-function(inputObject){
       if(!is.null(lh) & lh$LifeHistory@Steep < 0.21) lh$LifeHistory@Steep <- 0.21
       if(!is.null(lh) & lh$LifeHistory@Steep > 1) lh$LifeHistory@Steep <- 1
 
-      #new addition: handle selectivity for both single and multifleet
-      #multifleet stochastic
-      if(is_multifleet) {
-
-        #multifleet selectivity with stochastic parameters
-        #maintains [[area]][[fleet]] structure even with stochasticity
-        #simplified approach for now: all fleets use same stochastic fishery object
-        #fleet differences come only from the base selectivity curves (MultifleetObj@fleet_selectivity_list)
-        #stochastic variation affects all fleets equally
-        selHist<-lapply(1:TimeAreaObj@areas, function(area){
-          lapply(1:nfleets, function(f) {
-            selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
-          })
-        })
-        selPro<-lapply(1:TimeAreaObj@areas, function(area){
-          lapply(1:nfleets, function(f) {
-            if(!is.null(ProFisheryObj_list) && length(ProFisheryObj_list) >= area) {
-              selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_TMP[[area]], doPlot = FALSE)
-            } else {
-              selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
-            }
-          })
-        })
-
-      refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]][[1]]) # area 1 and fleet 1 for benchmarks (for now)
-      } else {
         #same as before (single fleet stochastic path)
         selHist<-lapply(1:TimeAreaObj@areas, function(x){
           selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
@@ -254,7 +237,7 @@ evalMSE<-function(inputObject){
           selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_TMP[[x]], doPlot = FALSE)
         })
         refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]])
-      }
+
       ref[k, ]<-as.matrix(refCalc$sim)[1,]
       colnames(ref)<-names(refCalc$sim)
     }
