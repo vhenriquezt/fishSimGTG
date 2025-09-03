@@ -3671,30 +3671,24 @@ calculate_single_Index  <- function(dataObject){
       }
     }
 
-
-  } # close loop for specific surveys/CPUE validations
-
-
-  # NEW: Add fleet validations for multifleet mode
-  if(is_multifleet) {
-    nfleets <- MultifleetObj@nfleets
-    #validating fleet_id specifications in survey designs
-    for(index_idx in 1:n_indices) {
-      design <- IndexObj@survey_design[[index_idx]]
-
-      if("fleet_id" %in% names(design)) {
-        fleet_id <- design$fleet_id
-        if(!is.numeric(fleet_id) || length(fleet_id) != 1 || fleet_id < 1 || fleet_id > nfleets) {
-          stop(paste("Survey design", index_idx, ": fleet_id must be a single integer between 1 and", nfleets))
-        }
-
-        # Only FD indices can have fleet_id
-        if(design$indextype != "FD") {
-          stop(paste("Survey design", index_idx, ": fleet_id can only be specified for FD (fishery dependent) indices"))
-        }
+  # NEW addition: validation of fleet_id for FD indices in multifleet mode
+    if(design$indextype == "FD" && is_multifleet) {
+      if(!"fleet_id" %in% names(design)) {
+        stop(paste("Survey design", index_idx, ": FD indices in multifleet mode require fleet_id"))
+      }
+      fleet_id <- design$fleet_id
+      nfleets <- MultifleetObj@nfleets
+      if(!is.numeric(fleet_id) || length(fleet_id) != 1 || fleet_id < 1 || fleet_id > nfleets) {
+        stop(paste("Survey design", index_idx, ": fleet_id must be integer between 1 and", nfleets))
       }
     }
-  }
+
+    if(design$indextype == "FI" && "fleet_id" %in% names(design)) {
+      stop(paste("Survey design", index_idx, ": FI indices cannot have fleet_id"))
+    }
+
+} # close loop for specific surveys/CPUE validations
+
 
   # Determine the actual index type (FD, FI, or Mixed)
   # then adding the calculated column  final_indextype to the tibble
@@ -3727,8 +3721,7 @@ calculate_single_Index  <- function(dataObject){
 
     #New addition:
     is_multifleet = is_multifleet,              # does simulation uses multifleet?
-    nfleets = if(is_multifleet) nfleets else 1  # number of fleets
-
+    nfleets = if(is_multifleet) MultifleetObj@nfleets else 1  # number of fleets
   )
 
 
@@ -3737,16 +3730,14 @@ calculate_single_Index  <- function(dataObject){
   for(index_idx in 1:n_indices) {
     design <- IndexObj@survey_design[[index_idx]]  #extract current index design
 
-    #NEW - adding: identify what we are processing - multifleet appraoch
+    #NEW - adding:extract fleet_id if present
+    fleet_id <- if("fleet_id" %in% names(design)) design$fleet_id else NA
 
-    # is index is fleet-specific?
-    use_fleet_specific <- "fleet_id" %in% names(design) && is_multifleet
-    if(use_fleet_specific) {
-      fleet_id <- design$fleet_id
-      cat(paste("Processing Fleet", fleet_id, ifelse(design$indextype == "FI", "Survey", "CPUE"), index_idx,
+    # what are we processing
+    if(design$indextype == "FD" && is_multifleet) {
+      cat(paste("Processing Fleet", fleet_id, "CPUE", index_idx,
                 "- Areas:", paste(design$areas, collapse = ","), "\n"))
     } else {
-      #just to indicate what index is processing
       cat(paste("Processing", ifelse(design$indextype == "FI", "Survey", "CPUE"), index_idx,
                 "- Areas:", paste(design$areas, collapse = ","), "\n"))
     }
@@ -3759,31 +3750,24 @@ calculate_single_Index  <- function(dataObject){
 
     # historical period
     # creates historical period selectivity using fishSimGTG's historical fishery object
+
+    #NEW addition (double check)
     if(design$indextype == "FD") {
-      # for CPUE: use fishery selectivity
-
-      # NEW addition: Fleet-specific or aggregated selectivity
-      if(use_fleet_specific) {
-        #use fleet-specific selectivity from multifleet structure
-        index_selectivity_hist <- selHist[[1]][[fleet_id]]$keep  # fleet-specific for area 1
+      if(is_multifleet) {
+        # Use fleet-specific selectivity
+        index_selectivity_hist <- selHist[[1]][[fleet_id]]  # Fleet-specific, area 1
         index_selectivity_proj_list <- lapply(1:total_areas, function(area) {
-          selPro[[area]][[fleet_id]]  # fleet-specific for each area
+          selPro[[area]][[fleet_id]]  # Fleet-specific for each area
         })
-      } else {
-
-        #remain unchanged: Original logic for aggregated fishery selectivity (single fleet)
-
-      # why? because that is fishsimGTG configuration
-      index_selectivity_hist <- selHist[[1]]$keep # sel hist for area 1 - it is repeated for each area
-
-      # For projection period: create area-specific fishery selectivities
-      # initializes list for area-specific projection selectivities
+    } else {
+      # Single fleet mode (original code unchanged)
+      index_selectivity_hist <- selHist[[1]]$keep # sel hist for area 1
       index_selectivity_proj_list <- selPro
-      }
+    }
 
     } else {
 
-      # FI: use survey selectivity
+      # FI: use survey selectivity (unchanged)
       # extracts selectivity objects from provided lists and creates selectivity using sel wrappers
       hist_selectivity_obj <- IndexObj@selectivity_hist_list[[design$selectivity_hist_idx]]
       proj_selectivity_obj <- IndexObj@selectivity_proj_list[[design$selectivity_proj_idx]]
@@ -3815,8 +3799,8 @@ calculate_single_Index  <- function(dataObject){
         # get the precalc data for this single area
         if(IndexObj@useWeight && design$indextype == "FD") {
 
-          # NEW addition: fleet-specific or aggregated retained biomass
-          if(use_fleet_specific) {
+          # for CPUE biomass: get retained biomass from this area
+          if(is_multifleet) {
             # check if fleet-specific arrays are available
             if(!exists("RB_by_fleet")) {
               stop("Fleet-specific data requested but RB_by_fleet arrays not available. Check evalMSE implementation.")
@@ -3881,8 +3865,8 @@ calculate_single_Index  <- function(dataObject){
         # Same approach used in length composition obs models: rowSums(true_length_array[, year, design$areas])
 
         if(IndexObj@useWeight && design$indextype == "FD") {
-          # NEW addition: fleet-specific or aggregated retained biomass across areas
-          if(use_fleet_specific) {
+          # NEW addition: For CPUE biomass across multiple areas
+          if(is_multifleet) {
             # check if fleet-specific arrays are available
             if(!exists("RB_by_fleet")) {
               stop("Fleet-specific data requested but RB_by_fleet arrays not available. Check evalMSE implementation.")
@@ -3988,13 +3972,12 @@ calculate_single_Index  <- function(dataObject){
       }
 
 
-      #New adding: fleet column names
-        if(use_fleet_specific) {
-          index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"),
-                               index_idx, "_Fleet_", fleet_id)
-        } else {
-          index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
-        }
+      #New adding: fleet-specific column naming for FD indices in multifleet mode
+      if(design$indextype == "FD" && is_multifleet) {
+        index_name <- paste0("CPUE_", index_idx, "_Fleet_", fleet_id)
+      } else {
+        index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
+      }
 
         # Adding more columns to the tibble
         # add to the tibble with appropriate column name (create column name like "CPUE_1" or "Survey_2")
@@ -4008,7 +3991,7 @@ calculate_single_Index  <- function(dataObject){
       observation_return[[paste0(index_name, "_indexYears")]] <- paste(design$indexYears, collapse = "_")
 
       # NEW addition: adding fleet metadata
-      if(use_fleet_specific) {
+      if(design$indextype == "FD" && is_multifleet) {
         observation_return[[paste0(index_name, "_fleet_id")]] <- fleet_id
       } else {
         observation_return[[paste0(index_name, "_fleet_id")]] <- NA
@@ -4022,9 +4005,8 @@ calculate_single_Index  <- function(dataObject){
       # For the years with no obervation (set to NA but still include) (see if(j %in% design$indexYears))
 
       # NEW addition: Apply same fleet-aware naming for NA cases
-      if(use_fleet_specific) {
-        index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"),
-                             index_idx, "_Fleet_", fleet_id)
+      if(design$indextype == "FD" && is_multifleet) {
+        index_name <- paste0("CPUE_", index_idx, "_Fleet_", fleet_id)
       } else {
         index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
       }
@@ -4036,7 +4018,7 @@ calculate_single_Index  <- function(dataObject){
       observation_return[[paste0(index_name, "_indexYears")]] <- paste(design$indexYears, collapse = "_")
 
       # NEW addition: Add fleet metadata for NA cases
-      if(use_fleet_specific) {
+      if(design$indextype == "FD" && is_multifleet) {
         observation_return[[paste0(index_name, "_fleet_id")]] <- fleet_id
       } else {
         observation_return[[paste0(index_name, "_fleet_id")]] <- NA
