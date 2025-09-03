@@ -1013,11 +1013,27 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       stop(paste("fleet_selectivity_hist_list and fleet_selectivity_proj_list must each contain", nfleets, "Fishery objects"))
     }
 
+    # New addition:
+    # This will warn the user if single fleet parameters are provided but will be ignored
+    if(!is.null(HistFisheryObj)) {
+      cat("note: HistFisheryObj ignored in multifleet mode - using fleet-specific fisheries from MultifleetObj\n")
+    }
+    if(!is.null(ProFisheryObj_list)) {
+      cat("note: ProFisheryObj_list ignored in multifleet mode - using fleet-specific fisheries from MultifleetObj\n")
+    }
+
+
 
     cat("Multifleet mode enabled with", nfleets, "fleets\n")
     cat("Fleet proportions:", paste(round(MultifleetObj@fleet_proportions, 3), collapse = ", "), "\n")
 
   } else {
+
+    # single fleet mode - require HistFisheryObj
+    if(is.null(HistFisheryObj)) {
+      stop("HistFisheryObj is required for single fleet mode")
+    }
+
     nfleets <- 1
     cat("Single fleet mode\n")
   }
@@ -1051,8 +1067,15 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   LHdev<-lifehistoryDev(TimeAreaObj, StochasticObj)
 
   #Selectivity parameters
+  #New addition: Selectivity parameters only for single fleet mode
+  Sdev<-NULL
+  if(!is_multifleet) {
   Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
-
+  } else {
+    #New addition:
+    #multifleet mode: selectivity stochasticity is not supported
+    cat("Selectivity parameters: deterministic (no stochasticity in multifleet mode)\n")
+  }
   #new addition: determine nfleets and call histEffortDev
   effective_nfleets <- if(is_multifleet) nfleets else 1
   cat("Creating histEffortDev with", effective_nfleets, "fleets\n")
