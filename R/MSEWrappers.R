@@ -984,7 +984,7 @@ evalMSE<-function(inputObject){
 #' @export
 
 
-runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryObj_list = NULL, StrategyObj = NULL, StochasticObj = NULL,MultifleetObj = NULL, IndexObj=NULL, CatchObsObj=NULL, LengthCompObj=NULL,
+runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj=NULL, ProFisheryObj_list = NULL, StrategyObj = NULL, StochasticObj = NULL,MultifleetObj = NULL, IndexObj=NULL, CatchObsObj=NULL, LengthCompObj=NULL,
                         wd, fileName, seed = 1, doPlot = FALSE, doDiagnostic=F, customToCluster = NULL, titleStrategy = "No name", waitName=NULL, hostName=NULL){
 
   #-----------------------
@@ -1075,7 +1075,15 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     #New addition:
     #multifleet mode: selectivity stochasticity is not supported
     cat("Selectivity parameters: deterministic (no stochasticity in multifleet mode)\n")
-  }
+
+
+    # Initializing empty Sdev structure that matches format
+    Sdev <- list(
+      hist = list(),  # empty list for historical selectivity
+      pro = lapply(1:TimeAreaObj@areas, function(x) list())  # empty list for each area projection selectivity
+    )
+
+    }
   #new addition: determine nfleets and call histEffortDev
   effective_nfleets <- if(is_multifleet) nfleets else 1
   cat("Creating histEffortDev with", effective_nfleets, "fleets\n")
@@ -1176,30 +1184,53 @@ cat("histEffortDev validation passed!\n")
 
   #Check to see if uncertain fishery selectivity specified and created
   #Historical
+  #Add new:
+  #initialize selListHist outside because it is used later in the code
+  selListHist <- character(0)
   if(!is.null(StochasticObj)){
     #Find LH params that are not null
+    #New addition - to modify Sdev when NULL in multifleet mode
+    if(!is.null(Sdev) && !is.null(Sdev$hist)) {
     selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
     if(NROW(selListHist) > 0) {
       print(paste("Uncertainty in historical fishery selectivity parameters:", selListHist))
     } else {
       print(paste("Uncertainty in historical fishery selectivity parameters:", "none"))
     }
-    if(NROW(selListHist) > 0 & is.null(HistFisheryObj)) print("Uncertainty in historical fishery selectivity cannot be specified without also specifying HistFisheryObj")
+    } else {
+      selListHist <- character(0)  # empty character vector
+      print(paste("Uncertainty in historical fishery selectivity parameters:", "none (multifleet mode)"))
+    }
+  } else {
+    selListHist <- character(0)
+    print(paste("Uncertainty in historical fishery selectivity parameters:", "none"))
   }
 
+
   #Projection
+  #Adding same modif as historic
+  #initialize for later use
+  selListPro <- lapply(1:TimeAreaObj@areas, function(x) character(0))
   if(!is.null(StochasticObj)){
+    if(!is.null(Sdev) && !is.null(Sdev$pro)) {
     #Find params that are not null
 
     for(i in 1:TimeAreaObj@areas){
-      selListPro<-names(Sdev$pro[[i]][!unlist(lapply(Sdev$pro[[i]], is.null))])
-      if(NROW(selListPro) > 0) {
-        print(paste("Area", i, "uncertainty in projection fishery selectivity parameters:", selListPro))
+      selListPro[[i]]<-names(Sdev$pro[[i]][!unlist(lapply(Sdev$pro[[i]], is.null))]) ## fixed: use [[i]]
+      if(NROW(selListPro[[i]]) > 0) {
+        print(paste("Area", i, "uncertainty in projection fishery selectivity parameters:", selListPro[[i]]))
       } else {
         print(paste("Area", i, "uncertainty in projection fishery selectivity parameters:", "none"))
       }
-      if(NROW(selListPro) > 0 & is.null(ProFisheryObj_list)) print("Uncertainty in projection fishery selectivity cannot be specified without also specifying ProFisheryObj")
+      if(NROW(selListPro[[i]]) > 0 & is.null(ProFisheryObj_list)) print("Uncertainty in projection fishery selectivity cannot be specified without also specifying ProFisheryObj")
     }
+    } else {
+      for(i in 1:TimeAreaObj@areas){
+        selListPro[[i]] <- character(0)
+        print(paste("Area", i, "uncertainty in projection fishery selectivity parameters:", "none (multifleet mode)"))
+      }
+    }
+
   }
 
   #Check to see if uncertain historical effort created

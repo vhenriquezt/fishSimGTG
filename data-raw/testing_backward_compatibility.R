@@ -226,8 +226,8 @@ strategy_multi2@projectionParams <- list()
 result_multi2 <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
-  HistFisheryObj = hist_fishery,
-  ProFisheryObj_list = proj_fishery_list,
+  # HistFisheryObj = hist_fishery,
+  # ProFisheryObj_list = proj_fishery_list,
   StrategyObj = strategy_multi2,
   StochasticObj = stochastic_obj,
   MultifleetObj = multifleet_identical,
