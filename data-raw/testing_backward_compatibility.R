@@ -226,8 +226,8 @@ strategy_multi2@projectionParams <- list()
 result_multi2 <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
-  HistFisheryObj = hist_fishery,
-  ProFisheryObj_list = proj_fishery_list,
+  # HistFisheryObj = hist_fishery,
+  # ProFisheryObj_list = proj_fishery_list,
   StrategyObj = strategy_multi2,
   StochasticObj = stochastic_obj,
   MultifleetObj = multifleet_identical,
@@ -602,9 +602,7 @@ strategy_multi_diff@projectionParams <- list()
 result_multi_diff <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
-  HistFisheryObj = hist_fishery,
-  ProFisheryObj_list = proj_fishery_list,
-  StrategyObj = strategy_multi_diff,
+  # HistFisheryObj = hist_fishery,
   StochasticObj = stochastic_obj,
   MultifleetObj = multifleet_different,
   wd = getwd(),
@@ -619,7 +617,8 @@ cat("Multifleet (different selectivities) simulation completed\n")
 result_multi_diff <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_different")
 result_multi_diff$dynamics$multifleet$final_effort_proportions
 result_multi_diff$dynamics$multifleet$actual_catch_proportions
-
+result_multi_diff$dynamics$multifleet$catchB_by_fleet
+result_multi_diff$dynamics$SB
 # ============================================================================
 # VALIDATION ANALYSIS
 # ============================================================================

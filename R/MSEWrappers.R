@@ -98,12 +98,36 @@ evalMSE<-function(inputObject){
   #Deteministic LH and Sel, if present : detect which parameters have stochastic components
   #-------------------------------------------
   LHList<-names(LHdev[!unlist(lapply(LHdev, is.null))])
-  selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
-  selListPro<-lapply(1:TimeAreaObj@areas, function(x){
-    names(Sdev$pro[[x]][!unlist(lapply(Sdev$pro[[x]], is.null))])
-  })
+
+  #new: sept 05
+
+  # selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
+  # selListPro<-lapply(1:TimeAreaObj@areas, function(x){
+  #   names(Sdev$pro[[x]][!unlist(lapply(Sdev$pro[[x]], is.null))])
+  # })
+  # Handle selectivity stochasticity - disabled for multifleet mode
+  if(is_multifleet) {
+    selListHist <- character(0)  # empty character vector
+    selListPro <- replicate(TimeAreaObj@areas, character(0), simplify = FALSE)
+    cat("Note: Selectivity stochasticity disabled for multifleet mode\n")
+  } else {
+    selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
+    selListPro<-lapply(1:TimeAreaObj@areas, function(x){
+      names(Sdev$pro[[x]][!unlist(lapply(Sdev$pro[[x]], is.null))])
+    })
+  }
+
+
+
   #Is deterministic, so save time by make calculations only once.
-  if(NROW(LHList) == 0 & NROW(selListHist) == 0 & NROW(unlist(selListPro)) == 0){
+
+  #new - sep 06
+
+  #if(NROW(LHList) == 0 & NROW(selListHist) == 0 & NROW(unlist(selListPro)) == 0){
+  is_deterministic_sel <- if(is_multifleet) TRUE else (NROW(selListHist) == 0 & NROW(unlist(selListPro)) == 0)
+  if(NROW(LHList) == 0 & is_deterministic_sel){
+
+
     lh<-LHwrapper(LifeHistoryObj, TimeAreaObj)
     ageClasses <- lh$ageClasses
     if(!is.null(lh) & lh$LifeHistory@Steep < 0.21) lh$LifeHistory@Steep <- 0.21
@@ -193,59 +217,59 @@ evalMSE<-function(inputObject){
     #-----------------------------------------------------------------
     #check if stochastic parameters exist
     if(NROW(LHList) > 0 | NROW(selListHist) > 0 | NROW(unlist(selListPro)) > 0){
-      #Stochastic LH and Fishery objects
-      #applies iteration-specific stochastic values to life history and fishery objects
-      #creates _TMP objects with stochastic parameters for this iteration
-      #LH
+    #new: sep 05
+      if(is_multifleet) {
+      #multifleet, only process LH stochasticity, skip selectivity completely
       LifeHistoryObj_TMP<-LifeHistoryObj
       if(NROW(LHList) > 0){
         for(x in 1:NROW(LHList)) slot(LifeHistoryObj_TMP, LHList[x]) <- LHdev[[LHList[x]]][k]
       }
-      #Hist sel
-      HistFisheryObj_TMP<-HistFisheryObj
-      if(NROW(selListHist) > 0){
-        for(x in 1:NROW(selListHist)) slot(HistFisheryObj_TMP, selListHist[x]) <- Sdev$hist[[selListHist[x]]][k,]
-      }
-      #Pro sel
-      ProFisheryObj_TMP<-lapply(1:TimeAreaObj@areas, function(x){
-        TMP<-ProFisheryObj_list[[x]]
-        if(NROW(selListPro[[x]]) > 0){
-          for(y in 1:NROW(selListPro[[x]])) slot(TMP, selListPro[[x]][y]) <- Sdev$pro[[x]][[selListPro[[x]][y]]][k,]
-        }
-        TMP
-      })
+
       #setup
       lh<-LHwrapper(LifeHistoryObj_TMP, TimeAreaObj)
       ageClasses <- lh$ageClasses
       if(!is.null(lh) & lh$LifeHistory@Steep < 0.21) lh$LifeHistory@Steep <- 0.21
       if(!is.null(lh) & lh$LifeHistory@Steep > 1) lh$LifeHistory@Steep <- 1
 
-      #new addition: handle selectivity for both single and multifleet
-      #multifleet stochastic
-      if(is_multifleet) {
-
-        #multifleet selectivity with stochastic parameters
-        #maintains [[area]][[fleet]] structure even with stochasticity
-        #simplified approach for now: all fleets use same stochastic fishery object
-        #fleet differences come only from the base selectivity curves (MultifleetObj@fleet_selectivity_list)
-        #stochastic variation affects all fleets equally
+      #use fleet-specific fishery objects directly from MultifleetObj (no stochasticity)
         selHist<-lapply(1:TimeAreaObj@areas, function(area){
           lapply(1:nfleets, function(f) {
-            selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
+            selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]], doPlot = FALSE)
           })
         })
         selPro<-lapply(1:TimeAreaObj@areas, function(area){
           lapply(1:nfleets, function(f) {
-            if(!is.null(ProFisheryObj_list) && length(ProFisheryObj_list) >= area) {
-              selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_TMP[[area]], doPlot = FALSE)
-            } else {
-              selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
-            }
+          selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[f]], doPlot = FALSE)
+
           })
         })
 
         refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]][[1]]) # area 1 and fleet 1 for benchmarks (for now)
       } else {
+        # Original single fleet stochastic code
+        LifeHistoryObj_TMP<-LifeHistoryObj
+        if(NROW(LHList) > 0){
+          for(x in 1:NROW(LHList)) slot(LifeHistoryObj_TMP, LHList[x]) <- LHdev[[LHList[x]]][k]
+        }
+        #Hist sel
+        HistFisheryObj_TMP<-HistFisheryObj
+        if(NROW(selListHist) > 0){
+          for(x in 1:NROW(selListHist)) slot(HistFisheryObj_TMP, selListHist[x]) <- Sdev$hist[[selListHist[x]]][k,]
+        }
+        #Pro sel
+        ProFisheryObj_TMP<-lapply(1:TimeAreaObj@areas, function(x){
+          TMP<-ProFisheryObj_list[[x]]
+          if(NROW(selListPro[[x]]) > 0){
+            for(y in 1:NROW(selListPro[[x]])) slot(TMP, selListPro[[x]][y]) <- Sdev$pro[[x]][[selListPro[[x]][y]]][k,]
+          }
+          TMP
+        })
+        #setup
+        lh<-LHwrapper(LifeHistoryObj_TMP, TimeAreaObj)
+        ageClasses <- lh$ageClasses
+        if(!is.null(lh) & lh$LifeHistory@Steep < 0.21) lh$LifeHistory@Steep <- 0.21
+        if(!is.null(lh) & lh$LifeHistory@Steep > 1) lh$LifeHistory@Steep <- 1
+
         #same as before (single fleet stochastic path)
         selHist<-lapply(1:TimeAreaObj@areas, function(x){
           selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
@@ -255,9 +279,11 @@ evalMSE<-function(inputObject){
         })
         refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]])
       }
+
       ref[k, ]<-as.matrix(refCalc$sim)[1,]
       colnames(ref)<-names(refCalc$sim)
     }
+
 
     #-----------------------------------------
     #Initial equilibrium - year 1 (modification for multifleet approach)
@@ -1065,10 +1091,20 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
   ) Edev<-effortImpErrorDev(TimeAreaObj, StrategyObj)$Edev
 
   #Life history parmeters
-  LHdev<-lifehistoryDev(TimeAreaObj, StochasticObj)
+  #New:sept05
+  LHdev<-lifehistoryDev(TimeAreaObj, StochasticObj)#commented
+  #Selectivity parameters
+  if(is_multifleet) {
+    Sdev <- list(hist = list(), pro = replicate(TimeAreaObj@areas, list(), simplify = FALSE))  # empty selectivity stochasticity for multifleet
+    cat("Note: Selectivity stochasticity disabled for multifleet mode\n")
+  } else {
+    #for single fleet: keep all selectivity stochasticity
+    Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
+  }
+  #end
 
   #Selectivity parameters
-  Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
+  #Sdev<-selDev(TimeAreaObj, HistFisheryObj, ProFisheryObj_list, StochasticObj)
 
   #new addition: determine nfleets and call histEffortDev
   effective_nfleets <- if(is_multifleet) nfleets else 1
@@ -1157,6 +1193,7 @@ cat("histEffortDev validation passed!\n")
     }
   }
 
+
   #Check to see if uncertain life history specified and created
   if(!is.null(StochasticObj)){
     #Find LH params that are not null
@@ -1167,24 +1204,23 @@ cat("histEffortDev validation passed!\n")
       print(paste("Uncertainty in life history parameters:", "none"))
     }
   }
-
+#New: sept 05
   #Check to see if uncertain fishery selectivity specified and created
   #Historical
-  if(!is.null(StochasticObj)){
-    #Find LH params that are not null
+if(!is.null(StochasticObj)){
+  if(is_multifleet) {
+    print("Uncertainty in historical fishery selectivity parameters: disabled for multifleet mode")
+    print("Uncertainty in projection fishery selectivity parameters: disabled for multifleet mode")
+  } else {
+    #Find selectivity params that are not null - single fleet only
     selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
     if(NROW(selListHist) > 0) {
       print(paste("Uncertainty in historical fishery selectivity parameters:", selListHist))
     } else {
       print(paste("Uncertainty in historical fishery selectivity parameters:", "none"))
     }
-    if(NROW(selListHist) > 0 & is.null(HistFisheryObj)) print("Uncertainty in historical fishery selectivity cannot be specified without also specifying HistFisheryObj")
-  }
 
-  #Projection
-  if(!is.null(StochasticObj)){
-    #Find params that are not null
-
+    #Projection
     for(i in 1:TimeAreaObj@areas){
       selListPro<-names(Sdev$pro[[i]][!unlist(lapply(Sdev$pro[[i]], is.null))])
       if(NROW(selListPro) > 0) {
@@ -1192,9 +1228,12 @@ cat("histEffortDev validation passed!\n")
       } else {
         print(paste("Area", i, "uncertainty in projection fishery selectivity parameters:", "none"))
       }
-      if(NROW(selListPro) > 0 & is.null(ProFisheryObj_list)) print("Uncertainty in projection fishery selectivity cannot be specified without also specifying ProFisheryObj")
     }
   }
+}
+
+
+
   #Check to see if uncertain historical effort created
   if(!is.null(StochasticObj)){
    if(length(StochasticObj@histEffortSD) > 1) {
@@ -1246,14 +1285,23 @@ cat("histEffortDev validation passed!\n")
   }
 
   #Can life history wrapper and sel wrapper be created for each iteration?
+
   if(proceedMSE){
     LHList<-names(LHdev[!unlist(lapply(LHdev, is.null))])
-    selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
-    selListPro<-lapply(1:TimeAreaObj@areas, function(x){
-      names(Sdev$pro[[x]][!unlist(lapply(Sdev$pro[[x]], is.null))])
-    })
-
+    #new: sept 06
+    # Handle selectivity stochasticity - disabled for multifleet mode
+    if(is_multifleet) {
+      selListHist <- character(0)  # empty character vector
+      selListPro <- replicate(TimeAreaObj@areas, character(0), simplify = FALSE)
+    } else {
+      selListHist<-names(Sdev$hist[!unlist(lapply(Sdev$hist, is.null))])
+      selListPro<-lapply(1:TimeAreaObj@areas, function(x){
+        names(Sdev$pro[[x]][!unlist(lapply(Sdev$pro[[x]], is.null))])
+      })
+    }
+    #if(NROW(LHList) > 0 | (NROW(selListHist) > 0 & !is_multifleet) | (NROW(unlist(selListPro)) > 0 & !is_multifleet)) { #break the code
     if(NROW(LHList) > 0 | NROW(selListHist) > 0 | NROW(unlist(selListPro)) > 0) {
+
       for(k in 1:floor(TimeAreaObj@iterations)){
         #LH
         LifeHistoryObj_TMP<-LifeHistoryObj
@@ -1261,70 +1309,84 @@ cat("histEffortDev validation passed!\n")
           for(x in 1:NROW(LHList)) slot(LifeHistoryObj_TMP, LHList[x]) <- LHdev[[LHList[x]]][k]
         }
 
-        #Hist sel
-        HistFisheryObj_TMP<-HistFisheryObj
-        if(NROW(selListHist) > 0){
-          for(x in 1:NROW(selListHist)) slot(HistFisheryObj_TMP, selListHist[x]) <- Sdev$hist[[selListHist[x]]][k,]
-        }
-
-        #Pro sel
-        ProFisheryObj_TMP<-lapply(1:TimeAreaObj@areas, function(x){
-          TMP<-ProFisheryObj_list[[x]]
-          if(NROW(selListPro[[x]]) > 0){
-            for(y in 1:NROW(selListPro[[x]])) slot(TMP, selListPro[[x]][y]) <- Sdev$pro[[x]][[selListPro[[x]][y]]][k,]
+        #Hist sel - only for single fleet mode
+        if(!is_multifleet) {
+          HistFisheryObj_TMP<-HistFisheryObj
+          if(NROW(selListHist) > 0){
+            for(x in 1:NROW(selListHist)) slot(HistFisheryObj_TMP, selListHist[x]) <- Sdev$hist[[selListHist[x]]][k,]
           }
+
+          #Pro sel - only for single fleet mode
+          ProFisheryObj_TMP<-lapply(1:TimeAreaObj@areas, function(x){
+            TMP<-ProFisheryObj_list[[x]]
+            if(NROW(selListPro[[x]]) > 0){
+              for(y in 1:NROW(selListPro[[x]])) slot(TMP, selListPro[[x]][y]) <- Sdev$pro[[x]][[selListPro[[x]][y]]][k,]
+            }
           TMP
         })
+        }
 
         #Setup
         lh<-LHwrapper(LifeHistoryObj_TMP, TimeAreaObj)
-        selHist<-lapply(1:TimeAreaObj@areas, function(x){
-          selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
-        })
-        selPro<-lapply(1:TimeAreaObj@areas, function(x){
-          selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_TMP[[x]], doPlot = FALSE)
-        })
+        #new sep 06
+        if(!is_multifleet) {
+          selHist<-lapply(1:TimeAreaObj@areas, function(x){
+            selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj_TMP, doPlot = FALSE)
+          })
+          selPro<-lapply(1:TimeAreaObj@areas, function(x){
+            selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_TMP[[x]], doPlot = FALSE)
+          })
+        }
         if(is.null(lh)) {
           proceedMSE<-FALSE
           print(paste("Life history cannot be created. Check inputs. Stopped at interation", k))
         }
-        for(x in 1:TimeAreaObj@areas){
-          if(is.null(selHist[[x]])){
-            proceedMSE<-FALSE
-            print(paste("Historical selectivity cannot be created. Check inputs. Stopped at interation", k))
+
+
+        if(!is_multifleet) {
+          for(x in 1:TimeAreaObj@areas){
+            if(is.null(selHist[[x]])){
+              proceedMSE<-FALSE
+              print(paste("Historical selectivity cannot be created. Check inputs. Stopped at interation", k))
+            }
           }
-        }
-        for(x in 1:TimeAreaObj@areas){
-          if(isTRUE(!is.null(StrategyObj) &  is.null(selPro[[x]]))){
-            proceedMSE<-FALSE
-            print(paste("Projection selectivity cannot be created. Check inputs. Stopped at interation", k))
+          for(x in 1:TimeAreaObj@areas){
+            if(isTRUE(!is.null(StrategyObj) &  is.null(selPro[[x]]))){
+              proceedMSE<-FALSE
+              print(paste("Projection selectivity cannot be created. Check inputs. Stopped at interation", k))
+            }
           }
         }
       }
     } else {
       lh<-LHwrapper(LifeHistoryObj, TimeAreaObj)
-      selHist<-lapply(1:TimeAreaObj@areas, function(x){
-        selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj, doPlot = FALSE)
-      })
-      selPro<-lapply(1:TimeAreaObj@areas, function(x){
-        selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_list[[x]], doPlot = FALSE)
-      })
+      #new sep 06
+      if(!is_multifleet) {
+        selHist<-lapply(1:TimeAreaObj@areas, function(x){
+          selWrapper(lh, TimeAreaObj, FisheryObj = HistFisheryObj, doPlot = FALSE)
+        })
+        selPro<-lapply(1:TimeAreaObj@areas, function(x){
+          selWrapper(lh, TimeAreaObj, FisheryObj = ProFisheryObj_list[[x]], doPlot = FALSE)
+        })
+      }
       if(is.null(lh)) {
         proceedMSE<-FALSE
         print("Life history cannot be created. Check inputs.")
       }
-      for(x in 1:TimeAreaObj@areas){
-        if(is.null(selHist[[x]])){
-          proceedMSE<-FALSE
-          print("Historical selectivity cannot be created. Check inputs.")
+      if(!is_multifleet) {
+        for(x in 1:TimeAreaObj@areas){
+          if(is.null(selHist[[x]])){
+            proceedMSE<-FALSE
+            print("Historical selectivity cannot be created. Check inputs.")
+          }
         }
-      }
       for(x in 1:TimeAreaObj@areas){
         if(isTRUE(!is.null(StrategyObj) &  is.null(selPro[[x]]))){
           proceedMSE<-FALSE
           print("Projection selectivity cannot be created. Check inputs.")
         }
       }
+    }
     }
   }
 
@@ -1410,6 +1472,20 @@ cat("histEffortDev validation passed!\n")
   #new addition: Only adding MultifleetObj = MultifleetObj
 
   #Test whether we can proceed to simulations
+
+  #New:sept05
+  #handle multifleet mode - inform user and override fishery objects
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
+  if(is_multifleet) {
+  cat("Multifleet mode detected. HistFisheryObj and ProFisheryObj_list are not needed and will be ignored.\n")
+  cat("Fleet selectivities are defined in MultifleetObj@fleet_selectivity_hist_list and MultifleetObj@fleet_selectivity_proj_list\n")
+  #override these to avoid using them
+  HistFisheryObj <- NULL
+  ProFisheryObj_list <- NULL
+  }
+  #end#
+
+
   if(
     isFALSE(proceedMSE)
   ) {
