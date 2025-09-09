@@ -581,6 +581,13 @@ cat("OK FD indices automatically use fleet selectivities\n")
 cat("OK Fleet-specific indices generate different signals\n")
 cat("OK Catch and length composition not included in this example\n")
 
+# more checks
+result_multifleet$MultifleetObj@fleet_selectivity_hist_list[[1]]@vulParams  # [10.2, 0.1]
+result_multifleet$MultifleetObj@fleet_selectivity_hist_list[[2]]@vulParams  # [9, 0.1]
+dim(result_multifleet$dynamics$multifleet$RB_by_fleet)  # Should be [years, iters, areas, fleets]
+head(result_multifleet$HCR$decisionData[c("j", "CPUE_2_Fleet_1", "CPUE_4_Fleet_2")])
+unique(result_multifleet$HCR$decisionData$CPUE_2_Fleet_1_fleet_id) ## Should be 1
+unique(result_multifleet$HCR$decisionData$CPUE_4_Fleet_2_fleet_id) # should be 2
 
 
 # ============================================================================
@@ -602,7 +609,7 @@ cpue_numbers_single@survey_design <- list(
   list(
     indextype = "FD",
     areas = c(1),  # Single area
-    indexYears = 1:5,  # Historical years only to test the bug
+    indexYears = c(1:15), #1:5,  # Historical years only to test the bug
     q_hist_bounds = c(0.0001, 0.0003),
     q_proj_bounds = c(0.0001, 0.0003),
     hyperstability_hist_bounds = c(0.9, 1.1),
@@ -615,7 +622,7 @@ cpue_numbers_single@survey_design <- list(
   list(
     indextype = "FD",
     areas = c(1, 2),  # Multi-area forces manual calculation path
-    indexYears = c(2, 4, 6),  # Subset of years
+    indexYears = c(1:15), #c(2, 4, 6),  # Subset of years
     q_hist_bounds = c(0.0002, 0.0005),
     q_proj_bounds = c(0.0002, 0.0005),
     hyperstability_hist_bounds = c(0.8, 1.2),
