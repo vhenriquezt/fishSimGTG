@@ -1230,6 +1230,8 @@ plotIndex_tibble_enhanced <- function(tibble_data, save_plot = FALSE,
     y_label <- if(use_weight) "Index (biomass)" else "Index (numbers)"
   }
 
+
+
   #enhanced title
   if(is_multifleet) {
     nfleets <- unique(tibble_data$nfleets)[1]
@@ -1285,12 +1287,13 @@ plots_single$F       # Fishing mortality
 plots_multi$Catch    # Fleet-specific catches
 plots_multi$Indices  # Index observations
 
-
+stop() #(testing with more years again - the example: result_single_bugtest )
 
 #for single fleet (NOTE Need to fix plot scale when using numbers)
 plots_single_bugtest  <- plot_fishery_dynamics(result_single_bugtest,
                                       save_plots = FALSE,
                                       plot_prefix = "single_fleet_bugtest")
+plots_single_bugtest$SB      # Spawning biomass
+plots_single_bugtest$F       # Fishing mortality
 
-plots_single_bugtest$SB      # Single fleet spawning biomass
-plots_single_bugtest$Indices # Single fleet index observations
+
