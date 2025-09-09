@@ -67,6 +67,7 @@ evalMSE<-function(inputObject){
     catchN_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
     discB_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
     discN_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
+    RB_by_fleet <- array(dim=c(years, iterations, areas, nfleets)) #adding for obs multifleet
 
   #new addition: initialize with NA
     Ftotal_by_fleet[] <- NA
@@ -74,6 +75,7 @@ evalMSE<-function(inputObject){
     catchN_by_fleet[] <- NA
     discB_by_fleet[] <- NA
     discN_by_fleet[] <- NA
+    RB_by_fleet[] <- NA #adding for obs multifleet
   }
 
 
@@ -523,7 +525,9 @@ evalMSE<-function(inputObject){
           catchB_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*catchNage_by_fleet[[f]][[x]][,1,m])))
           discN_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(F_eq_by_fleet[f]*selHist[[m]][[f]]$discard[[x]]/(Z[[l]][,1,m])*(1-exp(-Z[[l]][,1,m]))*N[[x]][,1,m])))
           discB_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*F_eq_by_fleet[f]*selHist[[m]][[f]]$discard[[x]]/(Z[[l]][,1,m])*(1-exp(-Z[[l]][,1,m]))*N[[x]][,1,m])))
-        }
+        # added: obs multifleet
+          RB_by_fleet[1,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x) sum(N[[x]][,1,m]*selHist[[m]][[f]]$keep[[x]]*lh$W[[x]])))
+          }
 
         #area totals (sum across fleets)
         #VB now sums across all fleets (each fleet contributes to vulnerable biomass)
@@ -806,6 +810,10 @@ evalMSE<-function(inputObject){
             discB_by_fleet[j,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x)
               sum(lh$W[[x]] * F_by_fleet_current[f] * selGroup[[m]][[f]]$discard[[x]] /
                     Z[[l]][,j,m] * (1-exp(-Z[[l]][,j,m])) * N[[x]][,j,m])))
+
+            #added: obs multifleet
+            RB_by_fleet[j,k,m,f] <- sum(sapply(1:lh$gtg, FUN=function(x)
+              sum(N[[x]][,j,m] * selGroup[[m]][[f]]$keep[[x]] * lh$W[[x]])))
           }
 
           #calculate area totals for existing arrays (backward compatibility)
@@ -922,6 +930,17 @@ evalMSE<-function(inputObject){
         ),
         inputObject
         )
+        #add multifleet arrays to data object for obs models
+        if(is_multifleet) {
+          dataObject$RB_by_fleet <- RB_by_fleet
+          dataObject$catchB_by_fleet <- catchB_by_fleet
+          dataObject$catchN_by_fleet <- catchN_by_fleet
+          dataObject$Ftotal_by_fleet <- Ftotal_by_fleet
+          dataObject$discB_by_fleet <- discB_by_fleet
+          dataObject$discN_by_fleet <- discN_by_fleet
+        }
+
+
         decisionData<-rbind(decisionData, do.call(get(StrategyObj@projectionName), list(phase=1, dataObject)))
       }
       }
@@ -953,6 +972,7 @@ evalMSE<-function(inputObject){
       catchN_by_fleet = catchN_by_fleet,
       discB_by_fleet = discB_by_fleet,
       discN_by_fleet = discN_by_fleet,
+      RB_by_fleet = RB_by_fleet, # added obs model multifleet
       fleet_proportions = fleet_proportions,
       nfleets = nfleets,
 
@@ -1564,6 +1584,7 @@ if(!is.null(StochasticObj)){
         catchN_by_fleet <- multifleet_results$catchN_by_fleet
         discB_by_fleet <- multifleet_results$discB_by_fleet
         discN_by_fleet <- multifleet_results$discN_by_fleet
+        RB_by_fleet <- multifleet_results$RB_by_fleet # added obs model multifleet
       }
 
 
@@ -1590,7 +1611,9 @@ if(!is.null(StochasticObj)){
               catchN_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$catchN_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
               discB_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$discB_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
               discN_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$discN_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
-            }
+            #added obs model multifleet
+              RB_by_fleet[,input[[i]][1]:input[[i]][2],m,f] <- mseParallel[[i]]$dynamics$multifleet$RB_by_fleet[,input[[i]][1]:input[[i]][2],m,f]
+              }
           }
         }
 
@@ -1612,6 +1635,7 @@ if(!is.null(StochasticObj)){
           multifleet_results$catchN_by_fleet <- catchN_by_fleet
           multifleet_results$discB_by_fleet <- discB_by_fleet
           multifleet_results$discN_by_fleet <- discN_by_fleet
+          multifleet_results$RB_by_fleet <- RB_by_fleet #obs model multifleet
         }
 
 

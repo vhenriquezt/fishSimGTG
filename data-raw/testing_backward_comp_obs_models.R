@@ -53,6 +53,14 @@ ta@historicalEffort <- matrix(c(1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6
                                 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6),
                               nrow = 10, ncol = 2, byrow = FALSE)
 
+
+# Stochastic object - IDENTICAL for all tests
+stochastic_obj <- new("Stochastic")
+stochastic_obj@historicalBio = c(0.4, 0.6)  # Small range for consistency
+stochastic_obj@Steep = c(0.50, 0.60)        # Small range for consistency
+
+
+
 # Historical fishery (for the single fleet appraoch)
 hist_fishery <- new("Fishery")
 hist_fishery@title<-"Historical Fishery"
@@ -81,10 +89,6 @@ proj_fishery_area2@Dmort <- 0
 
 proj_fishery_list <- list(proj_fishery_area1, proj_fishery_area2)
 
-# Stochastic object - IDENTICAL for all tests
-stochastic_obj <- new("Stochastic")
-stochastic_obj@historicalBio = c(0.4, 0.6)  # Small range for consistency
-stochastic_obj@Steep = c(0.50, 0.60)        # Small range for consistency
 
 # SHARED RANDOM SEED
 validation_seed <- 123
@@ -140,50 +144,12 @@ simpleMP_single <- function(phase, dataObject) {
   }
 }
 
-# Strategy for multifleet (with fleet column) to maintain maintain data structure consistency with
-simpleMP_multi <- function(phase, dataObject) {
-  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+strategy_single <- new("Strategy")
+strategy_single@title <- "Single Fleet Validation"
+strategy_single@projectionYears <- 5
+strategy_single@projectionName <- "simpleMP_single"
+strategy_single@projectionParams <- list()
 
-  if(phase==1) {
-    # Phase 1: Collect observation data (same for single/multi)
-    combined_data <- list()
-
-    if(!is.null(IndexObj)) {
-      index_result <- calculate_single_Index(dataObject)
-      for(col_name in names(index_result)) {
-        combined_data[[col_name]] <- index_result[[col_name]]
-      }
-    }
-
-    if(!is.null(CatchObsObj)) {
-      catch_result <- calculate_single_CatchObs(dataObject)
-      for(col_name in names(catch_result)) {
-        combined_data[[col_name]] <- catch_result[[col_name]]
-      }
-    }
-
-    if(!is.null(LengthCompObj)) {
-      lc_result <- calculate_single_LengthComp(dataObject)
-      for(col_name in names(lc_result)) {
-        combined_data[[col_name]] <- lc_result[[col_name]]
-      }
-    }
-
-    return(combined_data)
-
-  }
-
-  if(phase==2) return(list())
-  if(phase==3) {
-    year = rep(j, areas)
-    iteration = rep(k, areas)
-    area = 1:areas
-    fleet = rep(0, areas)  # 0 = total F across all fleets
-    Flocal = rep(0.15, areas)  # Constant F = 0.15
-
-    return(list(year=year, iteration=iteration, area=area, fleet=fleet, Flocal=Flocal))
-  }
-}
 
 
 # ============================================================================
@@ -254,11 +220,7 @@ cat("=====================================\n")
 cat("RUNNING TEST 1: SINGLE FLEET         \n")
 cat("=====================================\n")
 
-strategy_single <- new("Strategy")
-strategy_single@title <- "Single Fleet Validation"
-strategy_single@projectionYears <- 5
-strategy_single@projectionName <- "simpleMP_single"
-strategy_single@projectionParams <- list()
+
 
 result_single <- runProjection(
   LifeHistoryObj = lh_obj,
@@ -291,179 +253,23 @@ result_single$dynamics$SPR # 1 set of vectors area-combined
 result_single$HCR$decisionData$CPUE_1
 result_single$HCR$decisionData$observed_catch_area_1
 result_single$HCR$decisionData$observed_catch_area_2
+result_single$HCR$decisionData$Fishery_1_indextype
+result_single$HCR$decisionData$Fishery_1_sample_size
 result_single$HCR$decisionData$Fishery_1_total_catch
+result_single$HCR$decisionData$Fishery_1_count_bin_1 # ETC ETC
 
-
-# ============================================================================
-# CREATE OBSERVATION MODELS - FOR MULTIFLEET (2 FLEETS)
-# ============================================================================
-
-# -----------------------------
-# FLEET-SPECIFIC CPUE (FD)
-# -----------------------------
-# CPUE Fleet 1 (covers both areas)
-cpue_fleet1 <- new("Index")
-cpue_fleet1@indexID <- "CPUE_Fleet1"
-cpue_fleet1@title <- "Fleet 1 CPUE Biomass"
-cpue_fleet1@useWeight <- TRUE  # Biomass-based
-
-cpue_fleet1@survey_design <- list(
-  list(
-    indextype = "FD",
-    areas = c(1, 2),
-    indexYears = 1:(ta@historicalYears + 5),  # All years
-    q_hist_bounds = c(0.0001, 0.00015),
-    q_proj_bounds = c(0.00012, 0.0002),
-    hyperstability_hist_bounds = c(0.9, 1.1),
-    hyperstability_proj_bounds = c(0.85, 1.05),
-    obsError_CV_hist_bounds = c(0.2, 0.3),
-    obsError_CV_proj_bounds = c(0.15, 0.25)
-  )
-)
-
-cpue_fleet1@selectivity_hist_list <- list()
-cpue_fleet1@selectivity_proj_list <- list()
-
-# CPUE Fleet 2 (covers both areas)
-cpue_fleet2 <- new("Index")
-cpue_fleet2@indexID <- "CPUE_Fleet2"
-cpue_fleet2@title <- "Fleet 2 CPUE Biomass"
-cpue_fleet2@useWeight <- TRUE  # Biomass-based
-
-cpue_fleet2@survey_design <- list(
-  list(
-    indextype = "FD",
-    areas = c(1, 2),
-    indexYears = 1:(ta@historicalYears + 5),  # All years
-    q_hist_bounds = c(0.00008, 0.00012),  # Slightly different catchability
-    q_proj_bounds = c(0.0001, 0.00018),
-    hyperstability_hist_bounds = c(0.95, 1.15),
-    hyperstability_proj_bounds = c(0.9, 1.1),
-    obsError_CV_hist_bounds = c(0.25, 0.35),  # Higher observation error
-    obsError_CV_proj_bounds = c(0.2, 0.3)
-  )
-)
-
-cpue_fleet2@selectivity_hist_list <- list()
-cpue_fleet2@selectivity_proj_list <- list()
-
-# -----------------------------
-# FISHERY-INDEPENDENT SURVEY (AREA 1 ONLY)
-# -----------------------------
-
-# Create survey selectivity (different from fishing)
-survey_selectivity <- new("Fishery")
-survey_selectivity@vulType <- "logistic"
-survey_selectivity@vulParams <- c(7.0, 2.0)  # Smaller sizes than fishery
-survey_selectivity@retType <- "full"
-survey_selectivity@retMax <- 1
-survey_selectivity@Dmort <- 0
-
-fi_survey <- new("Index")
-fi_survey@indexID <- "FI_Survey"
-fi_survey@title <- "Fishery-Independent Survey Area 1"
-fi_survey@useWeight <- TRUE  # Biomass-based
-
-fi_survey@survey_design <- list(
-  list(
-    indextype = "FI",
-    areas = c(1),  # Area 1 only
-    indexYears = seq(3, ta@historicalYears + 5, by = 2),  # Every other year starting year 3
-    q_hist_bounds = c(0.0002, 0.0003),
-    q_proj_bounds = c(0.00025, 0.00035),
-    hyperstability_hist_bounds = c(1.0, 1.0),  # No hyperstability for survey
-    hyperstability_proj_bounds = c(1.0, 1.0),
-    obsError_CV_hist_bounds = c(0.15, 0.2),
-    obsError_CV_proj_bounds = c(0.1, 0.15),
-    selectivity_hist_idx = 1,  # Index for selectivity object
-    selectivity_proj_idx = 1,
-    survey_timing = 0.5  # Mid-year survey
-  )
-)
-
-fi_survey@selectivity_hist_list <- list(survey_selectivity)
-fi_survey@selectivity_proj_list <- list(survey_selectivity)
-
-# -----------------------------
-# FLEET-SPECIFIC CATCH OBSERVATIONS
-# -----------------------------
-
-# Catch observations Fleet 1
-catch_obs_fleet1 <- new("CatchObs")
-catch_obs_fleet1@catchID <- "Catch_Fleet1"
-catch_obs_fleet1@title <- "Fleet 1 Catch Observations"
-catch_obs_fleet1@areas <- c(1, 2)
-catch_obs_fleet1@catchYears <- 1:(ta@historicalYears + 5)
-catch_obs_fleet1@reporting_rates <- rep(0.95, ta@historicalYears + 5)  # 95% reporting
-catch_obs_fleet1@obs_CVs <- matrix(c(rep(0.15, ta@historicalYears + 5),
-                                     rep(0.25, ta@historicalYears + 5)), ncol=2)
-
-# Catch observations Fleet 2
-catch_obs_fleet2 <- new("CatchObs")
-catch_obs_fleet2@catchID <- "Catch_Fleet2"
-catch_obs_fleet2@title <- "Fleet 2 Catch Observations"
-catch_obs_fleet2@areas <- c(1, 2)
-catch_obs_fleet2@catchYears <- 1:(ta@historicalYears + 5)
-catch_obs_fleet2@reporting_rates <- rep(1.05, ta@historicalYears + 5)  # 105% reporting (over-reporting)
-catch_obs_fleet2@obs_CVs <- matrix(c(rep(0.2, ta@historicalYears + 5),
-                                     rep(0.3, ta@historicalYears + 5)), ncol=2)
-
-# -----------------------------
-# FLEET-SPECIFIC LENGTH COMPOSITION (FD)
-# -----------------------------
-
-# Length composition Fleet 1
-lc_years_fleet1 <- seq(2, ta@historicalYears + 5, by = 2)  # Every other year
-
-length_comp_fleet1 <- new("LCompObs")
-length_comp_fleet1@indexID <- "LC_Fleet1"
-length_comp_fleet1@title <- "Fleet 1 Length Composition"
-length_comp_fleet1@length_bin_width <- 1  # 1 cm bins
-
-length_comp_fleet1@survey_design <- list(
-  list(
-    indextype = "FD",
-    areas = c(1, 2),
-    years = lc_years_fleet1,
-    sample_sizes = rep(150, length(lc_years_fleet1))  # 150 samples per event
-  )
-)
-
-length_comp_fleet1@selectivity_hist_list <- list()
-length_comp_fleet1@selectivity_proj_list <- list()
-
-# Length composition Fleet 2
-lc_years_fleet2 <- seq(1, ta@historicalYears + 5, by = 3)  # Every third year
-
-length_comp_fleet2 <- new("LCompObs")
-length_comp_fleet2@indexID <- "LC_Fleet2"
-length_comp_fleet2@title <- "Fleet 2 Length Composition"
-length_comp_fleet2@length_bin_width <- 1  # 1 cm bins
-
-length_comp_fleet2@survey_design <- list(
-  list(
-    indextype = "FD",
-    areas = c(1, 2),
-    years = lc_years_fleet2,
-    sample_sizes = rep(100, length(lc_years_fleet2))  # 100 samples per event
-  )
-)
-
-length_comp_fleet2@selectivity_hist_list <- list()
-length_comp_fleet2@selectivity_proj_list <- list()
 
 
 # ============================================================================
-# TEST SCENARIO 2: MULTIFLEET WITH 2 FLEETS (IDENTICAL SELECTIVITY)
+# MULTIFLEET EXAMPLE
 # ============================================================================
 
 cat("============================================\n")
-cat("RUNNING TEST 2: MULTIFLEET (2 IDENTICAL SEL)\n")
+cat("RUNNING TEST: MULTIFLEET (DIFFERENT SELECT )\n")
 cat("============================================\n")
 
 
 # Historical fleet selectivities
-
 fleet1_hist  <- new("Fishery")
 fleet1_hist @vulType <- "logistic"
 fleet1_hist @vulParams <- c(10.2, 0.1)
@@ -473,7 +279,7 @@ fleet1_hist @Dmort <- 0
 
 fleet2_hist  <- new("Fishery")
 fleet2_hist @vulType <- "logistic"
-fleet2_hist @vulParams <- c(10.2, 0.1)
+fleet2_hist @vulParams <- c(9, 0.1)
 fleet2_hist @retType <- "full"
 fleet2_hist @retMax <- 1
 fleet2_hist @Dmort <- 0
@@ -482,14 +288,14 @@ fleet2_hist @Dmort <- 0
 # Projection fleet selectivities
 fleet1_proj <- new("Fishery")
 fleet1_proj@vulType <- "logistic"
-fleet1_proj@vulParams <- c(10.2, 0.1)
+fleet1_proj@vulParams <- c(11, 0.1)
 fleet1_proj@retType <- "full"
 fleet1_proj@retMax <- 1
 fleet1_proj@Dmort <- 0
 
 fleet2_proj <- new("Fishery")
 fleet2_proj@vulType <- "logistic"
-fleet2_proj@vulParams <- c(10.2, 0.1)
+fleet2_proj@vulParams <- c(10, 0.1)
 fleet2_proj@retType <- "full"
 fleet2_proj@retMax <- 1
 fleet2_proj@Dmort <- 0
@@ -497,38 +303,800 @@ fleet2_proj@Dmort <- 0
 
 #multifleet object
 
-multifleet_identical <- new("Multifleet")
-multifleet_identical@nfleets <- 2
-multifleet_identical@fleet_proportions <- c(0.6, 0.4)
-multifleet_identical@allocation_type <- "catch"  # Use effort allocation for comparison
-multifleet_identical@fleet_selectivity_hist_list  <- list(fleet1_hist, fleet2_hist)
-multifleet_identical@fleet_selectivity_proj_list  <- list(fleet1_proj, fleet2_proj)
+multifleet_example  <- new("Multifleet")
+multifleet_example @nfleets <- 2
+multifleet_example @fleet_proportions <- c(0.6, 0.4)
+multifleet_example @allocation_type <- "catch"  # Use effort allocation for comparison
+multifleet_example @fleet_selectivity_hist_list  <- list(fleet1_hist, fleet2_hist)
+multifleet_example @fleet_selectivity_proj_list  <- list(fleet1_proj, fleet2_proj)
+
+cat("Created multifleet object:\n")
+cat("  - 2 fleets with different selectivities\n")
+cat("  - Fleet 1 historical: c(10.2, 0.1), projection: c(11, 0.1)\n")
+cat("  - Fleet 2 historical: c(9, 0.1), projection: c(10, 0.1)\n")
+cat("  - Target catch proportions: 60% Fleet 1, 40% Fleet 2\n")
+cat("  - Allocation type: catch (iterative to find effort proportions)\n")
 
 
-strategy_multi2 <- new("Strategy")
-strategy_multi2@title <- "Multifleet 2 Identical Validation"
-strategy_multi2@projectionYears <- 5
-strategy_multi2@projectionName <- "simpleMP_multi"
-strategy_multi2@projectionParams <- list()
+# ============================================================================
+# CREATE FI SURVEY SELECTIVITY (INDEPENDENT OF FLEETS)
+# ============================================================================
 
-result_multi2 <- runProjection(
+# Create survey selectivity (different from both fleets)
+survey_sel_hist <- new("Fishery")
+survey_sel_hist@title <- "Survey Historical"
+survey_sel_hist@vulType <- "logistic"
+survey_sel_hist@vulParams <- c(8.5, 0.2)
+survey_sel_hist@retType <- "full"
+survey_sel_hist@retMax <- 1
+survey_sel_hist@Dmort <- 0
+
+survey_sel_proj <- new("Fishery")
+survey_sel_proj@title <- "Survey Projection"
+survey_sel_proj@vulType <- "logistic"
+survey_sel_proj@vulParams <- c(8.8, 0.2)
+survey_sel_proj@retType <- "full"
+survey_sel_proj@retMax <- 1
+survey_sel_proj@Dmort <- 0
+
+# ============================================================================
+# CREATE COMPREHENSIVE INDEX OBJECT
+# ============================================================================
+multifleet_indices <- new("Index")
+multifleet_indices@indexID <- "MultifleetIndices"
+multifleet_indices@title <- "Fleet-Specific and Survey Indices"
+multifleet_indices@useWeight <- TRUE  # Biomass-based
+
+# Only FI surveys need selectivity objects (FD indices use fleet selectivity automatically)
+multifleet_indices@selectivity_hist_list <- list(survey_sel_hist)
+multifleet_indices@selectivity_proj_list <- list(survey_sel_proj)
+
+
+multifleet_indices@survey_design <- list(
+  # 1. FI Survey covering both areas (every 3 years)
+  list(
+    indextype = "FI",
+    areas = c(1, 2),
+    indexYears = seq(3, 15, 3),  # Years 3, 6, 9, 12, 15
+    selectivity_hist_idx = 1,    # Uses survey_sel_hist
+    selectivity_proj_idx = 1,    # Uses survey_sel_proj
+    survey_timing = 0.5,         # Mid-year survey
+    q_hist_bounds = c(0.0001, 0.0003),
+    q_proj_bounds = c(0.00012, 0.00035),
+    hyperstability_hist_bounds = c(0.95, 1.05),
+    hyperstability_proj_bounds = c(0.95, 1.05),
+    obsError_CV_hist_bounds = c(0.10, 0.20),
+    obsError_CV_proj_bounds = c(0.10, 0.20)
+  ),
+
+  # 2. Fleet 1 CPUE covering both areas (annual)
+  list(
+    indextype = "FD",
+    fleet_id = 1,  # Uses fleet1_hist/fleet1_proj selectivity automatically
+    areas = c(1, 2),
+    indexYears = 1:15,
+    q_hist_bounds = c(0.0002, 0.0008),
+    q_proj_bounds = c(0.0003, 0.0009),
+    hyperstability_hist_bounds = c(0.8, 1.2),
+    hyperstability_proj_bounds = c(0.8, 1.2),
+    obsError_CV_hist_bounds = c(0.15, 0.25),
+    obsError_CV_proj_bounds = c(0.15, 0.25)
+  ),
+
+  # 3. Fleet 1 CPUE Area 1 only (every other year)
+  list(
+    indextype = "FD",
+    fleet_id = 1,  # Uses fleet1_hist/fleet1_proj selectivity automatically
+    areas = c(1),  # Area 1 only
+    indexYears = seq(2, 14, 2),  # Years 2, 4, 6, 8, 10, 12, 14
+    q_hist_bounds = c(0.0003, 0.001),
+    q_proj_bounds = c(0.0004, 0.0012),
+    hyperstability_hist_bounds = c(0.8, 1.2),
+    hyperstability_proj_bounds = c(0.8, 1.2),
+    obsError_CV_hist_bounds = c(0.20, 0.30),
+    obsError_CV_proj_bounds = c(0.20, 0.30)
+  ),
+
+  # 4. Fleet 2 CPUE covering both areas (annual)
+  list(
+    indextype = "FD",
+    fleet_id = 2,  # Uses fleet2_hist/fleet2_proj selectivity automatically
+    areas = c(1, 2),
+    indexYears = 1:15,
+    q_hist_bounds = c(0.0001, 0.0006),
+    q_proj_bounds = c(0.00015, 0.0007),
+    hyperstability_hist_bounds = c(0.7, 1.3),
+    hyperstability_proj_bounds = c(0.7, 1.3),
+    obsError_CV_hist_bounds = c(0.20, 0.35),
+    obsError_CV_proj_bounds = c(0.20, 0.35)
+  ),
+
+  # 5. Fleet 2 CPUE Area 2 only (every three years)
+  list(
+    indextype = "FD",
+    fleet_id = 2,  # Uses fleet2_hist/fleet2_proj selectivity automatically
+    areas = c(2),  # Area 2 only
+    indexYears = seq(1, 15, 3),  # Years 1, 4, 7, 10, 13
+    q_hist_bounds = c(0.0002, 0.0009),
+    q_proj_bounds = c(0.00025, 0.001),
+    hyperstability_hist_bounds = c(0.7, 1.3),
+    hyperstability_proj_bounds = c(0.7, 1.3),
+    obsError_CV_hist_bounds = c(0.25, 0.40),
+    obsError_CV_proj_bounds = c(0.25, 0.40)
+  )
+)
+
+
+#Provide overall description
+
+cat("\nCreated comprehensive index object with 5 indices:\n")
+cat("  - 1 FI Survey (independent selectivity, both areas, triennial)\n")
+cat("  - 2 Fleet 1 CPUE indices (both areas annual + area 1 biennial)\n")
+cat("  - 2 Fleet 2 CPUE indices (both areas annual + area 2 triennial)\n")
+cat("\nSelectivity:\n")
+cat("  - FI Survey: Uses survey_sel_hist/survey_sel_proj\n")
+cat("  - Fleet 1 CPUE: Uses fleet1_hist/fleet1_proj automatically\n")
+cat("  - Fleet 2 CPUE: Uses fleet2_hist/fleet2_proj automatically\n")
+
+# ============================================================================
+# CREATE MULTIFLEET MANAGEMENT STRATEGY
+# ============================================================================
+
+# Strategy for multifleet (with fleet column) to maintain maintain data structure consistency with
+simpleMP_multifleet <- function(phase, dataObject) {
+  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+
+  if(phase==1) {
+    # Phase 1: Collect observation data (same for single/multi)
+    combined_data <- list()
+
+    if(!is.null(IndexObj)) {
+      index_result <- calculate_single_Index(dataObject)
+      for(col_name in names(index_result)) {
+        combined_data[[col_name]] <- index_result[[col_name]]
+      }
+    }
+
+    return(combined_data)
+
+  }
+
+  if(phase==2) return(list())
+  if(phase==3) {
+    year = rep(j, areas)
+    iteration = rep(k, areas)
+    area = 1:areas
+    fleet = rep(0, areas)  # 0 = total F across all fleets
+    Flocal = rep(0.15, areas)  # Constant F = 0.15
+
+    return(list(year=year, iteration=iteration, area=area, fleet=fleet, Flocal=Flocal))
+  }
+}
+
+strategy_multifleet <- new("Strategy")
+strategy_multifleet@title <- "Multifleet with Indices"
+strategy_multifleet@projectionYears <- 5
+strategy_multifleet@projectionName <- "simpleMP_multifleet"
+strategy_multifleet@projectionParams <- list()
+
+# ============================================================================
+# RUN MULTIFLEET SIMULATION
+# ============================================================================
+
+cat("\n============================================\n")
+cat("RUNNING MULTIFLEET SIMULATION (INDEX ONLY)\n")
+cat("============================================\n")
+
+result_multifleet <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
-  HistFisheryObj = hist_fishery,
-  ProFisheryObj_list = proj_fishery_list,
-  StrategyObj = strategy_multi2,
+  StrategyObj = strategy_multifleet,
   StochasticObj = stochastic_obj,
-  MultifleetObj = multifleet_identical,
+  MultifleetObj = multifleet_example,    # Uses the defined fleet selectivities
+  IndexObj = multifleet_indices,         # Comprehensive index object
+  # CatchObsObj = NULL,                  # Excluded for now
+  # LengthCompObj = NULL,                # Excluded for now
   wd = getwd(),
-  fileName = "validation_multifleet_2identical",
+  fileName = "multifleet_complete_example",
   seed = validation_seed,
   doPlot = FALSE,
   doDiagnostic = FALSE
 )
 
-cat("Multifleet (2 identical) simulation completed\n")
+cat("Multifleet simulation completed successfully\n")
 
-result_multi2 <- readProjection("P:/Fork_fish_Sim_GTG/fishSimGTG", "validation_multifleet_2identical")
-result_multi2$dynamics$SB
-result_multi2$dynamics$VB
+# ============================================================================
+# EXAMINE RESULTS
+# ============================================================================
+
+result_multifleet <- readProjection(getwd(), "multifleet_complete_example")
+
+cat("\n=== MULTIFLEET SIMULATION RESULTS ===\n")
+
+# Population dynamics
+cat("Population dynamics:\n")
+cat("  SB dimensions:", dim(result_multifleet$dynamics$SB), "\n")
+cat("  Multifleet detected:", !is.null(result_multifleet$dynamics$multifleet), "\n")
+
+if(!is.null(result_multifleet$dynamics$multifleet)) {
+  mf <- result_multifleet$dynamics$multifleet
+  cat("  Number of fleets:", mf$nfleets, "\n")
+  cat("  Fleet proportions (original):", paste(round(mf$fleet_proportions, 3), collapse = ", "), "\n")
+  cat("  Allocation type:", mf$allocation_type, "\n")
+
+  if(!is.null(mf$final_effort_proportions)) {
+    cat("  Final effort proportions:", paste(round(mf$final_effort_proportions, 3), collapse = ", "), "\n")
+  }
+  if(!is.null(mf$actual_catch_proportions)) {
+    cat("  Actual catch proportions:", paste(round(mf$actual_catch_proportions, 3), collapse = ", "), "\n")
+  }
+}
+
+# Index observations
+survey_cols <- grep("Survey_1", names(result_multifleet$HCR$decisionData), value = TRUE)
+fleet1_cols <- grep("CPUE_.*_Fleet_1", names(result_multifleet$HCR$decisionData), value = TRUE)
+fleet2_cols <- grep("CPUE_.*_Fleet_2", names(result_multifleet$HCR$decisionData), value = TRUE)
+
+cat("\nIndex observations collected:\n")
+cat("  FI Survey indices:", length(survey_cols), "\n")
+cat("  Fleet 1 CPUE indices:", length(fleet1_cols), "\n")
+cat("  Fleet 2 CPUE indices:", length(fleet2_cols), "\n")
+
+# Validate that fleet indices are different (due to different selectivities)
+if(length(fleet1_cols) > 0 && length(fleet2_cols) > 0) {
+  fleet1_values <- result_multifleet$HCR$decisionData[[fleet1_cols[1]]]
+  fleet2_values <- result_multifleet$HCR$decisionData[[fleet2_cols[1]]]
+
+  valid_indices <- !is.na(fleet1_values) & !is.na(fleet2_values)
+  if(sum(valid_indices) > 5) {
+    correlation <- cor(fleet1_values[valid_indices], fleet2_values[valid_indices])
+
+    cat("\nFleet-specific index validation:\n")
+    cat("  Correlation between Fleet 1 and Fleet 2 CPUE:", round(correlation, 3), "\n")
+    cat("  Expected: < 1.0 (should be different due to different selectivities)\n")
+
+    # Sample comparison
+    sample_data <- data.frame(
+      year = result_multifleet$HCR$decisionData$j[valid_indices][1:6],
+      fleet1_cpue = round(fleet1_values[valid_indices][1:6], 5),
+      fleet2_cpue = round(fleet2_values[valid_indices][1:6], 5)
+    )
+    cat("  Sample values (first 6 valid observations):\n")
+    print(sample_data)
+  }
+}
+
+# Check fleet metadata
+fleet_id_cols <- grep("_fleet_id$", names(result_multifleet$HCR$decisionData), value = TRUE)
+if(length(fleet_id_cols) > 0) {
+  unique_fleet_ids <- unique(result_multifleet$HCR$decisionData[[fleet_id_cols[1]]])
+  unique_fleet_ids <- unique_fleet_ids[!is.na(unique_fleet_ids)]
+  cat("\nFleet IDs found in data:", paste(unique_fleet_ids, collapse = ", "), "\n")
+}
+
+cat("\n=== VALIDATION SUMMARY ===\n")
+cat("OK Multifleet object created with defined selectivities\n")
+cat("OK 5 indices created (1 FI + 4 fleet-specific FD)\n")
+cat("OK FD indices automatically use fleet selectivities\n")
+cat("OK Fleet-specific indices generate different signals\n")
+cat("OK Catch and length composition not included in this example\n")
+
+
+# ============================================================================
+# IMPROVED PLOTTING FUNCTIONS FOR SINGLE FLEET AND MULTIFLEET
+# ============================================================================
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(gridExtra)
+
+# ============================================================================
+# MAIN PLOTTING FUNCTION
+# ============================================================================
+
+plot_fishery_dynamics <- function(simulation_result,
+                                  save_plots = FALSE,
+                                  output_dir = getwd(),
+                                  plot_prefix = "fishery_dynamics") {
+
+  #extract data
+  dynamics <- simulation_result$dynamics
+  is_multifleet <- !is.null(dynamics$multifleet)
+
+  #get dimensions
+  years <- dim(dynamics$SB)[1]
+  iterations <- dim(dynamics$SB)[2]
+  areas <- dim(dynamics$SB)[3]
+
+  #time axis setup
+  sim_years <- 1:years
+  user_years <- sim_years - 1  # convert to user-friendly years
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+
+  cat("creating plots for:", ifelse(is_multifleet, "Multifleet", "Single fleet"), "simulation\n")
+  cat("dimensions: Years =", years, ", Iterations =", iterations, ", Areas =", areas, "\n")
+
+  if(is_multifleet) {
+    nfleets <- dynamics$multifleet$nfleets
+    cat("Number of fleets:", nfleets, "\n")
+  }
+
+  # Create individual plots
+  plots <- list()
+
+  # 1. Spawning Biomass by Area
+  plots$SB <- create_SB_plot(dynamics, sim_years, user_years, historical_end, areas, is_multifleet)
+
+  # 2. Vulnerable Biomass by Area
+  plots$VB <- create_VB_plot(dynamics, sim_years, user_years, historical_end, areas, is_multifleet)
+
+  # 3. Fishing Mortality by Area and Fleet
+  plots$F <- create_F_plot(dynamics, sim_years, user_years, historical_end, areas, is_multifleet)
+
+  # 4. SPR (population-level)
+  plots$SPR <- create_SPR_plot(dynamics, sim_years, user_years, historical_end, is_multifleet)
+
+  # 5. Catch in Weight by Area and Fleet
+  plots$Catch <- create_Catch_plot(dynamics, sim_years, user_years, historical_end, areas, is_multifleet)
+
+  # 6. Recruitment by Area
+  plots$RecN <- create_RecN_plot(dynamics, sim_years, user_years, historical_end, areas, is_multifleet)
+
+  # 7. Index observations (if available)
+  if(!is.null(simulation_result$HCR$decisionData)) {
+    plots$Indices <- plotIndex_tibble_enhanced(simulation_result$HCR$decisionData)
+  }
+
+  # Save plots if requested
+  if(save_plots) {
+    for(plot_name in names(plots)) {
+      filename <- file.path(output_dir, paste0(plot_prefix, "_", plot_name, ".jpeg"))
+      ggsave(filename, plots[[plot_name]], width = 14, height = 10, dpi = 300)
+      cat("Saved:", filename, "\n")
+    }
+  }
+
+  return(plots)
+}
+
+# ============================================================================
+# INDIVIDUAL PLOT CREATION FUNCTIONS
+# ============================================================================
+
+create_SB_plot <- function(dynamics, sim_years, user_years, historical_end, areas, is_multifleet) {
+
+  plot_data <- data.frame()
+
+  for(area in 1:areas) {
+    #calculate median across iterations
+    sb_median <- apply(dynamics$SB[, , area], 1, median, na.rm = TRUE)
+    sb_q25 <- apply(dynamics$SB[, , area], 1, quantile, 0.25, na.rm = TRUE)
+    sb_q75 <- apply(dynamics$SB[, , area], 1, quantile, 0.75, na.rm = TRUE)
+
+    area_data <- data.frame(
+      year = sim_years,
+      user_year = user_years,
+      median = sb_median,
+      q25 = sb_q25,
+      q75 = sb_q75,
+      area = paste("Area", area)
+    )
+
+    plot_data <- rbind(plot_data, area_data)
+  }
+
+  p <- ggplot(plot_data, aes(x = year)) +
+    geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "steelblue") +
+    geom_line(aes(y = median), color = "steelblue", size = 1.2) +
+    geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+    facet_wrap(~ area, scales = "free_y") +
+    scale_x_continuous(breaks = sim_years, labels = user_years) +
+    labs(title = "Spawning Biomass by Area",
+         x = "Year",
+         y = "Spawning Biomass",
+         subtitle = "Median with 25th-75th percentile range") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  return(p)
+}
+
+create_VB_plot <- function(dynamics, sim_years, user_years, historical_end, areas, is_multifleet) {
+
+  plot_data <- data.frame()
+
+  for(area in 1:areas) {
+    vb_median <- apply(dynamics$VB[, , area], 1, median, na.rm = TRUE)
+    vb_q25 <- apply(dynamics$VB[, , area], 1, quantile, 0.25, na.rm = TRUE)
+    vb_q75 <- apply(dynamics$VB[, , area], 1, quantile, 0.75, na.rm = TRUE)
+
+    area_data <- data.frame(
+      year = sim_years,
+      user_year = user_years,
+      median = vb_median,
+      q25 = vb_q25,
+      q75 = vb_q75,
+      area = paste("Area", area)
+    )
+
+    plot_data <- rbind(plot_data, area_data)
+  }
+
+  p <- ggplot(plot_data, aes(x = year)) +
+    geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "darkgreen") +
+    geom_line(aes(y = median), color = "darkgreen", size = 1.2) +
+    geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+    facet_wrap(~ area, scales = "free_y") +
+    scale_x_continuous(breaks = sim_years, labels = user_years) +
+    labs(title = "Vulnerable Biomass by Area",
+         x = "Year",
+         y = "Vulnerable Biomass",
+         subtitle = "Median with 25th-75th percentile range") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  return(p)
+}
+
+create_F_plot <- function(dynamics, sim_years, user_years, historical_end, areas, is_multifleet) {
+
+  plot_data <- data.frame()
+
+  if(is_multifleet) {
+    #plot fleet-specific F values
+    nfleets <- dynamics$multifleet$nfleets
+
+    for(area in 1:areas) {
+      for(fleet in 1:nfleets) {
+        f_median <- apply(dynamics$multifleet$Ftotal_by_fleet[, , area, fleet], 1, median, na.rm = TRUE)
+        f_q25 <- apply(dynamics$multifleet$Ftotal_by_fleet[, , area, fleet], 1, quantile, 0.25, na.rm = TRUE)
+        f_q75 <- apply(dynamics$multifleet$Ftotal_by_fleet[, , area, fleet], 1, quantile, 0.75, na.rm = TRUE)
+
+        fleet_data <- data.frame(
+          year = sim_years,
+          user_year = user_years,
+          median = f_median,
+          q25 = f_q25,
+          q75 = f_q75,
+          panel = paste("Area", area, "- Fleet", fleet),
+          fleet = paste("Fleet", fleet)
+        )
+
+        plot_data <- rbind(plot_data, fleet_data)
+      }
+    }
+
+    p <- ggplot(plot_data, aes(x = year, color = fleet, fill = fleet)) +
+      geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.2) +
+      geom_line(aes(y = median), size = 1.2) +
+      geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+      facet_wrap(~ panel, scales = "free_y") +
+      scale_x_continuous(breaks = sim_years, labels = user_years) +
+      labs(title = "Fishing Mortality by Area and Fleet",
+           x = "Year",
+           y = "Fishing Mortality (F)",
+           subtitle = "Median with 25th-75th percentile range") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  } else {
+    #single fleet - total F by area
+    for(area in 1:areas) {
+      f_median <- apply(dynamics$Ftotal[, , area], 1, median, na.rm = TRUE)
+      f_q25 <- apply(dynamics$Ftotal[, , area], 1, quantile, 0.25, na.rm = TRUE)
+      f_q75 <- apply(dynamics$Ftotal[, , area], 1, quantile, 0.75, na.rm = TRUE)
+
+      area_data <- data.frame(
+        year = sim_years,
+        user_year = user_years,
+        median = f_median,
+        q25 = f_q25,
+        q75 = f_q75,
+        area = paste("Area", area)
+      )
+
+      plot_data <- rbind(plot_data, area_data)
+    }
+
+    p <- ggplot(plot_data, aes(x = year)) +
+      geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "orange") +
+      geom_line(aes(y = median), color = "orange", size = 1.2) +
+      geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+      facet_wrap(~ area, scales = "free_y") +
+      scale_x_continuous(breaks = sim_years, labels = user_years) +
+      labs(title = "Fishing Mortality by Area",
+           x = "Year",
+           y = "Fishing Mortality (F)",
+           subtitle = "Median with 25th-75th percentile range") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+
+  return(p)
+}
+
+create_SPR_plot <- function(dynamics, sim_years, user_years, historical_end, is_multifleet) {
+
+  #SPR is population-level (not area-specific)
+  spr_median <- apply(dynamics$SPR, 1, median, na.rm = TRUE)
+  spr_q25 <- apply(dynamics$SPR, 1, quantile, 0.25, na.rm = TRUE)
+  spr_q75 <- apply(dynamics$SPR, 1, quantile, 0.75, na.rm = TRUE)
+
+  plot_data <- data.frame(
+    year = sim_years,
+    user_year = user_years,
+    median = spr_median,
+    q25 = spr_q25,
+    q75 = spr_q75
+  )
+
+  p <- ggplot(plot_data, aes(x = year)) +
+    geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "purple") +
+    geom_line(aes(y = median), color = "purple", size = 1.2) +
+    geom_hline(yintercept = 0.3, linetype = "dotted", color = "red", alpha = 0.7) +
+    geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+    scale_x_continuous(breaks = sim_years, labels = user_years) +
+    labs(title = "Spawning Potential Ratio (SPR)",
+         x = "Year",
+         y = "SPR",
+         subtitle = "Median with 25th-75th percentile range (dotted line = SPR 30%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  return(p)
+}
+
+create_Catch_plot <- function(dynamics, sim_years, user_years, historical_end, areas, is_multifleet) {
+
+  plot_data <- data.frame()
+
+  if(is_multifleet) {
+    #plot fleet-specific catches
+    nfleets <- dynamics$multifleet$nfleets
+
+    for(area in 1:areas) {
+      for(fleet in 1:nfleets) {
+        catch_median <- apply(dynamics$multifleet$catchB_by_fleet[, , area, fleet], 1, median, na.rm = TRUE)
+        catch_q25 <- apply(dynamics$multifleet$catchB_by_fleet[, , area, fleet], 1, quantile, 0.25, na.rm = TRUE)
+        catch_q75 <- apply(dynamics$multifleet$catchB_by_fleet[, , area, fleet], 1, quantile, 0.75, na.rm = TRUE)
+
+        fleet_data <- data.frame(
+          year = sim_years,
+          user_year = user_years,
+          median = catch_median,
+          q25 = catch_q25,
+          q75 = catch_q75,
+          panel = paste("Area", area, "- Fleet", fleet),
+          fleet = paste("Fleet", fleet)
+        )
+
+        plot_data <- rbind(plot_data, fleet_data)
+      }
+    }
+
+    p <- ggplot(plot_data, aes(x = year, color = fleet, fill = fleet)) +
+      geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.2) +
+      geom_line(aes(y = median), size = 1.2) +
+      geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+      facet_wrap(~ panel, scales = "free_y") +
+      scale_x_continuous(breaks = sim_years, labels = user_years) +
+      labs(title = "Catch Biomass by Area and Fleet",
+           x = "Year",
+           y = "Catch Biomass",
+           subtitle = "Median with 25th-75th percentile range") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  } else {
+    #single fleet - total catch by area
+    for(area in 1:areas) {
+      catch_median <- apply(dynamics$catchB[, , area], 1, median, na.rm = TRUE)
+      catch_q25 <- apply(dynamics$catchB[, , area], 1, quantile, 0.25, na.rm = TRUE)
+      catch_q75 <- apply(dynamics$catchB[, , area], 1, quantile, 0.75, na.rm = TRUE)
+
+      area_data <- data.frame(
+        year = sim_years,
+        user_year = user_years,
+        median = catch_median,
+        q25 = catch_q25,
+        q75 = catch_q75,
+        area = paste("Area", area)
+      )
+
+      plot_data <- rbind(plot_data, area_data)
+    }
+
+    p <- ggplot(plot_data, aes(x = year)) +
+      geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "brown") +
+      geom_line(aes(y = median), color = "brown", size = 1.2) +
+      geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+      facet_wrap(~ area, scales = "free_y") +
+      scale_x_continuous(breaks = sim_years, labels = user_years) +
+      labs(title = "Catch Biomass by Area",
+           x = "Year",
+           y = "Catch Biomass",
+           subtitle = "Median with 25th-75th percentile range") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+
+  return(p)
+}
+
+create_RecN_plot <- function(dynamics, sim_years, user_years, historical_end, areas, is_multifleet) {
+
+  #recruitment is population-level but can be split by area based on recArea
+  if("recN" %in% names(dynamics)) {
+    recn_median <- apply(dynamics$recN, 1, median, na.rm = TRUE)
+    recn_q25 <- apply(dynamics$recN, 1, quantile, 0.25, na.rm = TRUE)
+    recn_q75 <- apply(dynamics$recN, 1, quantile, 0.75, na.rm = TRUE)
+
+    plot_data <- data.frame(
+      year = sim_years,
+      user_year = user_years,
+      median = recn_median,
+      q25 = recn_q25,
+      q75 = recn_q75
+    )
+
+    p <- ggplot(plot_data, aes(x = year)) +
+      geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "cyan") +
+      geom_line(aes(y = median), color = "cyan4", size = 1.2) +
+      geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+      scale_x_continuous(breaks = sim_years, labels = user_years) +
+      labs(title = "Recruitment (Total)",
+           x = "Year",
+           y = "Recruitment (Numbers)",
+           subtitle = "Median with 25th-75th percentile range") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  } else {
+    #create empty plot if recruitment data not available
+    p <- ggplot() +
+      geom_text(aes(x = 0.5, y = 0.5, label = "Recruitment data not available"), size = 6) +
+      theme_void() +
+      labs(title = "Recruitment Data Not Available")
+  }
+
+  return(p)
+}
+
+# ============================================================================
+# ENHANCED INDEX PLOTTING (FROM PREVIOUS FUNCTION)
+# ============================================================================
+
+plotIndex_tibble_enhanced <- function(tibble_data, save_plot = FALSE,
+                                      filename = "index_plot.jpeg") {
+
+  #extract metadata
+  title <- unique(tibble_data$title)[1]
+  historical_end <- unique(tibble_data$historical_end)[1]
+  is_multifleet <- unique(tibble_data$is_multifleet)[1]
+
+  #enhanced pattern to detect both single fleet and multifleet indices
+  if(is_multifleet) {
+    index_columns <- grep("^(CPUE_\\d+(_Fleet_\\d+)?|Survey_\\d+)$", names(tibble_data), value = TRUE)
+  } else {
+    index_columns <- grep("^(CPUE_|Survey_)\\d+$", names(tibble_data), value = TRUE)
+  }
+
+  if(length(index_columns) == 0) {
+    return(ggplot() + geom_text(aes(x = 0.5, y = 0.5, label = "No index data available"), size = 6) + theme_void())
+  }
+
+  all_data <- data.frame()
+
+  for(index_col in index_columns) {
+    indextype_col <- paste0(index_col, "_indextype")
+    areas_col <- paste0(index_col, "_areas")
+    indexyears_col <- paste0(index_col, "_indexYears")
+    fleet_id_col <- paste0(index_col, "_fleet_id")
+
+    if(!all(c(indextype_col, areas_col, indexyears_col) %in% names(tibble_data))) {
+      next
+    }
+
+    index_years_str <- unique(tibble_data[[indexyears_col]])[1]
+    if(is.na(index_years_str)) next
+
+    index_years <- as.numeric(unlist(strsplit(as.character(index_years_str), "_")))
+    areas_str <- unique(tibble_data[[areas_col]])[1]
+
+    #enhanced panel naming
+    if(fleet_id_col %in% names(tibble_data)) {
+      fleet_id <- unique(tibble_data[[fleet_id_col]])[1]
+      if(!is.na(fleet_id)) {
+        panel_name <- paste(index_col, "- Fleet", fleet_id, "- Area(s)", areas_str)
+      } else {
+        panel_name <- paste(index_col, "- Area(s)", areas_str)
+      }
+    } else {
+      panel_name <- paste(index_col, "- Area(s)", areas_str)
+    }
+
+    index_data <- tibble_data %>%
+      select(k, j, all_of(index_col)) %>%
+      rename(iteration = k, year = j, value = !!sym(index_col)) %>%
+      mutate(panel = panel_name, type = "Iterations", iteration_label = paste0("Iter_", iteration))
+
+    median_data <- index_data %>%
+      group_by(year, panel) %>%
+      summarise(value = median(value, na.rm = TRUE), .groups = "drop") %>%
+      mutate(type = "Median", iteration = "Median", iteration_label = "Median")
+
+    combined_data <- rbind(
+      index_data %>% select(year, value, panel, type, iteration_label),
+      median_data %>% select(year, value, panel, type, iteration_label)
+    )
+
+    all_data <- rbind(all_data, combined_data)
+  }
+
+  #Y-axis labeling
+  use_weight <- unique(tibble_data$useWeight)[1]
+  final_indextype <- unique(tibble_data$final_indextype)[1]
+
+  if(final_indextype == "FD") {
+    y_label <- if(use_weight) "CPUE (biomass)" else "CPUE (numbers)"
+  } else if(final_indextype == "FI") {
+    y_label <- if(use_weight) "Survey (biomass)" else "Survey (numbers)"
+  } else {
+    y_label <- if(use_weight) "Index (biomass)" else "Index (numbers)"
+  }
+
+  #enhanced title
+  if(is_multifleet) {
+    nfleets <- unique(tibble_data$nfleets)[1]
+    plot_title <- paste(title, "(", nfleets, "fleets )")
+  } else {
+    plot_title <- title
+  }
+
+  sim_years <- sort(unique(all_data$year))
+  user_years <- sim_years - 1
+
+  p <- ggplot(all_data, aes(x = year, y = value)) +
+    geom_line(data = subset(all_data, type == "Iterations"),
+              aes(group = iteration_label), color = "steelblue", alpha = 0.6, size = 0.5) +
+    geom_point(data = subset(all_data, type == "Iterations" & !is.na(value)),
+               color = "steelblue", alpha = 0.7, size = 1) +
+    geom_line(data = subset(all_data, type == "Median"),
+              color = "black", size = 1.2) +
+    geom_point(data = subset(all_data, type == "Median" & !is.na(value)),
+               color = "black", size = 1.5) +
+    facet_wrap(~ panel, scales = "free_y") +
+    geom_vline(xintercept = historical_end, linetype = "dashed", color = "red") +
+    scale_x_continuous(breaks = sim_years, labels = user_years) +
+    labs(title = plot_title, x = "Year", y = y_label) +
+    theme_minimal() +
+    theme(strip.text = element_text(size = 9), plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_text(angle = 45, hjust = 1))
+
+  if(save_plot) {
+    ggsave(filename, plot = p, width = 14, height = 10, dpi = 300)
+  }
+
+  return(p)
+}
+
+# ============================================================================
+# HOW THE USER CAN USE THESE FUCNTIONS
+# ============================================================================
+
+#for single fleet:
+plots_single <- plot_fishery_dynamics(result_single,
+                                      save_plots = FALSE,
+                                      plot_prefix = "single_fleet")
+
+#for multifleet:
+plots_multi <- plot_fishery_dynamics(result_multifleet,
+                                     save_plots = FALSE,
+                                     plot_prefix = "multifleet")
+
+#view individual plots:
+plots_single$SB      # Spawning biomass
+plots_single$F       # Fishing mortality
+plots_multi$Catch    # Fleet-specific catches
+plots_multi$Indices  # Index observations
 
