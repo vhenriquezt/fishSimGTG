@@ -3154,135 +3154,135 @@ plotIndex_simple <- function(index_result, save_plot = FALSE,
 #' # cat_sur_mvlog[j,] = mvlogistAgeComps(pSurvCat[j,],taupaasurv,id_seed=s+1000)
 
 
-#Roxygen header
-#'Function for integrating observation models
+#' #Roxygen header
+#' #'Function for integrating observation models
+#' #'
+#' #' @param CatchObsObj A Catch observation model object
+#' #' @export
 #'
-#' @param CatchObsObj A Catch observation model object
-#' @export
-
-calculate_single_CatchObs <- function(dataObject) {
-  # Unpack dataObject (a list containing all needed data)
-  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
-
-  #dimensions
-  years <- dim(catchB)[1]
-  iterations <- dim(catchB)[2]
-  historicalYears <- TimeAreaObj@historicalYears
-  historical_end <- 1 + historicalYears
-  end_proj <- years
-
-  # initialize the outputs in a tibble
-  obs_catch_return <- tibble::tibble(
-    k = k,
-    j = j,
-    catchID = CatchObsObj@catchID,
-    total_years = years,
-    total_iterations = iterations,
-    historical_years = historicalYears,
-    end_hist = historical_end,
-    end_proj = end_proj,
-    period = ifelse(j <= historical_end, "Historical", "Projection")
-  )
-
-  # calculate if this year has catch observations
-  if((j-1) %in% CatchObsObj@catchYears) {
-
-    # adding year position (useful when data are not available every years)
-    catch_year_position <- which(CatchObsObj@catchYears == (j-1))
-
-    # reporting rate for each year (to simulate over reporitng or under reporting)
-    R_t <- CatchObsObj@reporting_rates[catch_year_position]
-
-    # CV obs bounds for this year and sample a CV value for each iteration
-    if(nrow(CatchObsObj@obs_CVs) >= catch_year_position && ncol(CatchObsObj@obs_CVs) == 2) {
-      cv_min <- CatchObsObj@obs_CVs[catch_year_position, 1]
-      cv_max <- CatchObsObj@obs_CVs[catch_year_position, 2]
-      obs_CV <- runif(1, min = cv_min, max = cv_max)
-    } else {
-      stop(paste("obs_CVs matrix must have 2 columns (min, max) and at least", length(CatchObsObj@catchYears), "rows"))
-    }
-
-
-    # apply  lognormal error with bias correction
-    obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
-
-    # calculate catch by individual area
-    areas_list <- CatchObsObj@areas
-    n_areas <- length(areas_list)
-
-    # store individual area catches
-    true_catch_by_area <- numeric(n_areas)
-    catch_with_reporting_by_area <- numeric(n_areas)
-    observed_catch_by_area <- numeric(n_areas)
-
-    # apply the obs model to catch by area
-
-    for(i in 1:n_areas) {
-      area_id <- areas_list[i]
-
-      # take true catch for the area
-      true_catch_by_area[i] <- catchB[j, k, area_id]
-
-      # apply reporting rate to the area
-      catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
-
-      # apply observation error to the area
-      observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
-    }
-
-    # Calculate totals (sum across areas)
-    true_catch_total <- sum(true_catch_by_area)
-    catch_with_reporting_total <- sum(catch_with_reporting_by_area)
-    observed_catch_total <- sum(observed_catch_by_area)
-
-
-    # store results
-    obs_catch_return$true_catch <- true_catch_total
-    obs_catch_return$R_t <- R_t
-    obs_catch_return$catch_with_reporting <- catch_with_reporting_total
-    obs_catch_return$cv_min <- cv_min
-    obs_catch_return$cv_max <- cv_max
-    obs_catch_return$obs_CV <- obs_CV
-    obs_catch_return$observed_catch <- observed_catch_total
-    # add individual area catches to output
-    obs_catch_return$n_areas <- n_areas
-    obs_catch_return$areas_included <- paste(areas_list, collapse = "_")
-
-    # store complete observation model results by area
-    for(i in 1:n_areas) {
-      area_id <- areas_list[i]
-
-      # true catch by area
-      obs_catch_return[[paste0("true_catch_area_", area_id)]] <- true_catch_by_area[i]
-
-      # catch with reporting by area
-      obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
-
-      # observed catch by area
-      obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
-    }
-
-  } else {
-    # No observation this year - set to NA
-    obs_catch_return$true_catch <- NA
-    obs_catch_return$R_t <- NA
-    obs_catch_return$catch_with_reporting <- NA
-    obs_catch_return$cv_min <- NA
-    obs_catch_return$cv_max <- NA
-    obs_catch_return$obs_CV <- NA
-    obs_catch_return$observed_catch <- NA
-    obs_catch_return$n_areas <- NA
-    obs_catch_return$areas_included <- NA
-    # set individual area catches to NA
-    for(area_id in CatchObsObj@areas) {
-      obs_catch_return[[paste0("true_catch_area_", area_id)]] <- NA
-      obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- NA
-      obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- NA
-    }
-  }
-
-  return(obs_catch_return)
-}
+#' calculate_single_CatchObs <- function(dataObject) {
+#'   # Unpack dataObject (a list containing all needed data)
+#'   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+#'
+#'   #dimensions
+#'   years <- dim(catchB)[1]
+#'   iterations <- dim(catchB)[2]
+#'   historicalYears <- TimeAreaObj@historicalYears
+#'   historical_end <- 1 + historicalYears
+#'   end_proj <- years
+#'
+#'   # initialize the outputs in a tibble
+#'   obs_catch_return <- tibble::tibble(
+#'     k = k,
+#'     j = j,
+#'     catchID = CatchObsObj@catchID,
+#'     total_years = years,
+#'     total_iterations = iterations,
+#'     historical_years = historicalYears,
+#'     end_hist = historical_end,
+#'     end_proj = end_proj,
+#'     period = ifelse(j <= historical_end, "Historical", "Projection")
+#'   )
+#'
+#'   # calculate if this year has catch observations
+#'   if((j-1) %in% CatchObsObj@catchYears) {
+#'
+#'     # adding year position (useful when data are not available every years)
+#'     catch_year_position <- which(CatchObsObj@catchYears == (j-1))
+#'
+#'     # reporting rate for each year (to simulate over reporitng or under reporting)
+#'     R_t <- CatchObsObj@reporting_rates[catch_year_position]
+#'
+#'     # CV obs bounds for this year and sample a CV value for each iteration
+#'     if(nrow(CatchObsObj@obs_CVs) >= catch_year_position && ncol(CatchObsObj@obs_CVs) == 2) {
+#'       cv_min <- CatchObsObj@obs_CVs[catch_year_position, 1]
+#'       cv_max <- CatchObsObj@obs_CVs[catch_year_position, 2]
+#'       obs_CV <- runif(1, min = cv_min, max = cv_max)
+#'     } else {
+#'       stop(paste("obs_CVs matrix must have 2 columns (min, max) and at least", length(CatchObsObj@catchYears), "rows"))
+#'     }
+#'
+#'
+#'     # apply  lognormal error with bias correction
+#'     obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
+#'
+#'     # calculate catch by individual area
+#'     areas_list <- CatchObsObj@areas
+#'     n_areas <- length(areas_list)
+#'
+#'     # store individual area catches
+#'     true_catch_by_area <- numeric(n_areas)
+#'     catch_with_reporting_by_area <- numeric(n_areas)
+#'     observed_catch_by_area <- numeric(n_areas)
+#'
+#'     # apply the obs model to catch by area
+#'
+#'     for(i in 1:n_areas) {
+#'       area_id <- areas_list[i]
+#'
+#'       # take true catch for the area
+#'       true_catch_by_area[i] <- catchB[j, k, area_id]
+#'
+#'       # apply reporting rate to the area
+#'       catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
+#'
+#'       # apply observation error to the area
+#'       observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
+#'     }
+#'
+#'     # Calculate totals (sum across areas)
+#'     true_catch_total <- sum(true_catch_by_area)
+#'     catch_with_reporting_total <- sum(catch_with_reporting_by_area)
+#'     observed_catch_total <- sum(observed_catch_by_area)
+#'
+#'
+#'     # store results
+#'     obs_catch_return$true_catch <- true_catch_total
+#'     obs_catch_return$R_t <- R_t
+#'     obs_catch_return$catch_with_reporting <- catch_with_reporting_total
+#'     obs_catch_return$cv_min <- cv_min
+#'     obs_catch_return$cv_max <- cv_max
+#'     obs_catch_return$obs_CV <- obs_CV
+#'     obs_catch_return$observed_catch <- observed_catch_total
+#'     # add individual area catches to output
+#'     obs_catch_return$n_areas <- n_areas
+#'     obs_catch_return$areas_included <- paste(areas_list, collapse = "_")
+#'
+#'     # store complete observation model results by area
+#'     for(i in 1:n_areas) {
+#'       area_id <- areas_list[i]
+#'
+#'       # true catch by area
+#'       obs_catch_return[[paste0("true_catch_area_", area_id)]] <- true_catch_by_area[i]
+#'
+#'       # catch with reporting by area
+#'       obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
+#'
+#'       # observed catch by area
+#'       obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
+#'     }
+#'
+#'   } else {
+#'     # No observation this year - set to NA
+#'     obs_catch_return$true_catch <- NA
+#'     obs_catch_return$R_t <- NA
+#'     obs_catch_return$catch_with_reporting <- NA
+#'     obs_catch_return$cv_min <- NA
+#'     obs_catch_return$cv_max <- NA
+#'     obs_catch_return$obs_CV <- NA
+#'     obs_catch_return$observed_catch <- NA
+#'     obs_catch_return$n_areas <- NA
+#'     obs_catch_return$areas_included <- NA
+#'     # set individual area catches to NA
+#'     for(area_id in CatchObsObj@areas) {
+#'       obs_catch_return[[paste0("true_catch_area_", area_id)]] <- NA
+#'       obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- NA
+#'       obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- NA
+#'     }
+#'   }
+#'
+#'   return(obs_catch_return)
+#' }
 
 #Roxygen header
 #'Function for integrating length composition observation models
@@ -3833,6 +3833,8 @@ calculate_single_Index  <- function(dataObject){
               if(is_multifleet) {
               # MULTIFLEET MODE: selHist[[area]][[fleet]]$keep
                 selectivity <- selHist[[area]][[fleet_id]]$keep
+              } else {
+                selectivity <- selHist[[area]]$keep  #fixed
             }
               }else {
               # For FI, use pre-created survey selectivity
@@ -4068,5 +4070,133 @@ calculate_single_Index  <- function(dataObject){
 } # close the fucntion
 
 
+#Roxygen header
+#'Function for integrating observation models
+#'
+#' @param CatchObsObj A Catch observation model object
+#' @export
 
+calculate_single_CatchObs <- function(dataObject) {
+  # Unpack dataObject (a list containing all needed data)
+  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+
+  #dimensions
+  years <- dim(catchB)[1]
+  iterations <- dim(catchB)[2]
+  historicalYears <- TimeAreaObj@historicalYears
+  historical_end <- 1 + historicalYears
+  end_proj <- years
+
+  # initialize the outputs in a tibble
+  obs_catch_return <- tibble::tibble(
+    k = k,
+    j = j,
+    catchID = CatchObsObj@catchID,
+    total_years = years,
+    total_iterations = iterations,
+    historical_years = historicalYears,
+    end_hist = historical_end,
+    end_proj = end_proj,
+    period = ifelse(j <= historical_end, "Historical", "Projection")
+  )
+
+  # calculate if this year has catch observations
+  if((j-1) %in% CatchObsObj@catchYears) {
+
+    # adding year position (useful when data are not available every years)
+    catch_year_position <- which(CatchObsObj@catchYears == (j-1))
+
+    # reporting rate for each year (to simulate over reporitng or under reporting)
+    R_t <- CatchObsObj@reporting_rates[catch_year_position]
+
+    # CV obs bounds for this year and sample a CV value for each iteration
+    if(nrow(CatchObsObj@obs_CVs) >= catch_year_position && ncol(CatchObsObj@obs_CVs) == 2) {
+      cv_min <- CatchObsObj@obs_CVs[catch_year_position, 1]
+      cv_max <- CatchObsObj@obs_CVs[catch_year_position, 2]
+      obs_CV <- runif(1, min = cv_min, max = cv_max)
+    } else {
+      stop(paste("obs_CVs matrix must have 2 columns (min, max) and at least", length(CatchObsObj@catchYears), "rows"))
+    }
+
+
+    # apply  lognormal error with bias correction
+    obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
+
+    # calculate catch by individual area
+    areas_list <- CatchObsObj@areas
+    n_areas <- length(areas_list)
+
+    # store individual area catches
+    true_catch_by_area <- numeric(n_areas)
+    catch_with_reporting_by_area <- numeric(n_areas)
+    observed_catch_by_area <- numeric(n_areas)
+
+    # apply the obs model to catch by area
+
+    for(i in 1:n_areas) {
+      area_id <- areas_list[i]
+
+      # take true catch for the area
+      true_catch_by_area[i] <- catchB[j, k, area_id]
+
+      # apply reporting rate to the area
+      catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
+
+      # apply observation error to the area
+      observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
+    }
+
+    # Calculate totals (sum across areas)
+    true_catch_total <- sum(true_catch_by_area)
+    catch_with_reporting_total <- sum(catch_with_reporting_by_area)
+    observed_catch_total <- sum(observed_catch_by_area)
+
+
+    # store results
+    obs_catch_return$true_catch <- true_catch_total
+    obs_catch_return$R_t <- R_t
+    obs_catch_return$catch_with_reporting <- catch_with_reporting_total
+    obs_catch_return$cv_min <- cv_min
+    obs_catch_return$cv_max <- cv_max
+    obs_catch_return$obs_CV <- obs_CV
+    obs_catch_return$observed_catch <- observed_catch_total
+    # add individual area catches to output
+    obs_catch_return$n_areas <- n_areas
+    obs_catch_return$areas_included <- paste(areas_list, collapse = "_")
+
+    # store complete observation model results by area
+    for(i in 1:n_areas) {
+      area_id <- areas_list[i]
+
+      # true catch by area
+      obs_catch_return[[paste0("true_catch_area_", area_id)]] <- true_catch_by_area[i]
+
+      # catch with reporting by area
+      obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
+
+      # observed catch by area
+      obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
+    }
+
+  } else {
+    # No observation this year - set to NA
+    obs_catch_return$true_catch <- NA
+    obs_catch_return$R_t <- NA
+    obs_catch_return$catch_with_reporting <- NA
+    obs_catch_return$cv_min <- NA
+    obs_catch_return$cv_max <- NA
+    obs_catch_return$obs_CV <- NA
+    obs_catch_return$observed_catch <- NA
+    obs_catch_return$n_areas <- NA
+    obs_catch_return$areas_included <- NA
+    # set individual area catches to NA
+    for(area_id in CatchObsObj@areas) {
+      obs_catch_return[[paste0("true_catch_area_", area_id)]] <- NA
+      obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- NA
+      obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- NA
+    }
+  }
+
+  return(obs_catch_return)
+}
 

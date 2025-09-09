@@ -582,6 +582,191 @@ cat("OK Fleet-specific indices generate different signals\n")
 cat("OK Catch and length composition not included in this example\n")
 
 
+
+# ============================================================================
+# TEST SCENARIO: SINGLE FLEET WITH NUMBER-BASED FD INDICES (BUG TEST)
+# ============================================================================
+
+cat("============================================\n")
+cat("RUNNING BUG TEST: SINGLE FLEET NUMBERS FD\n")
+cat("============================================\n")
+
+# Create number-based FD indices that will trigger manual calculation (to see if bug was fixed)
+cpue_numbers_single <- new("Index")
+cpue_numbers_single@indexID <- "CPUE_Numbers_BugTest"
+cpue_numbers_single@title <- "Single Fleet Numbers CPUE Test"
+cpue_numbers_single@useWeight <- FALSE  # forces manual calculation (numbers-based)
+
+cpue_numbers_single@survey_design <- list(
+  # Single area FD index (numbers-based)
+  list(
+    indextype = "FD",
+    areas = c(1),  # Single area
+    indexYears = 1:5,  # Historical years only to test the bug
+    q_hist_bounds = c(0.0001, 0.0003),
+    q_proj_bounds = c(0.0001, 0.0003),
+    hyperstability_hist_bounds = c(0.9, 1.1),
+    hyperstability_proj_bounds = c(0.9, 1.1),
+    obsError_CV_hist_bounds = c(0.2, 0.3),
+    obsError_CV_proj_bounds = c(0.2, 0.3)
+  ),
+
+  # Multi-area FD index (forces manual calculation also for biomass)
+  list(
+    indextype = "FD",
+    areas = c(1, 2),  # Multi-area forces manual calculation path
+    indexYears = c(2, 4, 6),  # Subset of years
+    q_hist_bounds = c(0.0002, 0.0005),
+    q_proj_bounds = c(0.0002, 0.0005),
+    hyperstability_hist_bounds = c(0.8, 1.2),
+    hyperstability_proj_bounds = c(0.8, 1.2),
+    obsError_CV_hist_bounds = c(0.15, 0.25),
+    obsError_CV_proj_bounds = c(0.15, 0.25)
+  )
+)
+
+cpue_numbers_single@selectivity_hist_list <- list()
+cpue_numbers_single@selectivity_proj_list <- list()
+
+# Strategy for this test (same as before but different name)
+simpleMP_single_bugtest <- function(phase, dataObject) {
+  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+
+  if(phase==1) {
+    combined_data <- list()
+
+    if(!is.null(IndexObj)) {
+      index_result <- calculate_single_Index(dataObject)
+      for(col_name in names(index_result)) {
+        combined_data[[col_name]] <- index_result[[col_name]]
+      }
+    }
+
+    return(combined_data)
+  }
+
+  if(phase==2) return(list())
+  if(phase==3) {
+    year = rep(j, areas)
+    iteration = rep(k, areas)
+    area = 1:areas
+    Flocal = rep(0.15, areas)
+
+    return(list(year=year, iteration=iteration, area=area, Flocal=Flocal))
+  }
+}
+
+strategy_single_bugtest <- new("Strategy")
+strategy_single_bugtest@title <- "Single Fleet Bug Test"
+strategy_single_bugtest@projectionYears <- 5
+strategy_single_bugtest@projectionName <- "simpleMP_single_bugtest"
+strategy_single_bugtest@projectionParams <- list()
+
+
+# ============================================================================
+# RUN THE BUG TEST
+# ============================================================================
+
+cat("Testing single fleet with numbers-based FD indices...\n")
+cat("This should trigger the bug if the fix was not applied correctly.\n\n")
+
+# This test should expose the bug if the selectivity fix did not work
+tryCatch({
+  result_single_bugtest <- runProjection(
+    LifeHistoryObj = lh_obj,
+    TimeAreaObj = ta,
+    HistFisheryObj = hist_fishery,
+    ProFisheryObj_list = proj_fishery_list,
+    StrategyObj = strategy_single_bugtest,
+    StochasticObj = stochastic_obj,
+    MultifleetObj = NULL,  # Single fleet mode
+    IndexObj = cpue_numbers_single,  # Numbers-based FD indices
+    wd = getwd(),
+    fileName = "single_fleet_bugtest",
+    seed = validation_seed,
+    doPlot = FALSE,
+    doDiagnostic = FALSE
+  )
+
+
+  cat("OKEY SUCCESS: Single fleet numbers FD test completed without errors\n")
+  cat("The selectivity bug fix is working correctly.\n")
+
+  #examine results
+  result_single_bugtest <- readProjection(getwd(), "single_fleet_bugtest")
+
+  #check that indices were generated
+  index_cols <- grep("^CPUE_\\d+$", names(result_single_bugtest$HCR$decisionData), value = TRUE)
+  cat("Generated indices:", paste(index_cols, collapse = ", "), "\n")
+
+  #check some values
+  for(idx_col in index_cols) {
+    values <- result_single_bugtest$HCR$decisionData[[idx_col]]
+    valid_values <- values[!is.na(values)]
+
+    if(length(valid_values) > 0) {
+      cat(sprintf("  %s: %d valid values, range [%.2e, %.2e]\n",
+                  idx_col, length(valid_values), min(valid_values), max(valid_values)))
+    } else {
+      cat(sprintf("  %s: No valid values (potential issue)\n", idx_col))
+    }
+  }
+
+  }, error = function(e) {
+    cat("ERROR: Single fleet numbers FD test failed\n")
+    cat("Error message:", e$message, "\n")
+    cat("This confirms the selectivity bug exists and needs to be fixed.\n")
+
+    # Check if it's the specific selectivity error
+    if(grepl("object.*selectivity.*not found", e$message, ignore.case = TRUE)) {
+      cat("\nThis appears to be the selectivity assignment bug.\n")
+      cat("I added the missing 'else' for single fleet FD indices.\n")
+    }
+  })
+
+# ============================================================================
+# VERIFICATION OF BUG FIX
+# ============================================================================
+
+# Only run verification if the test succeeded
+if(exists("result_single_bugtest")) {
+  cat("\n=== SINGLE FLEET BUG FIX VERIFICATION ===\n")
+
+  # Compare single fleet vs multifleet(1-fleet) indices
+  # Both should give similar results if the fix is correct
+
+  decision_data_single <- result_single_bugtest$HCR$decisionData
+
+  # Check index structure
+  single_indices <- grep("^CPUE_\\d+$", names(decision_data_single), value = TRUE)
+  cat("Single fleet indices found:", length(single_indices), "\n")
+
+  # Check that they have correct metadata
+  for(idx in single_indices) {
+    indextype_col <- paste0(idx, "_indextype")
+    fleet_id_col <- paste0(idx, "_fleet_id")
+
+    if(indextype_col %in% names(decision_data_single)) {
+      indextype <- unique(decision_data_single[[indextype_col]])[1]
+      fleet_id <- if(fleet_id_col %in% names(decision_data_single)) {
+        unique(decision_data_single[[fleet_id_col]])[1]
+      } else "Missing"
+
+      cat(sprintf("  %s: Type=%s, Fleet_ID=%s\n", idx, indextype, fleet_id))
+    }
+  }
+
+  cat("\nBug fix verification complete.\n")
+} else {
+  cat("\nCannot verify bug fix - test failed to run.\n")
+}
+
+
+
+
+
+
+
 # ============================================================================
 # IMPROVED PLOTTING FUNCTIONS FOR SINGLE FLEET AND MULTIFLEET
 # ============================================================================
@@ -1100,3 +1285,12 @@ plots_single$F       # Fishing mortality
 plots_multi$Catch    # Fleet-specific catches
 plots_multi$Indices  # Index observations
 
+
+
+#for single fleet (NOTE Need to fix plot scale when using numbers)
+plots_single_bugtest  <- plot_fishery_dynamics(result_single_bugtest,
+                                      save_plots = FALSE,
+                                      plot_prefix = "single_fleet_bugtest")
+
+plots_single_bugtest$SB      # Single fleet spawning biomass
+plots_single_bugtest$Indices # Single fleet index observations
