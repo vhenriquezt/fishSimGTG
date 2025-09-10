@@ -4080,12 +4080,47 @@ calculate_single_CatchObs <- function(dataObject) {
   # Unpack dataObject (a list containing all needed data)
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
+  # Detect multifleet mode
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
+
+  #debugging code
+  cat("=== DEBUG CATCH OBS ===\n")
+  cat("is_multifleet:", is_multifleet, "\n")
+  cat("fleet_configs in slotNames:", "fleet_configs" %in% slotNames(CatchObsObj), "\n")
+  cat("fleet_configs length:", length(CatchObsObj@fleet_configs), "\n")
+  cat("class(CatchObsObj):", class(CatchObsObj), "\n")
+  cat("slotNames(CatchObsObj):", paste(slotNames(CatchObsObj), collapse = ", "), "\n")
+  if(length(CatchObsObj@fleet_configs) > 0) {
+    cat("First fleet_config fleet_id:", CatchObsObj@fleet_configs[[1]]$fleet_id, "\n")
+  }
+  cat("=====================\n")
+
+
+
+
+
   #dimensions
   years <- dim(catchB)[1]
   iterations <- dim(catchB)[2]
   historicalYears <- TimeAreaObj@historicalYears
   historical_end <- 1 + historicalYears
   end_proj <- years
+
+   #validate multifleet arrays when needed
+  if(is_multifleet) {
+    required_arrays <- c("catchB_by_fleet")
+    missing_arrays <- c()
+
+    for(array_name in required_arrays) {
+      if(!exists(array_name)) {
+        missing_arrays <- c(missing_arrays, array_name)
+      }
+    }
+
+    if(length(missing_arrays) > 0) {
+      stop("Multifleet mode requires these arrays: ", paste(missing_arrays, collapse = ", "))
+    }
+  }
 
   # initialize the outputs in a tibble
   obs_catch_return <- tibble::tibble(
@@ -4097,7 +4132,10 @@ calculate_single_CatchObs <- function(dataObject) {
     historical_years = historicalYears,
     end_hist = historical_end,
     end_proj = end_proj,
-    period = ifelse(j <= historical_end, "Historical", "Projection")
+    period = ifelse(j <= historical_end, "Historical", "Projection"),
+    # NEW: Add multifleet metadata
+    is_multifleet = is_multifleet,
+    nfleets = if(is_multifleet) MultifleetObj@nfleets else 1
   )
 
   # calculate if this year has catch observations
@@ -4106,6 +4144,47 @@ calculate_single_CatchObs <- function(dataObject) {
     # adding year position (useful when data are not available every years)
     catch_year_position <- which(CatchObsObj@catchYears == (j-1))
 
+    # NEW: Handle fleet-specific vs single fleet observation models
+    if(is_multifleet && "fleet_configs" %in% slotNames(CatchObsObj) &&
+       length(CatchObsObj@fleet_configs) > 0) {
+
+      # MULTIFLEET MODE: Fleet-specific observation model
+      result <- process_multifleet_catch_obs(CatchObsObj, catch_year_position,
+                                             catchB_by_fleet, j, k,
+                                             MultifleetObj@nfleets, obs_catch_return)
+
+    } else {
+
+      # SINGLE FLEET MODE: Original behavior (backward compatibility)
+      result <- process_single_fleet_catch_obs(CatchObsObj, catch_year_position,
+                                               catchB, j, k, obs_catch_return)
+    }
+
+    return(result)
+
+    } else {
+    # No observation this year - set to NA
+    if(is_multifleet && "fleet_configs" %in% slotNames(CatchObsObj) &&
+       length(CatchObsObj@fleet_configs) > 0) {
+
+      # Set fleet-specific NAs
+      result <- set_multifleet_nas(CatchObsObj, obs_catch_return)
+
+    } else {
+
+      # Set single fleet NAs (original behavior)
+      result <- set_single_fleet_nas(CatchObsObj, obs_catch_return)
+    }
+
+    return(result)
+  }
+}
+
+# Helper function for single fleet catch observations (original behavior)
+process_single_fleet_catch_obs <- function(CatchObsObj, catch_year_position,
+                                           catchB, j, k, obs_catch_return) {
+
+    # Continue with original single fleet logic
     # reporting rate for each year (to simulate over reporitng or under reporting)
     R_t <- CatchObsObj@reporting_rates[catch_year_position]
 
@@ -4177,9 +4256,99 @@ calculate_single_CatchObs <- function(dataObject) {
       # observed catch by area
       obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
     }
+    return(obs_catch_return)
+}
 
-  } else {
-    # No observation this year - set to NA
+  #now calling the helper function for multifleet catch observations
+   process_multifleet_catch_obs <- function(CatchObsObj, catch_year_position,
+                                         catchB_by_fleet, j, k, nfleets, obs_catch_return) {
+  #initialize fleet-specific storage
+  fleet_results <- list()
+  #process each fleet configuration
+  for(config_idx in 1:length(CatchObsObj@fleet_configs)) {
+    config <- CatchObsObj@fleet_configs[[config_idx]]
+
+    fleet_id <- config$fleet_id
+    areas_list <- config$areas
+
+    #get fleet-specific parameters for this year
+    R_t <- config$reporting_rates[catch_year_position]
+
+    #fleet-specific CV bounds
+    cv_min <- config$obs_CVs[catch_year_position, 1]
+    cv_max <- config$obs_CVs[catch_year_position, 2]
+
+    #generate INDEPENDENT observation error for this fleet-area combination
+    obs_CV <- runif(1, min = cv_min, max = cv_max)
+    obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
+
+    #calculate fleet-specific catches by area
+    n_areas <- length(areas_list)
+    true_catch_by_area <- numeric(n_areas)
+    catch_with_reporting_by_area <- numeric(n_areas)
+    observed_catch_by_area <- numeric(n_areas)
+
+    for(i in 1:n_areas) {
+      area_id <- areas_list[i]
+
+      #extract fleet-specific catch from 4D array [year, iteration, area, fleet]
+      true_catch_by_area[i] <- catchB_by_fleet[j, k, area_id, fleet_id]
+      catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
+      observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
+    }
+
+    #store fleet-specific results
+    fleet_results[[config_idx]] <- list(
+      fleet_id = fleet_id,
+      areas = areas_list,
+      R_t = R_t,
+      cv_min = cv_min,
+      cv_max = cv_max,
+      obs_CV = obs_CV,
+      true_catch_by_area = true_catch_by_area,
+      catch_with_reporting_by_area = catch_with_reporting_by_area,
+      observed_catch_by_area = observed_catch_by_area,
+      true_catch_total = sum(true_catch_by_area),
+      catch_with_reporting_total = sum(catch_with_reporting_by_area),
+      observed_catch_total = sum(observed_catch_by_area)
+    )
+
+    #adding fleet-specific columns to tibble
+    fleet_prefix <- paste0("fleet_", fleet_id)
+
+    obs_catch_return[[paste0(fleet_prefix, "_true_catch")]] <- sum(true_catch_by_area)
+    obs_catch_return[[paste0(fleet_prefix, "_R_t")]] <- R_t
+    obs_catch_return[[paste0(fleet_prefix, "_catch_with_reporting")]] <- sum(catch_with_reporting_by_area)
+    obs_catch_return[[paste0(fleet_prefix, "_cv_min")]] <- cv_min
+    obs_catch_return[[paste0(fleet_prefix, "_cv_max")]] <- cv_max
+    obs_catch_return[[paste0(fleet_prefix, "_obs_CV")]] <- obs_CV
+    obs_catch_return[[paste0(fleet_prefix, "_observed_catch")]] <- sum(observed_catch_by_area)
+    obs_catch_return[[paste0(fleet_prefix, "_n_areas")]] <- n_areas
+    obs_catch_return[[paste0(fleet_prefix, "_areas_included")]] <- paste(areas_list, collapse = "_")
+
+    #add fleet-area specific columns
+    for(i in 1:n_areas) {
+      area_id <- areas_list[i]
+      obs_catch_return[[paste0(fleet_prefix, "_true_catch_area_", area_id)]] <- true_catch_by_area[i]
+      obs_catch_return[[paste0(fleet_prefix, "_catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
+      obs_catch_return[[paste0(fleet_prefix, "_observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
+    }
+  }
+  #calculate aggregated totals across all fleets (for backward compatibility)
+  total_true_catch <- sum(sapply(fleet_results, function(x) x$true_catch_total))
+  total_observed_catch <- sum(sapply(fleet_results, function(x) x$observed_catch_total))
+
+  obs_catch_return$total_true_catch <- total_true_catch
+  obs_catch_return$total_observed_catch <- total_observed_catch
+  obs_catch_return$n_fleet_configs <- length(CatchObsObj@fleet_configs)
+
+  return(obs_catch_return)
+   }
+
+   #helper function to set NAs for single fleet (original behavior)
+   set_single_fleet_nas <- function(CatchObsObj, obs_catch_return) {
+
+    #no observation this year - set to NA
     obs_catch_return$true_catch <- NA
     obs_catch_return$R_t <- NA
     obs_catch_return$catch_with_reporting <- NA
@@ -4195,10 +4364,45 @@ calculate_single_CatchObs <- function(dataObject) {
       obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- NA
       obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- NA
     }
-  }
+    return(obs_catch_return)
+   }
 
-  return(obs_catch_return)
-}
+   #helper function to set NAs for multifleet
+   set_multifleet_nas <- function(CatchObsObj, obs_catch_return) {
+
+     #set fleet-specific NAs
+     for(config_idx in 1:length(CatchObsObj@fleet_configs)) {
+       config <- CatchObsObj@fleet_configs[[config_idx]]
+       fleet_id <- config$fleet_id
+       areas_list <- config$areas
+
+       fleet_prefix <- paste0("fleet_", fleet_id)
+
+       obs_catch_return[[paste0(fleet_prefix, "_true_catch")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_R_t")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_catch_with_reporting")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_cv_min")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_cv_max")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_obs_CV")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_observed_catch")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_n_areas")]] <- NA
+       obs_catch_return[[paste0(fleet_prefix, "_areas_included")]] <- NA
+
+       #set fleet-area specific NAs
+       for(area_id in areas_list) {
+         obs_catch_return[[paste0(fleet_prefix, "_true_catch_area_", area_id)]] <- NA
+         obs_catch_return[[paste0(fleet_prefix, "_catch_with_reporting_area_", area_id)]] <- NA
+         obs_catch_return[[paste0(fleet_prefix, "_observed_catch_area_", area_id)]] <- NA
+       }
+     }
+
+     #set aggregated NAs
+     obs_catch_return$total_true_catch <- NA
+     obs_catch_return$total_observed_catch <- NA
+     obs_catch_return$n_fleet_configs <- length(CatchObsObj@fleet_configs)
+
+     return(obs_catch_return)
+   }
 
 
 

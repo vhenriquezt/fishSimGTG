@@ -322,10 +322,28 @@ setClass("Index",
 # obs model catch
 #-----------------------
 #Roxygen header
-#'Catch observation object
+#'Catch observation object (Extended for Multifleet Support)
 #'
-#'An S4 object that holds catch observation model parameters
+#'An S4 object that holds catch observation model parameters for both single fleet
+#'and multifleet scenarios. Maintains backward compatibility with original single fleet usage.
+#'
+#'For single fleet usage, use the original slots: areas, catchYears, reporting_rates, obs_CVs
+#'For multifleet usage, populate the fleet_configs slot with a list of fleet-specific configurations
+#'
+#' @param catchID Character identifier for the catch observation model
+#' @param title Descriptive title for the catch observation model
+#' @param areas Numeric vector of area IDs where catch is observed (single fleet only)
+#' @param catchYears Numeric vector of years with catch records (single fleet only)
+#' @param reporting_rates Numeric vector of reporting rates for each year (single fleet only)
+#' @param obs_CVs Matrix of observation error CV bounds [years x 2] (single fleet only)
+#' @param fleet_configs List of fleet-specific configurations (multifleet only). Each element should contain:
+#'   - fleet_id: Numeric fleet identifier (1, 2, 3, etc.)
+#'   - areas: Numeric vector of area IDs for this fleet
+#'   - catchYears: Numeric vector of years with catch records for this fleet
+#'   - reporting_rates: Numeric vector of reporting rates for each year for this fleet
+#'   - obs_CVs: Matrix of observation error CV bounds [years x 2] for this fleet
 #' @importFrom methods new
+
 
 setClass("CatchObs",
          representation(
@@ -334,7 +352,8 @@ setClass("CatchObs",
            areas = "numeric",                    # Areas where catch is observed
            catchYears = "numeric",               # Years with catch records
            reporting_rates = "numeric",          # Rt for each year (length = total years)
-           obs_CVs = "matrix"                   # CV obs error for each year - changed to a matrix  with rows = years, and cols (min, max)
+           obs_CVs = "matrix",                   # CV obs error for each year - changed to a matrix  with rows = years, and cols (min, max)
+           fleet_configs = "list"                # For multifleet configurations
          )
 )
 
