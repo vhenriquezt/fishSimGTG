@@ -455,11 +455,15 @@ catch_obs_multifleet <- new("CatchObs")
 catch_obs_multifleet@catchID <- "Multifleet_Catch"
 catch_obs_multifleet@title <- "Fleet-Specific Catch Observations"
 
-#Leaving single-fleet slots empty (for backward compatibility detection)
-# catch_obs_multifleet@areas <- numeric(0)
-# catch_obs_multifleet@catchYears <- numeric(0)
-# catch_obs_multifleet@reporting_rates <- numeric(0)
-# catch_obs_multifleet@obs_CVs <- matrix(nrow = 0, ncol = 2)
+
+#calculate dimensions first to avoid errors
+total_years <- ta@historicalYears + 5  # 10 + 5 = 15 years
+fleet1_years <- total_years             # Fleet 1: every year (15 years)
+fleet2_years <- length(seq(2, total_years, by = 2))  # Fleet 2: every other year (7 years)
+
+cat("Total simulation years:", total_years, "\n")
+cat("Fleet 1 data years:", fleet1_years, "\n")
+cat("Fleet 2 data years:", fleet2_years, "\n")
 
 #creating fleet-specific configurations
 catch_obs_multifleet@fleet_configs <- list(
@@ -467,7 +471,7 @@ catch_obs_multifleet@fleet_configs <- list(
   list(
     fleet_id = 1,
     areas = c(1, 2),  # Fleet 1 operates in both areas
-    catchYears = 1:(ta@historicalYears + 5),  # complete data coverage
+    catchYears = 1:total_years,  # complete data coverage
     reporting_rates = c(
       seq(0.8, 1.0, length.out = ta@historicalYears),  # improving historical
       rep(1.0, 5)  # perfect projection
@@ -483,14 +487,14 @@ catch_obs_multifleet@fleet_configs <- list(
   list(
     fleet_id = 2,
     areas = c(1, 2),  # Fleet 2 also operates in both areas
-    catchYears = seq(2, ta@historicalYears + 5, by = 2),  # available every other year
+    catchYears = seq(2, total_years, by = 2),  # available every other year
     reporting_rates = c(
-      rep(0.6, ta@historicalYears/2),   # consistent under-reporting historical
-      rep(0.9, 3)  # improved but not perfect projection
+      rep(0.6, 5),   # consistent under-reporting historical
+      rep(0.9, 2)  # improved but not perfect projection
     ),
     obs_CVs = matrix(
-      c(rep(0.30, ta@historicalYears/2), rep(0.25, 3),   # Higher CV
-        rep(0.45, ta@historicalYears/2), rep(0.35, 3)),  # Upper bounds
+      c(rep(0.30, 5), rep(0.25, 2),   # Higher CV
+        rep(0.45, 5), rep(0.35, 2)),  # Upper bounds
       ncol = 2
     )
   )
@@ -671,6 +675,10 @@ unique(result_multifleet$HCR$decisionData$CPUE_4_Fleet_2_fleet_id) # should be 2
 
 result_multifleet$HCR$decisionData$fleet_1_true_catch
 result_multifleet$HCR$decisionData$fleet_1_observed_catch
+
+
+
+
 # # ============================================================================
 # # TEST SCENARIO: SINGLE FLEET WITH NUMBER-BASED FD INDICES (BUG TEST)
 # # ============================================================================
