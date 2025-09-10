@@ -676,8 +676,14 @@ unique(result_multifleet$HCR$decisionData$CPUE_4_Fleet_2_fleet_id) # should be 2
 result_multifleet$HCR$decisionData$fleet_1_true_catch
 result_multifleet$HCR$decisionData$fleet_1_observed_catch
 
+result_multifleet$HCR$decisionData$fleet_2_true_catch
+result_multifleet$HCR$decisionData$fleet_2_observed_catch
 
+result_multifleet$HCR$decisionData$fleet_1_observed_catch_area_1
+result_multifleet$HCR$decisionData$fleet_1_observed_catch_area_2
 
+result_multifleet$HCR$decisionData$fleet_2_observed_catch_area_1
+result_multifleet$HCR$decisionData$fleet_2_observed_catch_area_2
 
 # # ============================================================================
 # # TEST SCENARIO: SINGLE FLEET WITH NUMBER-BASED FD INDICES (BUG TEST)
@@ -928,6 +934,26 @@ plot_fishery_dynamics <- function(simulation_result,
   if(!is.null(simulation_result$HCR$decisionData)) {
     plots$Indices <- plotIndex_tibble_enhanced(simulation_result$HCR$decisionData)
   }
+
+  # 8. NEW: Catch Observations (if available)
+  if(!is.null(simulation_result$HCR$decisionData)) {
+    catch_obs_plot <- create_catch_observations_plot(simulation_result$HCR$decisionData,
+                                                     user_years, historical_end)
+    if(!is.null(catch_obs_plot)) {
+      plots$CatchObs <- catch_obs_plot
+    }
+  }
+
+  # 9. NEW: True vs Observed Catch Comparison (if available)
+  if(!is.null(simulation_result$HCR$decisionData)) {
+    catch_comparison_plot <- create_catch_comparison_plot(simulation_result$HCR$decisionData,
+                                                          user_years, historical_end)
+    if(!is.null(catch_comparison_plot)) {
+      plots$CatchComparison <- catch_comparison_plot
+    }
+  }
+
+
 
   # Save plots if requested
   if(save_plots) {
@@ -1243,6 +1269,335 @@ create_RecN_plot <- function(dynamics, sim_years, user_years, historical_end, ar
   return(p)
 }
 
+create_catch_observations_plot <- function(decision_data, user_years, historical_end) {
+
+  #detect if we have catch observations
+  catch_obs_cols <- grep("(^observed_catch$|fleet_\\d+_observed_catch$)", names(decision_data), value = TRUE)
+
+  if(length(catch_obs_cols) == 0) {
+    return(NULL)  # No catch observations found
+  }
+
+  #determine if multifleet or single fleet
+  is_multifleet <- any(grepl("fleet_\\d+_", catch_obs_cols))
+
+  if(is_multifleet) {
+    return(create_multifleet_catch_obs_plot(decision_data, user_years, historical_end))
+  } else {
+    return(create_single_fleet_catch_obs_plot(decision_data, user_years, historical_end))
+  }
+}
+
+create_single_fleet_catch_obs_plot <- function(decision_data, user_years, historical_end) {
+
+  #check if we have the required columns
+  if(!"observed_catch" %in% names(decision_data)) {
+    return(NULL)
+  }
+
+  #prepare data
+  plot_data <- decision_data %>%
+    filter(!is.na(observed_catch)) %>%
+    mutate(user_year = j - 1,
+           iteration_label = paste("Iter", k))
+
+  if(nrow(plot_data) == 0) {
+    return(NULL)
+  }
+
+  #calculate median
+  median_data <- plot_data %>%
+    group_by(user_year) %>%
+    summarise(median_catch = median(observed_catch, na.rm = TRUE), .groups = "drop")
+
+  #create plot
+  p <- ggplot(plot_data, aes(x = user_year, y = observed_catch)) +
+    geom_line(aes(group = iteration_label, color = iteration_label), alpha = 0.7, size = 0.8) +
+    geom_point(aes(color = iteration_label), alpha = 0.8, size = 1.5) +
+    geom_line(data = median_data, aes(y = median_catch),
+              color = "black", size = 1.5, linetype = "solid") +
+    geom_point(data = median_data, aes(y = median_catch),
+               color = "black", size = 2) +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
+    scale_x_continuous(breaks = unique(plot_data$user_year)) +
+    labs(title = "Single Fleet Catch Observations",
+         subtitle = "Observed catch with reporting and observation error (black line = median)",
+         x = "Year",
+         y = "Observed Catch",
+         color = "Iteration") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "right")
+
+  return(p)
+}
+
+create_multifleet_catch_obs_plot <- function(decision_data, user_years, historical_end) {
+
+  #find fleet-specific catch columns
+  fleet_cols <- grep("fleet_\\d+_observed_catch$", names(decision_data), value = TRUE)
+
+  if(length(fleet_cols) == 0) {
+    return(NULL)
+  }
+
+  #prepare data for all fleets
+  plot_data <- data.frame()
+
+  for(col in fleet_cols) {
+    #extract fleet number
+    fleet_num <- gsub("fleet_(\\d+)_observed_catch", "\\1", col)
+
+    #get data for this fleet
+    fleet_data <- decision_data %>%
+      filter(!is.na(!!sym(col))) %>%
+      select(j, k, !!sym(col)) %>%
+      mutate(user_year = j - 1,
+             iteration = k,
+             fleet = paste("Fleet", fleet_num),
+             observed_catch = !!sym(col),
+             iteration_label = paste("Iter", k))
+
+    plot_data <- rbind(plot_data, fleet_data)
+  }
+
+  if(nrow(plot_data) == 0) {
+    return(NULL)
+  }
+
+  #calculate median by fleet
+  median_data <- plot_data %>%
+    group_by(user_year, fleet) %>%
+    summarise(median_catch = median(observed_catch, na.rm = TRUE), .groups = "drop")
+
+  #create plot
+  p <- ggplot(plot_data, aes(x = user_year, y = observed_catch, color = fleet)) +
+    geom_line(aes(group = interaction(fleet, iteration_label)), alpha = 0.6, size = 0.7) +
+    geom_point(alpha = 0.7, size = 1.2) +
+    geom_line(data = median_data, aes(y = median_catch, color = fleet),
+              size = 1.5, linetype = "solid") +
+    geom_point(data = median_data, aes(y = median_catch, color = fleet),
+               size = 2.5, shape = 15) +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
+    facet_wrap(~ fleet, scales = "free_y") +
+    scale_x_continuous(breaks = function(x) pretty(x, n = 6)) +
+    labs(title = "Multifleet Catch Observations",
+         subtitle = "Fleet-specific observed catches (thick lines = median)",
+         x = "Year",
+         y = "Observed Catch",
+         color = "Fleet") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          strip.text = element_text(face = "bold"),
+          legend.position = "bottom")
+
+  return(p)
+}
+
+create_catch_comparison_plot <- function(decision_data, user_years, historical_end) {
+
+  # Check what type of catch data we have
+  has_single_fleet <- all(c("true_catch", "observed_catch") %in% names(decision_data))
+  has_multifleet <- any(grepl("fleet_\\d+_true_catch", names(decision_data))) &&
+    any(grepl("fleet_\\d+_observed_catch", names(decision_data)))
+
+  if(!has_single_fleet && !has_multifleet) {
+    return(NULL)  # No suitable data for comparison
+  }
+
+  if(has_multifleet) {
+    return(create_multifleet_catch_comparison_plot(decision_data, user_years, historical_end))
+  } else {
+    return(create_single_fleet_catch_comparison_plot(decision_data, user_years, historical_end))
+  }
+}
+
+create_single_fleet_catch_comparison_plot <- function(decision_data, user_years, historical_end) {
+
+  # Prepare comparison data
+  plot_data <- decision_data %>%
+    filter(!is.na(true_catch) & !is.na(observed_catch)) %>%
+    mutate(user_year = j - 1,
+           iteration_label = paste("Iter", k)) %>%
+    select(user_year, iteration_label, k, true_catch, observed_catch) %>%
+    pivot_longer(cols = c(true_catch, observed_catch),
+                 names_to = "catch_type", values_to = "catch_value") %>%
+    mutate(catch_type = case_when(
+      catch_type == "true_catch" ~ "True Catch",
+      catch_type == "observed_catch" ~ "Observed Catch"
+    ))
+
+  if(nrow(plot_data) == 0) {
+    return(NULL)
+  }
+
+  # Calculate median by type
+  median_data <- plot_data %>%
+    group_by(user_year, catch_type) %>%
+    summarise(median_catch = median(catch_value, na.rm = TRUE), .groups = "drop")
+
+  # Create comparison plot
+  p <- ggplot(plot_data, aes(x = user_year, y = catch_value, color = catch_type)) +
+    geom_line(aes(group = interaction(catch_type, iteration_label)), alpha = 0.5, size = 0.6) +
+    geom_point(alpha = 0.6, size = 1) +
+    geom_line(data = median_data, aes(y = median_catch, color = catch_type),
+              size = 1.5, linetype = "solid") +
+    geom_point(data = median_data, aes(y = median_catch, color = catch_type),
+               size = 2.5, shape = 15) +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
+    scale_color_manual(values = c("True Catch" = "darkblue", "Observed Catch" = "orange")) +
+    scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+    labs(title = "True vs Observed Catch Comparison",
+         subtitle = "Single fleet - showing effect of reporting rates and observation error",
+         x = "Year",
+         y = "Catch",
+         color = "Catch Type") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "bottom")
+
+  return(p)
+}
+
+create_multifleet_catch_comparison_plot <- function(decision_data, user_years, historical_end) {
+
+  #find available fleet data
+  true_cols <- grep("fleet_\\d+_true_catch$", names(decision_data), value = TRUE)
+  obs_cols <- grep("fleet_\\d+_observed_catch$", names(decision_data), value = TRUE)
+
+  #match fleet numbers
+  fleet_nums <- unique(c(
+    gsub("fleet_(\\d+)_true_catch", "\\1", true_cols),
+    gsub("fleet_(\\d+)_observed_catch", "\\1", obs_cols)
+  ))
+
+  #prepare data for all available fleets
+  plot_data <- data.frame()
+
+  for(fleet_num in fleet_nums) {
+    true_col <- paste0("fleet_", fleet_num, "_true_catch")
+    obs_col <- paste0("fleet_", fleet_num, "_observed_catch")
+
+    if(true_col %in% names(decision_data) && obs_col %in% names(decision_data)) {
+
+      fleet_data <- decision_data %>%
+        filter(!is.na(!!sym(true_col)) & !is.na(!!sym(obs_col))) %>%
+        mutate(user_year = j - 1,
+               iteration = k,
+               fleet = paste("Fleet", fleet_num)) %>%
+        select(user_year, iteration, fleet,
+               true_catch = !!sym(true_col),
+               observed_catch = !!sym(obs_col)) %>%
+        pivot_longer(cols = c(true_catch, observed_catch),
+                     names_to = "catch_type", values_to = "catch_value") %>%
+        mutate(catch_type = case_when(
+          catch_type == "true_catch" ~ "True Catch",
+          catch_type == "observed_catch" ~ "Observed Catch"
+        ))
+
+      plot_data <- rbind(plot_data, fleet_data)
+    }
+  }
+
+  if(nrow(plot_data) == 0) {
+    return(NULL)
+  }
+
+  #calculate median by fleet and type
+  median_data <- plot_data %>%
+    group_by(user_year, fleet, catch_type) %>%
+    summarise(median_catch = median(catch_value, na.rm = TRUE), .groups = "drop")
+
+  #create comparison plot
+  p <- ggplot(plot_data, aes(x = user_year, y = catch_value, color = catch_type)) +
+    geom_line(aes(group = interaction(catch_type, iteration)), alpha = 0.4, size = 0.5) +
+    geom_point(alpha = 0.5, size = 0.8) +
+    geom_line(data = median_data, aes(y = median_catch, color = catch_type),
+              size = 1.2, linetype = "solid") +
+    geom_point(data = median_data, aes(y = median_catch, color = catch_type),
+               size = 2, shape = 15) +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
+    facet_wrap(~ fleet, scales = "free_y") +
+    scale_color_manual(values = c("True Catch" = "darkblue", "Observed Catch" = "orange")) +
+    scale_x_continuous(breaks = function(x) pretty(x, n = 5)) +
+    labs(title = "Multifleet True vs Observed Catch Comparison",
+         subtitle = "Fleet-specific comparison showing observation model effects",
+         x = "Year",
+         y = "Catch",
+         color = "Catch Type") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          strip.text = element_text(face = "bold"),
+          legend.position = "bottom")
+
+  return(p)
+}
+
+
+plot_multifleet_with_catch_obs <- function() {
+
+  #assuming we have 'result_multifleet'
+  if(exists("result_multifleet")) {
+
+    #create plots including catch observations
+    enhanced_plots <- plot_fishery_dynamics(result_multifleet,
+                                            save_plots = FALSE,
+                                            plot_prefix = "multifleet_enhanced")
+
+    #dDisplay the new catch observation plots
+    if("CatchObs" %in% names(enhanced_plots)) {
+      print("Catch Observations Plot:")
+      print(enhanced_plots$CatchObs)
+    }
+
+    if("CatchComparison" %in% names(enhanced_plots)) {
+      print("True vs Observed Catch Comparison:")
+      print(enhanced_plots$CatchComparison)
+    }
+
+    # We can also view other plots
+    # enhanced_plots$SB        # Spawning biomass
+    # enhanced_plots$F         # Fishing mortality
+    # enhanced_plots$Indices   # Index observations
+
+    return(enhanced_plots)
+  } else {
+    cat("result_multifleet not found. Please run your multifleet simulation first.\n")
+    return(NULL)
+  }
+}
+
+
+#quick function to create a grid of key plots including catch obs
+create_summary_plot_grid <- function(simulation_result, save_file = NULL) {
+
+  plots <- plot_fishery_dynamics(simulation_result, save_plots = FALSE)
+
+  #select key plots for summary
+  key_plots <- list()
+
+  if("SB" %in% names(plots)) key_plots$SB <- plots$SB
+  if("F" %in% names(plots)) key_plots$F <- plots$F
+  if("CatchObs" %in% names(plots)) key_plots$CatchObs <- plots$CatchObs
+  if("CatchComparison" %in% names(plots)) key_plots$CatchComparison <- plots$CatchComparison
+
+  #create grid
+  if(length(key_plots) > 0) {
+    grid_plot <- gridExtra::grid.arrange(grobs = key_plots, ncol = 2)
+
+    if(!is.null(save_file)) {
+      ggsave(save_file, grid_plot, width = 16, height = 12, dpi = 300)
+      cat("Saved summary plot grid to:", save_file, "\n")
+    }
+
+    return(grid_plot)
+  }
+
+  return(NULL)
+}
+
+
+
 # ============================================================================
 # ENHANCED INDEX PLOTTING (FROM PREVIOUS FUNCTION)
 # ============================================================================
@@ -1383,13 +1738,21 @@ plots_single$F       # Fishing mortality
 plots_multi$Catch    # Fleet-specific catches
 plots_multi$Indices  # Index observations
 
+
+
 stop() #(testing with more years again - the example: result_single_bugtest )
 
 #for single fleet (NOTE Need to fix plot scale when using numbers)
-plots_single_bugtest  <- plot_fishery_dynamics(result_single_bugtest,
-                                      save_plots = FALSE,
-                                      plot_prefix = "single_fleet_bugtest")
-plots_single_bugtest$SB      # Spawning biomass
-plots_single_bugtest$F       # Fishing mortality
+# plots_single_bugtest  <- plot_fishery_dynamics(result_single_bugtest,
+#                                       save_plots = FALSE,
+#                                       plot_prefix = "single_fleet_bugtest")
+# plots_single_bugtest$SB      # Spawning biomass
+# plots_single_bugtest$F       # Fishing mortality
 
+
+# Save all plots including catch observations
+enhanced_plots <- plot_fishery_dynamics(result_multifleet,
+                                        save_plots = TRUE,
+                                        output_dir = getwd(),
+                                        plot_prefix = "multifleet_complete")
 
