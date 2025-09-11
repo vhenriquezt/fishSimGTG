@@ -938,6 +938,8 @@ evalMSE<-function(inputObject){
           dataObject$Ftotal_by_fleet <- Ftotal_by_fleet
           dataObject$discB_by_fleet <- discB_by_fleet
           dataObject$discN_by_fleet <- discN_by_fleet
+          # adding missing catchNage_by_fleet for length composition obs models
+          dataObject$catchNage_by_fleet <- catchNage_by_fleet
         }
 
 
