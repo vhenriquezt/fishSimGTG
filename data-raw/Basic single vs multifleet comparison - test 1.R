@@ -459,7 +459,7 @@ result_multifleet_3$dynamics$VB
 result_multifleet_3$dynamics$Ftotal
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet
 
-dim(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet)[16,2,2,3] #years, iter, area, fleet
+dim(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet)#[16,2,2,3] #years, iter, area, fleet
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,1] #iter 1, area 1, fleet 1
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,2] #iter 1, area 1, fleet 2
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,3] #iter 1, area 1, fleet 3
@@ -485,10 +485,10 @@ cat("Sum of F by fleet = Ftotal\n")
 
 
 # Clean up intermediate files
-file.remove("test1_single_fleet.rds")
-file.remove("test2_multifleet_1_fleetE.rds")
-file.remove("test2_multifleet_1_fleetC.rds")
-file.remove("test3_multifleet_2_fleets.rds")
-file.remove("test4_multifleet_2_fleets.rds")
-file.remove("test5_multifleet_3_fleets.rds")
+# file.remove("test1_single_fleet.rds")
+# file.remove("test2_multifleet_1_fleetE.rds")
+# file.remove("test2_multifleet_1_fleetC.rds")
+# file.remove("test3_multifleet_2_fleets.rds")
+# file.remove("test4_multifleet_2_fleets.rds")
+# file.remove("test5_multifleet_3_fleets.rds")
 

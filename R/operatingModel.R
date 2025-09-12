@@ -3634,15 +3634,15 @@ calculate_single_Index  <- function(dataObject){
     design <- IndexObj@survey_design[[index_idx]] #extracts current survey design from the list (for each index)
 
     #DEBUG
-    cat("\n=== LOOP START DEBUG ===\n")
-    cat("Processing index_idx:", index_idx, "\n")
-    cat("design$areas from IndexObj:", paste(IndexObj@survey_design[[index_idx]]$areas, collapse = "_"), "\n")
-    cat("design$areas from variable:", paste(design$areas, collapse = "_"), "\n")
-    if(design$indextype == "FI") {
-      cat("design$selectivity_hist_idx:", design$selectivity_hist_idx, "\n")
-      cat("design$survey_timing:", design$survey_timing, "\n")
-    }
-    cat("=========================\n")
+    # cat("\n=== LOOP START DEBUG ===\n")
+    # cat("Processing index_idx:", index_idx, "\n")
+    # cat("design$areas from IndexObj:", paste(IndexObj@survey_design[[index_idx]]$areas, collapse = "_"), "\n")
+    # cat("design$areas from variable:", paste(design$areas, collapse = "_"), "\n")
+    # if(design$indextype == "FI") {
+    #   cat("design$selectivity_hist_idx:", design$selectivity_hist_idx, "\n")
+    #   cat("design$survey_timing:", design$survey_timing, "\n")
+    # }
+    # cat("=========================\n")
 
 
     # common required elements for surveys/CPUEs
@@ -4150,16 +4150,16 @@ calculate_single_CatchObs <- function(dataObject) {
   is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
 
   #debugging code
-  cat("=== DEBUG CATCH OBS ===\n")
-  cat("is_multifleet:", is_multifleet, "\n")
-  cat("fleet_configs in slotNames:", "fleet_configs" %in% slotNames(CatchObsObj), "\n")
-  cat("fleet_configs length:", length(CatchObsObj@fleet_configs), "\n")
-  cat("class(CatchObsObj):", class(CatchObsObj), "\n")
-  cat("slotNames(CatchObsObj):", paste(slotNames(CatchObsObj), collapse = ", "), "\n")
-  if(length(CatchObsObj@fleet_configs) > 0) {
-    cat("First fleet_config fleet_id:", CatchObsObj@fleet_configs[[1]]$fleet_id, "\n")
-  }
-  cat("=====================\n")
+  # cat("=== DEBUG CATCH OBS ===\n")
+  # cat("is_multifleet:", is_multifleet, "\n")
+  # cat("fleet_configs in slotNames:", "fleet_configs" %in% slotNames(CatchObsObj), "\n")
+  # cat("fleet_configs length:", length(CatchObsObj@fleet_configs), "\n")
+  # cat("class(CatchObsObj):", class(CatchObsObj), "\n")
+  # cat("slotNames(CatchObsObj):", paste(slotNames(CatchObsObj), collapse = ", "), "\n")
+  # if(length(CatchObsObj@fleet_configs) > 0) {
+  #   cat("First fleet_config fleet_id:", CatchObsObj@fleet_configs[[1]]$fleet_id, "\n")
+  # }
+  # cat("=====================\n")
 
 
 
@@ -4265,11 +4265,11 @@ process_multifleet_catch_obs <- function(CatchObsObj, catchB_by_fleet,
                                          j, k, obs_catch_return) {
 
   #debugging code
-  cat("=== MULTIFLEET CATCH PROCESSING ===\n")
-  cat("j (simulation year):", j, "\n")
-  cat("k (iteration):", k, "\n")
-  cat("Looking for year (j-1) =", j-1, "\n")
-  cat("catchB_by_fleet dimensions:", dim(catchB_by_fleet), "\n")
+  # cat("=== MULTIFLEET CATCH PROCESSING ===\n")
+  # cat("j (simulation year):", j, "\n")
+  # cat("k (iteration):", k, "\n")
+  # cat("Looking for year (j-1) =", j-1, "\n")
+  # cat("catchB_by_fleet dimensions:", dim(catchB_by_fleet), "\n")
 
   #process each fleet configuration
   total_true_catch <- 0
