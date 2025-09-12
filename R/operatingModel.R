@@ -3633,6 +3633,18 @@ calculate_single_Index  <- function(dataObject){
   for(index_idx in 1:n_indices) {
     design <- IndexObj@survey_design[[index_idx]] #extracts current survey design from the list (for each index)
 
+    #DEBUG
+    cat("\n=== LOOP START DEBUG ===\n")
+    cat("Processing index_idx:", index_idx, "\n")
+    cat("design$areas from IndexObj:", paste(IndexObj@survey_design[[index_idx]]$areas, collapse = "_"), "\n")
+    cat("design$areas from variable:", paste(design$areas, collapse = "_"), "\n")
+    if(design$indextype == "FI") {
+      cat("design$selectivity_hist_idx:", design$selectivity_hist_idx, "\n")
+      cat("design$survey_timing:", design$survey_timing, "\n")
+    }
+    cat("=========================\n")
+
+
     # common required elements for surveys/CPUEs
     required_elements <- c("indextype", "areas", "indexYears",
                            "q_hist_bounds", "q_proj_bounds",
@@ -4010,11 +4022,17 @@ calculate_single_Index  <- function(dataObject){
       #New adding: fleet-specific column naming for FD indices in multifleet mode
       if(design$indextype == "FD" && is_multifleet) {
         #fleet-specific naming for multifleet FD indices
-        index_name <- paste0("CPUE_", index_idx, "_Fleet_", fleet_id)
+        index_name <- paste0("IDX_CPUE_", index_idx, "_Fleet_", fleet_id)
       } else {
         # original naming
-        index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
+        index_name <- paste0("IDX_", ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
       }
+      #debugging code
+      # cat("\n=== DEBUG INFO (HAS OBSERVATION) ===\n")
+      # cat("Index:", index_idx, "Name:", index_name, "\n")
+      # cat("design$areas:", design$areas, "\n")
+      # cat("paste result:", paste(design$areas, collapse = "_"), "\n")
+
 
         # Adding more columns to the tibble
         # add to the tibble with appropriate column name (create column name like "CPUE_1" or "Survey_2")
@@ -4023,7 +4041,19 @@ calculate_single_Index  <- function(dataObject){
 
       # Add individual index columns (from the original results_list)
       observation_return[[paste0(index_name, "_indextype")]] <- design$indextype
+
+      #Debug
+      # cat("CRITICAL DEBUG - About to store areas for", index_name, "\n")
+      # cat("design$indextype:", design$indextype, "\n")
+      # cat("design$areas:", design$areas, "\n")
+      # cat("index_idx:", index_idx, "\n")
+
+
+
       observation_return[[paste0(index_name, "_areas")]] <- paste(design$areas, collapse = "_")
+      cat("Actually stored:", observation_return[[paste0(index_name, "_areas")]], "\n")
+      cat("----\n")
+
       observation_return[[paste0(index_name, "_indexYears")]] <- paste(design$indexYears, collapse = "_")
 
       # NEW addition: adding fleet metadata
@@ -4042,15 +4072,35 @@ calculate_single_Index  <- function(dataObject){
 
       # NEW addition: Apply same fleet-aware naming for NA cases
       if(design$indextype == "FD" && is_multifleet) {
-        index_name <- paste0("CPUE_", index_idx, "_Fleet_", fleet_id)
+        index_name <- paste0("IDX_CPUE_", index_idx, "_Fleet_", fleet_id)
       } else {
-        index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
+        index_name <- paste0("IDX_", ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
       }
+
+      #debugging code
+      # cat("\n=== DEBUG INFO (NO OBSERVATION) ===\n")
+      # cat("Index:", index_idx, "Name:", index_name, "\n")
+      # cat("design$areas:", design$areas, "\n")
+      # cat("paste result:", paste(design$areas, collapse = "_"), "\n")
 
       #index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
       observation_return[[index_name]] <- NA
       observation_return[[paste0(index_name, "_indextype")]] <- design$indextype
+      #debug
+      # cat("CRITICAL DEBUG - About to store areas for", index_name, "(NO OBS)\n")
+      # cat("design$indextype:", design$indextype, "\n")
+      # cat("design$areas:", design$areas, "\n")
+      # cat("index_idx:", index_idx, "\n")
+
+
+
+
       observation_return[[paste0(index_name, "_areas")]] <- paste(design$areas, collapse = "_")
+      #debugging
+      # cat("Actually stored:", observation_return[[paste0(index_name, "_areas")]], "\n")
+      # cat("----\n")
+      #
+      # cat("FINAL CHECK - Actually stored in tibble:", observation_return[[paste0(index_name, "_areas")]], "\n")
       observation_return[[paste0(index_name, "_indexYears")]] <- paste(design$indexYears, collapse = "_")
 
       # NEW addition: Add fleet metadata for NA cases
@@ -4066,6 +4116,22 @@ calculate_single_Index  <- function(dataObject){
       observation_return[[paste0(index_name, "_selectivity_proj_idx")]] <- if(design$indextype == "FI") design$selectivity_proj_idx else NA
     }
   }
+
+  #debugginng index area idx issue
+  # if(j %in% c(2, 3, 5, 8)) {  # Check a few different years
+  #   cat("YEAR", j-1, "- Survey_3_areas being returned:", observation_return$Survey_3_areas, "\n")
+  #   cat("YEAR", j-1, "- class:", class(observation_return$Survey_3_areas), "\n")
+  #   cat("YEAR", j-1, "- Survey_3_indextype:", observation_return$Survey_3_indextype, "\n")
+  # }
+
+  # ensure consistent column ordering (to check the bug)
+  # expected_cols <- c("k", "j", "indexID", "title", "final_indextype", "useWeight",
+  #                    "n_indices", "years_total", "iterations_total", "areas_total",
+  #                    "historical_end", "is_multifleet", "nfleets")
+  #
+  # observation_return <- observation_return[, c(expected_cols,
+  #                                              setdiff(names(observation_return), expected_cols))]
+
   return(observation_return)
 } # close the fucntion
 
@@ -4546,9 +4612,9 @@ process_single_fleet_catch_obs <- function(CatchObsObj, catch_year_position,
 
        #NEW: program name for single fleet and multifleet
        if(design$indextype == "FD" && is_multifleet && !is.na(fleet_id)) {
-         program_name <- paste0("Fishery_", index_idx, "_Fleet_", fleet_id)
+         program_name <- paste0("LC_Fishery_", index_idx, "_Fleet_", fleet_id)
        } else {
-         program_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
+         program_name <- paste0("LC_", ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
        }
 
        #adding validations
