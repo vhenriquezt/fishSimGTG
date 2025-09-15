@@ -170,23 +170,6 @@
       ],
       "Hash": "40415719b5a479b87949f3aa0aee737c"
     },
-    "bookdown": {
-      "Package": "bookdown",
-      "Version": "0.43",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "R",
-        "htmltools",
-        "jquerylib",
-        "knitr",
-        "rmarkdown",
-        "tinytex",
-        "xfun",
-        "yaml"
-      ],
-      "Hash": "e947197b6372a88f7dc8a0fa2f2fd2b4"
-    },
     "brew": {
       "Package": "brew",
       "Version": "1.0-10",
@@ -610,28 +593,6 @@
       "Repository": "CRAN",
       "Hash": "aa5e1cd11c2d15497494c5292d7ffcc8"
     },
-    "fishSimTools": {
-      "Package": "fishSimTools",
-      "Version": "0.0.0.9000",
-      "Source": "GitHub",
-      "RemoteType": "github",
-      "RemoteHost": "api.github.com",
-      "RemoteRepo": "fishSimTools",
-      "RemoteUsername": "natureanalytics-ca",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "daaa147eade1ada940bbe24a831d34d525c90721",
-      "Requirements": [
-        "R",
-        "dplyr",
-        "fishSimGTG",
-        "ggplot2",
-        "ggrepel",
-        "readxl",
-        "stats",
-        "stringr"
-      ],
-      "Hash": "df004207c172c9b6c1b03a9f3f8f0741"
-    },
     "fontawesome": {
       "Package": "fontawesome",
       "Version": "0.5.3",
@@ -757,22 +718,6 @@
         "withr"
       ],
       "Hash": "7ad64861e028a777d7d67ff83231b548"
-    },
-    "ggrepel": {
-      "Package": "ggrepel",
-      "Version": "0.9.6",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "R",
-        "Rcpp",
-        "ggplot2",
-        "grid",
-        "rlang",
-        "scales",
-        "withr"
-      ],
-      "Hash": "3d4156850acc1161f2f24bc61c9217c1"
     },
     "gh": {
       "Package": "gh",
