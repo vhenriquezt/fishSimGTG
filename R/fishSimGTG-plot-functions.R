@@ -456,21 +456,88 @@ get_metric_color <- function(metric) {
   return(colors[[metric]])
 }
 
-#Basic and felxible wrappers fucntions
 
+#' Plot spawning biomass
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_SB     <- function(result, ...) plot_population_metric(result, "SB", areas = areas, ...)
+
+#' Plot vulnerable biomass
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_VB     <- function(result, ...) plot_population_metric(result, "VB", areas = areas, ...)
+
+#' Plot total fishing mortality
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_Ftotal <- function(result, ...) plot_population_metric(result, "Ftotal", areas = areas, ...)
+
+#' Plot catch biomass
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_catchB <- function(result, ...) plot_population_metric(result, "catchB", areas = areas, ...)
+
+#' Plot catch numbers
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_catchN <- function(result, ...) plot_population_metric(result, "catchN", areas = areas, ...)
+
+#' Plot dicard catch biomass
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_discB  <- function(result, ...) plot_population_metric(result, "discB", areas = areas, ...)
+
+#' Plot dicard catch numbers
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_discN  <- function(result, ...) plot_population_metric(result, "discN", areas = areas, ...)
+
+#' Plot spawning potential ratio
+#' @param result Simulation result from runProjection
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_SPR    <- function(result, ...) plot_population_metric(result, "SPR", ...)
+
+#' Plot recruitment
+#' @param result Simulation result from runProjection
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_recN   <- function(result, ...) plot_population_metric(result, "recN", ...)
 
-# Multifleet wrappers (flexible for any number of areas)
+
+#' Plot multifleet fishing mortality
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_Ftotal_multi <- function(result, areas = "all", ...) plot_population_metric(result, "Ftotal", areas = areas, show_fleets = TRUE, ...)
+
+#' Plot multifleet catch biomass
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_catchB_multi <- function(result, areas = "all", ...) plot_population_metric(result, "catchB", areas = areas, show_fleets = TRUE, ...)
+
+#' Plot multifleet catch numbers
+#' @param result Simulation result from runProjection
+#' @param areas Areas to plot ("all" or numeric vector)
+#' @param ... Additional arguments passed to plot_population_metric
+#' @export
 plot_catchN_multi <- function(result, areas = "all", ...) plot_population_metric(result, "catchN", areas = areas, show_fleets = TRUE, ...)
 
 
@@ -1334,52 +1401,152 @@ create_length_comp_plot_with_areas <- function(lc_data, program_name, show_indiv
 }
 
 
-#integration in a wrapper fucntion (indices)
-
+#' Plot survey indices
+#'
+#' Creates time series plots of fishery-independent survey indices from fishSimGTG observation models.
+#' This is a wrapper function that filters for survey indices (IDX_Survey pattern).
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing observation data
+#' @param ... Additional arguments passed to \code{plot_indices()}
+#' @return A ggplot object with faceted panels for each survey index
+#' @export
+#' @seealso \code{\link{plot_indices}}
 plot_survey_indices <- function(simulation_result, ...) {
   plot_indices(simulation_result, index_pattern = "IDX_Survey",
                title = "Survey Indices (Fishery Independent)", ...)
 }
 
+#' Plot CPUE indices
+#'
+#' Creates time series plots of fishery-dependent CPUE indices from fishSimGTG observation models.
+#' This is a wrapper function that filters for CPUE indices (IDX_CPUE pattern).
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing observation data
+#' @param ... Additional arguments passed to \code{plot_indices()}
+#' @return A ggplot object with faceted panels for each CPUE index
+#' @export
+#' @seealso \code{\link{plot_indices}}
 plot_cpue_indices <- function(simulation_result, ...) {
   plot_indices(simulation_result, index_pattern = "IDX_CPUE",
                title = "CPUE Indices (Fishery Dependent)", ...)
 }
 
+#' Plot all indices
+#'
+#' Creates time series plots of all indices (both survey and CPUE) from fishSimGTG observation models.
+#' This is a wrapper function that includes all index types.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing observation data
+#' @param ... Additional arguments passed to \code{plot_indices()}
+#' @return A ggplot object with faceted panels for each index
+#' @export
+#' @seealso \code{\link{plot_indices}}
 plot_all_indices <- function(simulation_result, ...) {
   plot_indices(simulation_result, index_pattern = "IDX_",
                title = "All Indices (Survey + CPUE)", ...)
 }
 
 
-#integration in a wrapper fucntion catch observations
+#' Plot both true and observed catch
+#'
+#' Creates time series plots comparing true catch vs observed catch from fishSimGTG catch observation models.
+#' Shows both true and observed values on the same plot.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing catch observation data
+#' @param ... Additional arguments passed to \code{plot_catch_observations()}
+#' @return A ggplot object showing catch time series
+#' @export
+#' @seealso \code{\link{plot_catch_observations}}
 plot_catch_observations_both <- function(simulation_result, ...) {
   plot_catch_observations(simulation_result, catch_type = "both", ...)
 }
 
+#' Plot true catch only
+#'
+#' Creates time series plots of true catch from fishSimGTG catch observation models.
+#' Shows only the true (simulated) catch values.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing catch observation data
+#' @param ... Additional arguments passed to \code{plot_catch_observations()}
+#' @return A ggplot object showing true catch time series
+#' @export
+#' @seealso \code{\link{plot_catch_observations}}
 plot_catch_observations_true <- function(simulation_result, ...) {
   plot_catch_observations(simulation_result, catch_type = "true", ...)
 }
 
+#' Plot observed catch only
+#'
+#' Creates time series plots of observed catch from fishSimGTG catch observation models.
+#' Shows only the observed catch values with observation model effects.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing catch observation data
+#' @param ... Additional arguments passed to \code{plot_catch_observations()}
+#' @return A ggplot object showing observed catch time series
+#' @export
+#' @seealso \code{\link{plot_catch_observations}}
 plot_catch_observations_observed <- function(simulation_result, ...) {
   plot_catch_observations(simulation_result, catch_type = "observed", ...)
 }
 
+#' Plot catch observations (single fleet mode)
+#'
+#' Creates time series plots of catch observations using single fleet aggregation.
+#' Forces single fleet display even in multifleet simulations.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing catch observation data
+#' @param ... Additional arguments passed to \code{plot_catch_observations()}
+#' @return A ggplot object showing aggregated catch time series
+#' @export
+#' @seealso \code{\link{plot_catch_observations}}
 plot_catch_observations_single <- function(simulation_result, ...) {
   plot_catch_observations(simulation_result, fleet_specific = FALSE, ...)
 }
 
+#' Plot catch observations (multifleet mode)
+#'
+#' Creates time series plots of catch observations with fleet-specific breakdown.
+#' Shows separate panels for each fleet in multifleet simulations.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing catch observation data
+#' @param ... Additional arguments passed to \code{plot_catch_observations()}
+#' @return A ggplot object showing fleet-specific catch time series
+#' @export
+#' @seealso \code{\link{plot_catch_observations}}
 plot_catch_observations_multifleet <- function(simulation_result, ...) {
   plot_catch_observations(simulation_result, fleet_specific = TRUE, ...)
 }
 
 
 
-# NEW: Area-specific wrapper functions
+#' Plot fishery length composition by area and fleet
+#'
+#' Creates length composition plots from fishery-dependent length composition data.
+#' Allows filtering by specific areas and fleets.
+#'
+#' @param result Output object from \code{runProjection()} containing length composition data
+#' @param areas Character "all" or numeric vector specifying areas to include. Default is "all"
+#' @param fleets Character "all" or numeric vector specifying fleets to include. Default is "all"
+#' @param ... Additional arguments passed to \code{plot_length_composition_by_area()}
+#' @return A ggplot object or grid of plots showing length composition histograms
+#' @export
+#' @seealso \code{\link{plot_length_composition_by_area}}
 plot_fishery_length_comp <- function(result, areas = "all", fleets = "all", ...) {
   plot_length_composition_by_area(result, program_pattern = "LC_Fishery",
                                   area_filter = areas, fleet_filter = fleets, ...)
 }
+
+#' Plot survey length composition by area
+#'
+#' Creates length composition plots from fishery-independent survey length composition data.
+#' Allows filtering by specific areas.
+#'
+#' @param result Output object from \code{runProjection()} containing length composition data
+#' @param areas Character "all" or numeric vector specifying areas to include. Default is "all"
+#' @param ... Additional arguments passed to \code{plot_length_composition_by_area()}
+#' @return A ggplot object or grid of plots showing length composition histograms
+#' @export
+#' @seealso \code{\link{plot_length_composition_by_area}}
 plot_survey_length_comp <- function(result, areas = "all", ...) {
   plot_length_composition_by_area(result, program_pattern = "LC_Survey",
                                   area_filter = areas, ...)
