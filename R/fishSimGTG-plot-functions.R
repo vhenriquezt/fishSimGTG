@@ -1,18 +1,25 @@
-# ============================================================================
-#         PLOTTING FUNCTIONS FOR FISHSIMGTG SINGLE AND MULTIFLEET
-# ============================================================================
-
-library(ggplot2)
-library(dplyr)
-#Arguments:
-# simulation_result:sim output
-# metric: e.g., SB, VB, Ftotal, etc.
-# areas: "all" or specific numbers like c(1,2)
-# iterations: Which simulation iterations to include
-# show_median: show the median line across iterations
-# show_quantiles: show 25th-75th percentile
-# show_individual: show individual iteration lines
-# show_fleets: show fleet-specific data (multifleet mode)
+#' Plot population dynamics metrics
+#'
+#' Creates time series plots for various population dynamics metrics from fishSimGTG simulation results.
+#' Supports both single-fleet and multifleet simulations with flexible visualization options.
+#'
+#' @param simulation_result Output object from \code{runProjection()}
+#' @param metric Character. The metric to plot. One of: "SB", "VB", "RB", "catchB", "catchN", "Ftotal", "discB", "discN", "recN", "SPR"
+#' @param areas Character "all" or numeric vector specifying which areas to plot. Default is "all"
+#' @param iterations Character "all" or numeric vector specifying which simulation iterations to include. Default is "all"
+#' @param show_median Logical. Whether to show median line across iterations. Default is TRUE
+#' @param show_quantiles Logical. Whether to show 25th-75th percentile ribbon. Default is TRUE
+#' @param show_individual Logical. Whether to show individual iteration lines. Default is FALSE
+#' @param show_fleets Logical. Whether to show fleet-specific data in multifleet mode. Default is FALSE
+#' @param color_palette Character vector of colors. If NULL, uses default colors
+#' @param title Character. Custom plot title. If NULL, generates automatic title
+#' @param save_plot Logical. Whether to save plot to file. Default is FALSE
+#' @param filename Character. Filename for saved plot. If NULL, generates automatic filename
+#' @param width Numeric. Plot width in inches for saved plot. Default is 12
+#' @param height Numeric. Plot height in inches for saved plot. Default is 8
+#'
+#' @return A ggplot object
+#' @export
 
 plot_population_metric <- function(simulation_result,
                                    metric,
@@ -88,7 +95,7 @@ plot_population_metric <- function(simulation_result,
   return(p)
 }
 
-# population-level quantities (recN, SPR)
+
 prepare_population_data <- function(dynamics, metric, iterations, historical_end) {
 
   array_data <- dynamics[[metric]]
@@ -116,7 +123,8 @@ prepare_population_data <- function(dynamics, metric, iterations, historical_end
   return(plot_data)
 }
 
-#data for area-specific quantities
+
+
 prepare_area_data <- function(dynamics, metric, areas, iterations, historical_end) {
 
   array_data <- dynamics[[metric]]
@@ -147,7 +155,7 @@ prepare_area_data <- function(dynamics, metric, areas, iterations, historical_en
   return(plot_data)
 }
 
-#data for multifleet quantities
+
 prepare_multifleet_data <- function(dynamics, metric, areas, iterations, historical_end) {
 
   array_data <- dynamics$multifleet[[paste0(metric, "_by_fleet")]]
@@ -183,7 +191,7 @@ prepare_multifleet_data <- function(dynamics, metric, areas, iterations, histori
   return(plot_data)
 }
 
-#create plot for pop quantities
+
 create_population_plot <- function(plot_data, metric, show_median, show_quantiles,
                                    show_individual, color_palette, title, historical_end) {
 
@@ -250,7 +258,7 @@ create_population_plot <- function(plot_data, metric, show_median, show_quantile
   return(p)
 }
 
-#plot for area-specific quantities
+
 create_area_plot <- function(plot_data, metric, areas, show_median, show_quantiles,
                              show_individual, color_palette, title, historical_end) {
 
@@ -329,7 +337,7 @@ create_area_plot <- function(plot_data, metric, areas, show_median, show_quantil
   return(p)
 }
 
-#create plot for multifleet
+
 create_multifleet_plot <- function(plot_data, metric, areas, show_median, show_quantiles,
                                    show_individual, color_palette, title, historical_end) {
 
@@ -394,7 +402,8 @@ p <- p +
 return(p)
 }
 
-#get label for titles - return the corresponding lablel
+
+
 get_metric_label <- function(metric) {
   labels <- list(
     "SB" = "Spawning Biomass",
@@ -410,7 +419,9 @@ get_metric_label <- function(metric) {
   )
   return(labels[[metric]])
 }
-#y label
+
+
+
 get_metric_ylabel <- function(metric) {
   labels <- list(
     "SB" = "Spawning Biomass",
@@ -427,7 +438,8 @@ get_metric_ylabel <- function(metric) {
   return(labels[[metric]])
 }
 
-#color for metric
+
+
 get_metric_color <- function(metric) {
   colors <- list(
     "SB" = "steelblue",
@@ -444,57 +456,42 @@ get_metric_color <- function(metric) {
   return(colors[[metric]])
 }
 
-#integration in a wrapper fucntion (passes any additional arguments to the main function and create a shortcut)
-plot_SB_both <- function(result, ...) plot_population_metric(result, "SB", areas = "all", ...)
-plot_SB_area1 <- function(result, ...) plot_population_metric(result, "SB", areas = 1, ...)
-plot_SB_area2 <- function(result, ...) plot_population_metric(result, "SB", areas = 2, ...)
+#Basic and felxible wrappers fucntions
 
-plot_VB_both <- function(result, ...) plot_population_metric(result, "VB", areas = "all", ...)
-plot_VB_area1 <- function(result, ...) plot_population_metric(result, "VB", areas = 1, ...)
-plot_VB_area2 <- function(result, ...) plot_population_metric(result, "VB", areas = 2, ...)
+plot_SB     <- function(result, ...) plot_population_metric(result, "SB", areas = areas, ...)
+plot_VB     <- function(result, ...) plot_population_metric(result, "VB", areas = areas, ...)
+plot_Ftotal <- function(result, ...) plot_population_metric(result, "Ftotal", areas = areas, ...)
+plot_catchB <- function(result, ...) plot_population_metric(result, "catchB", areas = areas, ...)
+plot_catchN <- function(result, ...) plot_population_metric(result, "catchN", areas = areas, ...)
+plot_discB  <- function(result, ...) plot_population_metric(result, "discB", areas = areas, ...)
+plot_discN  <- function(result, ...) plot_population_metric(result, "discN", areas = areas, ...)
+plot_SPR    <- function(result, ...) plot_population_metric(result, "SPR", ...)
+plot_recN   <- function(result, ...) plot_population_metric(result, "recN", ...)
 
-plot_Ftotal_both <- function(result, ...) plot_population_metric(result, "Ftotal", areas = "all", ...)
-plot_Ftotal_area1 <- function(result, ...) plot_population_metric(result, "Ftotal", areas = 1, ...)
-plot_Ftotal_area2 <- function(result, ...) plot_population_metric(result, "Ftotal", areas = 2, ...)
-plot_Ftotal_multi <- function(result, ...) plot_population_metric(result, "Ftotal", areas = "all", show_fleets = TRUE, ...)
-plot_Ftotal_multi_area1 <- function(result, ...) plot_population_metric(result, "Ftotal", areas = 1, ..., show_fleets = TRUE, ...)
-plot_Ftotal_multi_area2 <- function(result, ...) plot_population_metric(result, "Ftotal", areas = 2, ..., show_fleets = TRUE, ...)
-
-plot_catchB_both <- function(result, ...) plot_population_metric(result, "catchB", areas = "all", ...)
-plot_catchB_area1 <- function(result, ...) plot_population_metric(result, "catchB", areas = 1, ..., ...)
-plot_catchB_area2 <- function(result, ...) plot_population_metric(result, "catchB", areas = 2, ..., ...)
-
-plot_catchN_both <- function(result, ...) plot_population_metric(result, "catchN", areas = "all", ...)
-plot_catchN_area1 <- function(result, ...) plot_population_metric(result, "catchN", areas = 1, ..., ...)
-plot_catchN_area2 <- function(result, ...) plot_population_metric(result, "catchN", areas = 2, ..., ...)
-
-plot_discB_both <- function(result, ...) plot_population_metric(result, "discB", areas = "all", ...)
-plot_discB_area1 <- function(result, ...) plot_population_metric(result, "discB", areas = 1, ..., ...)
-plot_discB_area2 <- function(result, ...) plot_population_metric(result, "discB", areas = 2, ..., ...)
-
-plot_discN_both <- function(result, ...) plot_population_metric(result, "discN", areas = "all", ...)
-plot_discN_area1 <- function(result, ...) plot_population_metric(result, "discN", areas = 1, ..., ...)
-plot_discN_area2 <- function(result, ...) plot_population_metric(result, "discN", areas = 2, ..., ...)
-
-plot_catchB_multi <- function(result, ...) plot_population_metric(result, "catchB", areas = "all", show_fleets = TRUE, ...)
-plot_catchB_multi_area1 <- function(result, ...) plot_population_metric(result, "catchB", areas = 1, ..., show_fleets = TRUE, ...)
-plot_catchB_multi_area2 <- function(result, ...) plot_population_metric(result, "catchB", areas = 2, ..., show_fleets = TRUE, ...)
-
-plot_catchN_multi <- function(result, ...) plot_population_metric(result, "catchN", areas = "all", show_fleets = TRUE, ...)
-plot_catchN_multi_area1 <- function(result, ...) plot_population_metric(result, "catchN", areas = 1, ..., show_fleets = TRUE, ...)
-plot_catchN_multi_area1 <- function(result, ...) plot_population_metric(result, "catchN", areas = 2, ..., show_fleets = TRUE, ...)
+# Multifleet wrappers (flexible for any number of areas)
+plot_Ftotal_multi <- function(result, areas = "all", ...) plot_population_metric(result, "Ftotal", areas = areas, show_fleets = TRUE, ...)
+plot_catchB_multi <- function(result, areas = "all", ...) plot_population_metric(result, "catchB", areas = areas, show_fleets = TRUE, ...)
+plot_catchN_multi <- function(result, areas = "all", ...) plot_population_metric(result, "catchN", areas = areas, show_fleets = TRUE, ...)
 
 
-
-plot_SPR <- function(result, ...) plot_population_metric(result, "SPR", ...)
-plot_recN <- function(result, ...) plot_population_metric(result, "recN", ...)
-
-
-
-
-# ============================================================================
-#         PLOTTING FUNCTIONS FOR FISHSIMGTG OBS MODELS
-# ============================================================================
+#' Plot observation model indices
+#'
+#' Creates time series plots of survey indices and CPUE data from fishSimGTG observation models.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing observation data
+#' @param index_pattern Character. Pattern to match index column names. Default is "IDX_"
+#' @param show_median Logical. Whether to show median points. Default is TRUE
+#' @param show_quantiles Logical. Whether to show quantile ranges. Default is TRUE
+#' @param show_individual Logical. Whether to show individual iteration points. Default is FALSE
+#' @param point_size Numeric. Size of points in plot. Default is 1.5
+#' @param line_alpha Numeric. Transparency of individual iteration points (0-1). Default is 0.5
+#' @param color_palette Character vector of colors. If NULL, uses default colors
+#' @param title Character. Custom plot title. If NULL, generates automatic title
+#' @param save_plot Logical. Whether to save plot to file. Default is FALSE
+#' @param filename Character. Filename for saved plot. If NULL, generates automatic filename
+#'
+#' @return A ggplot object with faceted panels for each index
+#' @export
 
 plot_indices <- function(simulation_result,
                          index_pattern = "IDX_",
@@ -551,7 +548,7 @@ plot_indices <- function(simulation_result,
   return(p)
 }
 
-#prepare data for plotting
+
 prepare_index_data_with_gaps <- function(obs_data, index_cols, historical_end) {
   plot_data_list <- list()
 
@@ -616,7 +613,8 @@ prepare_index_data_with_gaps <- function(obs_data, index_cols, historical_end) {
   return(dplyr::bind_rows(plot_data_list))
 }
 
-#create index plot
+
+
 create_index_plot_with_gaps <- function(plot_data, show_median, show_quantiles, show_individual,
                                         point_size, line_alpha, color_palette, title, historical_end) {
 
@@ -684,7 +682,23 @@ create_index_plot_with_gaps <- function(plot_data, show_median, show_quantiles, 
   return(p)
 }
 
-#catch observations models
+#' Plot catch observations
+#'
+#' Creates time series plots comparing true catch vs observed catch from fishSimGTG observation models.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing catch observation data
+#' @param catch_type Character. Type of catch to plot: "true", "observed", or "both". Default is "both"
+#' @param fleet_specific Logical. Whether to create fleet-specific plots in multifleet mode. Default is TRUE
+#' @param show_median Logical. Whether to show median lines. Default is TRUE
+#' @param show_quantiles Logical. Whether to show quantile ribbons. Default is TRUE
+#' @param show_individual Logical. Whether to show individual iteration lines. Default is FALSE
+#' @param point_size Numeric. Size of points in plot. Default is 1.5
+#' @param title Character. Custom plot title. If NULL, generates automatic title
+#' @param save_plot Logical. Whether to save plot to file. Default is FALSE
+#' @param filename Character. Filename for saved plot. If NULL, generates automatic filename
+#'
+#' @return A ggplot object showing catch time series
+#' @export
 
 plot_catch_observations <- function(simulation_result,
                                     catch_type = "both",
@@ -729,7 +743,7 @@ plot_catch_observations <- function(simulation_result,
   return(p)
 }
 
-#prepare multifleet catch data
+
 prepare_multifleet_catch_data <- function(obs_data, catch_type, historical_end) {
 
   #find fleet catch columns
@@ -816,7 +830,7 @@ prepare_multifleet_catch_data <- function(obs_data, catch_type, historical_end) 
   return(dplyr::bind_rows(plot_data_list))
 }
 
-#prepare single fleet catch data
+
 prepare_single_catch_data <- function(obs_data, catch_type, historical_end) {
 
   plot_data <- data.frame()
@@ -856,7 +870,7 @@ prepare_single_catch_data <- function(obs_data, catch_type, historical_end) {
   return(plot_data)
 }
 
-#create multifleet catch plot
+
 create_multifleet_catch_plot <- function(plot_data, catch_type, show_median, show_quantiles,
                                          show_individual, point_size, title, historical_end) {
 
@@ -927,7 +941,8 @@ create_multifleet_catch_plot <- function(plot_data, catch_type, show_median, sho
   return(p)
 }
 
-#create single fleet catch plot
+
+
 create_single_catch_plot <- function(plot_data, catch_type, show_median, show_quantiles,
                                      show_individual, point_size, title, historical_end) {
 
@@ -998,7 +1013,27 @@ create_single_catch_plot <- function(plot_data, catch_type, show_median, show_qu
 
 
 
-#Modified LC fucntion to plot by area
+#' Plot length composition by area
+#'
+#' Creates length composition plots from fishSimGTG observation models with filtering by area, fleet, and time.
+#'
+#' @param simulation_result Output object from \code{runProjection()} containing length composition data
+#' @param program_pattern Character. Pattern to match LC program names. Default is "LC_"
+#' @param area_filter Character "all" or numeric vector specifying areas to include. Default is "all"
+#' @param fleet_filter Character "all" or numeric vector specifying fleets to include. Default is "all"
+#' @param years_to_plot Character "all", "auto", or numeric vector of years to plot. Default is "all"
+#' @param max_programs Numeric. Maximum number of programs to plot. Default is 8
+#' @param show_individual Logical. Whether to show individual iteration lines. Default is FALSE
+#' @param show_median Logical. Whether to show median bars. Default is TRUE
+#' @param separate_by_area Logical. Whether to separate plots by area. Default is TRUE
+#' @param title Character. Custom plot title. If NULL, generates automatic title
+#' @param save_plot Logical. Whether to save plot to file. Default is FALSE
+#' @param filename Character. Filename for saved plot. If NULL, generates automatic filename
+#' @param auto_display Logical. Whether to automatically display multi-panel plots. Default is TRUE
+#'
+#' @return A ggplot object or grid of plots showing length composition histograms
+#' @export
+
 plot_length_composition_by_area <- function(simulation_result,
                                             program_pattern = "LC_",
                                             area_filter = "all",
@@ -1169,7 +1204,7 @@ plot_length_composition_by_area <- function(simulation_result,
   return(final_plot)
 }
 
-#function to prepare LC data with area information
+
 prepare_length_comp_data_with_areas <- function(obs_data, program_name, selected_years,
                                                 n_bins, length_bin_width,
                                                 program_areas, relevant_areas) {
@@ -1230,7 +1265,6 @@ prepare_length_comp_data_with_areas <- function(obs_data, program_name, selected
   return(plot_data)
 }
 
-#function to create LC plots with area separation
 create_length_comp_plot_with_areas <- function(lc_data, program_name, show_individual,
                                                show_median, length_bin_width,
                                                separate_by_area, relevant_areas) {
@@ -1300,9 +1334,6 @@ create_length_comp_plot_with_areas <- function(lc_data, program_name, show_indiv
 }
 
 
-
-
-
 #integration in a wrapper fucntion (indices)
 
 plot_survey_indices <- function(simulation_result, ...) {
@@ -1319,7 +1350,6 @@ plot_all_indices <- function(simulation_result, ...) {
   plot_indices(simulation_result, index_pattern = "IDX_",
                title = "All Indices (Survey + CPUE)", ...)
 }
-
 
 
 #integration in a wrapper fucntion catch observations
@@ -1346,54 +1376,13 @@ plot_catch_observations_multifleet <- function(simulation_result, ...) {
 
 
 # NEW: Area-specific wrapper functions
-plot_fishery_length_comp_area1 <- function(simulation_result, ...) {
-  plot_length_composition_by_area(simulation_result,
-                                  program_pattern = "LC_Fishery",
-                                  area_filter = 1,
-                                  title = "Fishery Length Compositions - Area 1", ...)
+plot_fishery_length_comp <- function(result, areas = "all", fleets = "all", ...) {
+  plot_length_composition_by_area(result, program_pattern = "LC_Fishery",
+                                  area_filter = areas, fleet_filter = fleets, ...)
 }
-
-plot_fishery_length_comp_area2 <- function(simulation_result, ...) {
-  plot_length_composition_by_area(simulation_result,
-                                  program_pattern = "LC_Fishery",
-                                  area_filter = 2,
-                                  title = "Fishery Length Compositions - Area 2", ...)
-}
-
-plot_survey_length_comp_area1 <- function(simulation_result, ...) {
-  plot_length_composition_by_area(simulation_result,
-                                  program_pattern = "LC_Survey",
-                                  area_filter = 1,
-                                  title = "Survey Length Compositions - Area 1", ...)
-}
-
-plot_survey_length_comp_area2 <- function(simulation_result, ...) {
-  plot_length_composition_by_area(simulation_result,
-                                  program_pattern = "LC_Survey",
-                                  area_filter = 2,
-                                  title = "Survey Length Compositions - Area 2", ...)
-}
-
-# Fleet-specific wrapper functions
-plot_fishery_length_comp_fleet1 <- function(simulation_result, ...) {
-  plot_length_composition_by_area(simulation_result,
-                                  program_pattern = "LC_Fishery",
-                                  fleet_filter = 1,
-                                  title = "Fleet 1 Length Compositions", ...)
-}
-
-plot_fishery_length_comp_fleet2 <- function(simulation_result, ...) {
-  plot_length_composition_by_area(simulation_result,
-                                  program_pattern = "LC_Fishery",
-                                  fleet_filter = 2,
-                                  title = "Fleet 2 Length Compositions", ...)
-}
-
-plot_fishery_length_comp_fleet3 <- function(simulation_result, ...) {
-  plot_length_composition_by_area(simulation_result,
-                                  program_pattern = "LC_Fishery",
-                                  fleet_filter = 3,
-                                  title = "Fleet 3 Length Compositions", ...)
+plot_survey_length_comp <- function(result, areas = "all", ...) {
+  plot_length_composition_by_area(result, program_pattern = "LC_Survey",
+                                  area_filter = areas, ...)
 }
 
 
