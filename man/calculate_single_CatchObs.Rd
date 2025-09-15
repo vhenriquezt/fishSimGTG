@@ -2,7 +2,7 @@
 % Please edit documentation in R/operatingModel.R
 \name{calculate_single_CatchObs}
 \alias{calculate_single_CatchObs}
-\title{Function for integrating observation models}
+\title{Function for integrating catch observation models}
 \usage{
 calculate_single_CatchObs(dataObject)
 }

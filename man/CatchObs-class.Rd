@@ -3,7 +3,34 @@
 \docType{class}
 \name{CatchObs-class}
 \alias{CatchObs-class}
-\title{Catch observation object}
+\title{Catch observation object (Extended for Multifleet Support)}
+\arguments{
+\item{catchID}{Character identifier for the catch observation model}
+
+\item{title}{Descriptive title for the catch observation model}
+
+\item{areas}{Numeric vector of area IDs where catch is observed (single fleet only)}
+
+\item{catchYears}{Numeric vector of years with catch records (single fleet only)}
+
+\item{reporting_rates}{Numeric vector of reporting rates for each year (single fleet only)}
+
+\item{obs_CVs}{Matrix of observation error CV bounds \link{years x 2} (single fleet only)}
+
+\item{fleet_configs}{List of fleet-specific configurations (multifleet only). Each element should contain:
+\itemize{
+\item fleet_id: Numeric fleet identifier (1, 2, 3, etc.)
+\item areas: Numeric vector of area IDs for this fleet
+\item catchYears: Numeric vector of years with catch records for this fleet
+\item reporting_rates: Numeric vector of reporting rates for each year for this fleet
+\item obs_CVs: Matrix of observation error CV bounds \link{years x 2} for this fleet
+}}
+}
 \description{
-An S4 object that holds catch observation model parameters
+An S4 object that holds catch observation model parameters for both single fleet
+and multifleet scenarios. Maintains backward compatibility with original single fleet usage.
+}
+\details{
+For single fleet usage, use the original slots: areas, catchYears, reporting_rates, obs_CVs
+For multifleet usage, populate the fleet_configs slot with a list of fleet-specific configurations
 }
