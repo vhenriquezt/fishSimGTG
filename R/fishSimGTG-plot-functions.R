@@ -462,49 +462,49 @@ get_metric_color <- function(metric) {
 #' @param areas Areas to plot ("all" or numeric vector)
 #' @param ... Additional arguments passed to plot_population_metric
 #' @export
-plot_SB     <- function(result, ...) plot_population_metric(result, "SB", areas = areas, ...)
+plot_SB     <- function(result,areas="all", ...) plot_population_metric(result, "SB", areas = areas, ...)
 
 #' Plot vulnerable biomass
 #' @param result Simulation result from runProjection
 #' @param areas Areas to plot ("all" or numeric vector)
 #' @param ... Additional arguments passed to plot_population_metric
 #' @export
-plot_VB     <- function(result, ...) plot_population_metric(result, "VB", areas = areas, ...)
+plot_VB     <- function(result,areas="all", ...) plot_population_metric(result, "VB", areas = areas, ...)
 
 #' Plot total fishing mortality
 #' @param result Simulation result from runProjection
 #' @param areas Areas to plot ("all" or numeric vector)
 #' @param ... Additional arguments passed to plot_population_metric
 #' @export
-plot_Ftotal <- function(result, ...) plot_population_metric(result, "Ftotal", areas = areas, ...)
+plot_Ftotal <- function(result,areas="all", ...) plot_population_metric(result, "Ftotal", areas = areas, ...)
 
 #' Plot catch biomass
 #' @param result Simulation result from runProjection
 #' @param areas Areas to plot ("all" or numeric vector)
 #' @param ... Additional arguments passed to plot_population_metric
 #' @export
-plot_catchB <- function(result, ...) plot_population_metric(result, "catchB", areas = areas, ...)
+plot_catchB <- function(result,areas="all", ...) plot_population_metric(result, "catchB", areas = areas, ...)
 
 #' Plot catch numbers
 #' @param result Simulation result from runProjection
 #' @param areas Areas to plot ("all" or numeric vector)
 #' @param ... Additional arguments passed to plot_population_metric
 #' @export
-plot_catchN <- function(result, ...) plot_population_metric(result, "catchN", areas = areas, ...)
+plot_catchN <- function(result,areas="all", ...) plot_population_metric(result, "catchN", areas = areas, ...)
 
 #' Plot dicard catch biomass
 #' @param result Simulation result from runProjection
 #' @param areas Areas to plot ("all" or numeric vector)
 #' @param ... Additional arguments passed to plot_population_metric
 #' @export
-plot_discB  <- function(result, ...) plot_population_metric(result, "discB", areas = areas, ...)
+plot_discB  <- function(result,areas="all", ...) plot_population_metric(result, "discB", areas = areas, ...)
 
 #' Plot dicard catch numbers
 #' @param result Simulation result from runProjection
 #' @param areas Areas to plot ("all" or numeric vector)
 #' @param ... Additional arguments passed to plot_population_metric
 #' @export
-plot_discN  <- function(result, ...) plot_population_metric(result, "discN", areas = areas, ...)
+plot_discN  <- function(result,areas="all", ...) plot_population_metric(result, "discN", areas = areas, ...)
 
 #' Plot spawning potential ratio
 #' @param result Simulation result from runProjection

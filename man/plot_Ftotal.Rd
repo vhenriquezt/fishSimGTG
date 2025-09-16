@@ -4,14 +4,14 @@
 \alias{plot_Ftotal}
 \title{Plot total fishing mortality}
 \usage{
-plot_Ftotal(result, ...)
+plot_Ftotal(result, areas = "all", ...)
 }
 \arguments{
 \item{result}{Simulation result from runProjection}
 
-\item{...}{Additional arguments passed to plot_population_metric}
-
 \item{areas}{Areas to plot ("all" or numeric vector)}
+
+\item{...}{Additional arguments passed to plot_population_metric}
 }
 \description{
 Plot total fishing mortality

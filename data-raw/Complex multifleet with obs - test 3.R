@@ -9,11 +9,11 @@
 # 4. Mixed observation errors
 # 5. Realistic survey timing variations
 
-rm(list=ls())
-devtools::load_all()
-library(ggplot2)
-library(dplyr)
-library(tidyr)
+# rm(list=ls())
+# devtools::load_all()
+# library(ggplot2)
+# library(dplyr)
+# library(tidyr)
 
 # ============================================================================
 # SHARED SETUP FOR ALL TESTS
@@ -50,7 +50,7 @@ ta@title <- "Validation Test"
 ta@gtg <- 13
 ta@areas <- 2
 ta@recArea <- c(0.99, 0.01)
-ta@iterations <- 4
+ta@iterations <- 10
 ta@historicalYears <- 12
 ta@historicalBio <- 0.5
 ta@historicalBioType <- "relB"
@@ -609,7 +609,8 @@ result_complex <- runProjection(
   fileName = "test3_complex_spatial_temporal",
   seed = test_seed,
   doPlot = FALSE,
-  doDiagnostic = FALSE
+  doDiagnostic = FALSE,
+  customToCluster = "complexMP"
 )
 
 cat("Complex simulation completed successfully\n")
@@ -769,98 +770,118 @@ selOut_D_proj<-selWrapper(lh = lhOut, ta, FisheryObj = surveyD_sel_proj, doPlot 
 
 # loading plot fucntion for toher plots
 
-source("fishSimGTG-plot-functions.R")
+# source("fishSimGTG-plot-functions.R")
 
 #obs: need to add units
-plot_SB_both(result_complex)
-plot_SB_area1(result_complex)
-plot_SB_area2(result_complex)
+plot_SB(result_complex)
+plot_SB(result_complex, areas=1)
+plot_SB(result_complex, areas=2)
+plot_SB(result_complex, areas=c(1,2))
 
-plot_VB_both(result_complex)
-plot_VB_area1(result_complex)
-plot_VB_area2(result_complex)
+plot_VB(result_complex)
+plot_VB(result_complex, areas=1)
+plot_VB(result_complex, areas=2)
 
-plot_Ftotal_both(result_complex)
-plot_Ftotal_area1(result_complex)
-plot_Ftotal_area2(result_complex)
+plot_Ftotal(result_complex)
+plot_Ftotal(result_complex, areas=1)
+plot_Ftotal(result_complex, areas=2)
 
 plot_Ftotal_multi(result_complex)
-plot_Ftotal_multi_area1(result_complex)
-plot_Ftotal_multi_area2(result_complex)
+plot_Ftotal_multi(result_complex,areas=1)
+plot_Ftotal_multi(result_complex,areas=2)
 
-plot_catchB_both(result_complex)
-plot_catchB_area1(result_complex)
-plot_catchB_area2(result_complex)
+plot_catchB(result_complex)
+plot_catchB(result_complex,areas=1)
+plot_catchB(result_complex,areas=2)
 
-plot_catchN_both(result_complex)
-plot_catchN_area1(result_complex)
-plot_catchN_area2(result_complex)
+plot_catchN(result_complex)
+plot_catchN(result_complex, areas=1)
+plot_catchN(result_complex, areas=2)
 
-plot_discB_both(result_complex)
-plot_discB_area1(result_complex)
-plot_discB_area2(result_complex)
+plot_discB(result_complex)
+plot_discB(result_complex,areas=1)
+plot_discB(result_complex,areas=2)
 
-plot_discN_both(result_complex)
-plot_discN_area1(result_complex)
-plot_discN_area2(result_complex)
+plot_discN(result_complex)
+plot_discN(result_complex,areas=1)
+plot_discN(result_complex,areas=2)
 
 plot_catchB_multi(result_complex)
-plot_catchB_multi_area1(result_complex)
-plot_catchB_multi_area2(result_complex)
+plot_catchB_multi(result_complex, areas=1)
+plot_catchB_multi(result_complex, areas=2)
 
+plot_catchN_multi(result_complex,show_individual = TRUE)
+plot_catchN_multi(result_complex, areas=1)
+plot_catchN_multi(result_complex, areas=2)
 
 plot_SPR(result_complex)
 plot_recN(result_complex)
 
 
-
-#plot obs models
+#plot obs models (indices)
 plot_survey_indices(result_complex)
 plot_cpue_indices(result_complex)
 
+plot_all_indices(result_complex)
 
-plot_catch_observations_both(result_complex)
-plot_catch_observations_multifleet(result_complex)
+#plot individual indices
+plot_indices(result_complex,
+             index_pattern = "IDX_CPUE.*Fleet_1",
+             show_individual = TRUE,
+             title = "Fleet 1 CPUE Only")
+
+plot_indices(result_complex,
+             index_pattern = "IDX_CPUE.*Fleet_2",
+             show_individual = TRUE,
+             title = "Fleet 2 CPUE Only")
+
+plot_indices(result_complex,
+             index_pattern = "IDX_CPUE.*Fleet_3",
+             show_individual = TRUE,
+             title = "Fleet 3 CPUE Only")
+
+
+
+plot_catch_observations_both(result_complex,show_individual = TRUE)
+plot_catch_observations_multifleet(result_complex,show_individual = TRUE)
 
 
 # plot LC obs models
-# NEW: Area-specific functions
-plot_fishery_length_comp_area1(result_complex)  # Only Area 1
-plot_fishery_length_comp_area2(result_complex)  # Only Area 2
+# NEW: Area-specific functions (median across iterations are dispayed)
+plot_fishery_length_comp(result_complex,show_individual = TRUE)
+plot_fishery_length_comp(result_complex, areas=1,show_individual = TRUE)
+plot_fishery_length_comp(result_complex, areas=2,show_individual = TRUE)
 
-plot_survey_length_comp_area1(result_complex)  # Only Area 1
-plot_survey_length_comp_area2(result_complex)  # Only Area 2
+plot_survey_length_comp(result_complex,show_individual = TRUE)
+plot_survey_length_comp(result_complex, areas=1,show_individual = TRUE)
+plot_survey_length_comp(result_complex, areas=2,show_individual = TRUE)
 
-
-# NEW: Fleet-specific functions
-plot_fishery_length_comp_fleet1(result_complex) # Only Fleet 1
-plot_fishery_length_comp_fleet2(result_complex) # Only Fleet 2
-plot_fishery_length_comp_fleet3(result_complex) # Only Fleet 3
 
 
 # NEW: Custom filtering for fleets and areas
 plot_length_composition_by_area(result_complex,
                                 program_pattern = "LC_Fishery",
                                 area_filter = c(1),    # Specific areas
-                                fleet_filter = c(1))   # Specific fleets
+                                fleet_filter = c(1),
+                                show_individual = TRUE)   # Specific fleets
 
 
 
 plot_length_composition_by_area(result_complex,
                                 program_pattern = "LC_Fishery",
                                 area_filter = c(1,2),    # Specific areas
-                                fleet_filter = c(2))   # Specific fleets
+                                fleet_filter = c(2),
+                                show_individual = TRUE)   # Specific fleets
+
+
+plot_length_composition_by_area(result_complex,
+                                program_pattern = "LC_Survey",
+                                area_filter = c(1,2),    # Specific areas
+                                fleet_filter = c(2),
+                                show_individual = TRUE)   # Specific fleets
 
 
 
-#etc, etc
 
 
-
-
-# # With customization
-plot_indices(result_complex,
-             index_pattern = "IDX_CPUE.*Fleet_1",
-             show_individual = TRUE,
-             title = "Fleet 1 CPUE Only")
 

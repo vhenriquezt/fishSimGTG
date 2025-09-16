@@ -4,14 +4,14 @@
 \alias{plot_VB}
 \title{Plot vulnerable biomass}
 \usage{
-plot_VB(result, ...)
+plot_VB(result, areas = "all", ...)
 }
 \arguments{
 \item{result}{Simulation result from runProjection}
 
-\item{...}{Additional arguments passed to plot_population_metric}
-
 \item{areas}{Areas to plot ("all" or numeric vector)}
+
+\item{...}{Additional arguments passed to plot_population_metric}
 }
 \description{
 Plot vulnerable biomass

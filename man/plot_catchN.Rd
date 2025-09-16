@@ -4,14 +4,14 @@
 \alias{plot_catchN}
 \title{Plot catch numbers}
 \usage{
-plot_catchN(result, ...)
+plot_catchN(result, areas = "all", ...)
 }
 \arguments{
 \item{result}{Simulation result from runProjection}
 
-\item{...}{Additional arguments passed to plot_population_metric}
-
 \item{areas}{Areas to plot ("all" or numeric vector)}
+
+\item{...}{Additional arguments passed to plot_population_metric}
 }
 \description{
 Plot catch numbers

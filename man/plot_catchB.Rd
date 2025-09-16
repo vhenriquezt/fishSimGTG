@@ -4,14 +4,14 @@
 \alias{plot_catchB}
 \title{Plot catch biomass}
 \usage{
-plot_catchB(result, ...)
+plot_catchB(result, areas = "all", ...)
 }
 \arguments{
 \item{result}{Simulation result from runProjection}
 
-\item{...}{Additional arguments passed to plot_population_metric}
-
 \item{areas}{Areas to plot ("all" or numeric vector)}
+
+\item{...}{Additional arguments passed to plot_population_metric}
 }
 \description{
 Plot catch biomass

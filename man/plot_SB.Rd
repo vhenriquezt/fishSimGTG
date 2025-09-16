@@ -4,14 +4,14 @@
 \alias{plot_SB}
 \title{Plot spawning biomass}
 \usage{
-plot_SB(result, ...)
+plot_SB(result, areas = "all", ...)
 }
 \arguments{
 \item{result}{Simulation result from runProjection}
 
-\item{...}{Additional arguments passed to plot_population_metric}
-
 \item{areas}{Areas to plot ("all" or numeric vector)}
+
+\item{...}{Additional arguments passed to plot_population_metric}
 }
 \description{
 Plot spawning biomass

@@ -4,14 +4,14 @@
 \alias{plot_discN}
 \title{Plot dicard catch numbers}
 \usage{
-plot_discN(result, ...)
+plot_discN(result, areas = "all", ...)
 }
 \arguments{
 \item{result}{Simulation result from runProjection}
 
-\item{...}{Additional arguments passed to plot_population_metric}
-
 \item{areas}{Areas to plot ("all" or numeric vector)}
+
+\item{...}{Additional arguments passed to plot_population_metric}
 }
 \description{
 Plot dicard catch numbers
