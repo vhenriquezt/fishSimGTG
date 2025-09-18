@@ -1724,10 +1724,11 @@ recDev<-function(LifeHistoryObj, TimeAreaObj, StochasticObj, StrategyObj = NULL)
 #' @importFrom stats rnorm
 #' @export
 
-histEffortDev<-function(TimeAreaObj, StochasticObj, nfleets = 1){
+histEffortDev<-function(TimeAreaObj, StochasticObj, is_multifleet = FALSE, nfleets = 1){
   if(length(TimeAreaObj@historicalYears) == 0 ||
      length(TimeAreaObj@iterations) == 0 ||
-     TimeAreaObj@iterations < 1
+     TimeAreaObj@iterations < 1 ||
+     nfleets < 1
   ) {
     return(NULL)
   } else {
@@ -1748,13 +1749,24 @@ histEffortDev<-function(TimeAreaObj, StochasticObj, nfleets = 1){
 
     years <- 1 + TimeAreaObj@historicalYears
     areas <- TimeAreaObj@areas
-    #Emult<-array(1:1, dim=c(years, iterations, areas))
-    Emult<-array(1:1, dim=c(years, iterations, areas, nfleets)) # now: include fleet dimension for multifleet support
-    for (k in 1:iterations){
-      #eps<-rnorm(years*areas,0,effortSD[k])
-      eps<-rnorm(years*areas*nfleets, 0, effortSD[k]) #now: include fleet dimension in random number generation
-      #Emult[,k,]<-exp(eps-effortSD[k]*effortSD[k]/2)
-      Emult[,k,,]<-exp(eps-effortSD[k]*effortSD[k]/2)#now: fill a 4D array including fleet dimension
+
+    #Bill edit: let's keep single fleet estimation, then have a second option for nfleet > 2
+    #Single fleet
+    if(!is_multifleet){
+      Emult<-array(1:1, dim=c(years, iterations, areas))
+      for (k in 1:iterations){
+        eps<-rnorm(years*areas,0,effortSD[k])
+        Emult[,k,]<-exp(eps-effortSD[k]*effortSD[k]/2)
+      }
+    }
+
+    #Multi-fleet (adds additional dimension for fleet)
+    if(is_multifleet) {
+      Emult<-array(1:1, dim=c(years, iterations, areas, nfleets)) #Include fleet dimension for multifleet support
+      for (k in 1:iterations){
+        eps<-rnorm(years*areas*nfleets, 0, effortSD[k]) #Include fleet dimension in random number generation
+        Emult[,k,,]<-exp(eps-effortSD[k]*effortSD[k]/2)#now: fill a 4D array including fleet dimension
+      }
     }
     return(list(Emult=Emult))
   }
@@ -2230,9 +2242,6 @@ SurvMat<-function(ageClasses, M_in, F_in, S_in){
   S[ageClasses, ageClasses] <- exp(-M_in-S_in[ageClasses]*F_in)
   return(S)
 }
-
-
-
 
 #-----------------------------------------
 #Move matrix calculations for cohort

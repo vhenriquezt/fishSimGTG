@@ -15,151 +15,37 @@
 # new addition: updated fixedStrategy function for multifleet support
 fixedStrategy<-function(phase, dataObject){
 
+  #Bill edit: re-wrote most of this function
+
   #Unpack dataObject (adding MultifleetObj)
   j <- areas <- k <- TimeAreaObj <- is <- histEffortDev <- MultifleetObj <- NULL
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
-  #new addition: detecting multifleet mode
-  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
-
-  if(is_multifleet) {
-    nfleets <- MultifleetObj@nfleets
-    fleet_proportions <- MultifleetObj@fleet_proportions
-    F_eq_by_fleet <- is$F_by_fleet
-  } else {
-    nfleets <- 1
-    fleet_proportions <- c(1.0)
-    F_eq_by_fleet <- c(is$Feq)
-  }
-
-
   #Booking keeping for year for items in TimeAreaObj
-  # e.g., simulation year j=3 needs historical effort from year yr=2
-  #yr <- j - 1  #the simulation year (starting from 2 in time dynamics) and yr is the index for historical effort arrays (starting from 1)
+  yr <- j - 1
+
 
   if(phase==3){
 
-    # The simulation structure is:
-    # j=1: initial equilibrium (no historical effort)
-    # j=2: historical year 1 (historicalEffort[1,])
-    # j=3: historical year 2 (historicalEffort[2,])
-    # ...
-    # j=11: historical year 10 (historicalEffort[10,])
-    # j=12+: projection years (use management strategy)
-
-    if(j == 1) {
-      # initial equilibrium year - no historical effort applied
-      return(NULL)
-    }
-
-    # check if this is historical period or projection period
-    historical_end <- 1 + TimeAreaObj@historicalYears  # j=11 in this case
-
-    # for historical years (j >= 2), use historical effort
-    #yr <- j - 1  # convert simulation year to historical effort index
-
-    #only process historical years in fixedStrategy
-    if(j <= historical_end) {
-
-      # for historical years (j >= 2), use historical effort
-      yr <- j - 1  # convert simulation year to historical effort index
-
-
-    #debug
-    # cat("=== DEBUG INFO ===\n")
-    # cat("j =", j, "\n")
-    # cat("yr =", yr, "\n")
-    # cat("k =", k, "\n")
-    # cat("areas =", areas, "\n")
-    # cat("TimeAreaObj@historicalYears =", TimeAreaObj@historicalYears, "\n")
-    # cat("dim(TimeAreaObj@historicalEffort) =", dim(TimeAreaObj@historicalEffort), "\n")
-    # cat("dim(histEffortDev) =", dim(histEffortDev), "\n")
-    # cat("is_multifleet =", is_multifleet, "\n")
-    # cat("nfleets =", nfleets, "\n")
-    #
-    # # check if indices are within bounds before accessing
-    # if(yr > TimeAreaObj@historicalYears) {
-    #   cat("ERROR: yr (", yr, ") > historicalYears (", TimeAreaObj@historicalYears, ")\n")
-    # }
-    # if(yr < 1) {
-    #   cat("ERROR: yr (", yr, ") < 1\n")
-    # }
-    #
-    #
-    # # check area bounds in the loop
-    # for(m_check in 1:areas) {
-    #   if(m_check > TimeAreaObj@areas) {
-    #     cat("ERROR: m (", m_check, ") > TimeAreaObj@areas (", TimeAreaObj@areas, ")\n")
-    #   }
-    #   if(m_check < 1) {
-    #     cat("ERROR: m (", m_check, ") < 1\n")
-    #   }
-    # }
-    # cat("==================\n")
-
-
-
-    if(is_multifleet) {
-
+    #Single fleet
+    if(!is_multifleet){
+      #Create a temp data frame of fishing mortalities by area
       Flocal<-data.frame()
+      for (m in 1:areas) Flocal<-rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m]*is$Feq*histEffortDev[j,k,m]))
+      return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],  Flocal=Flocal[,4]))
+    }
 
-      for (m in 1:areas) {
-
-        #cat("Processing area m =", m, "\n")
-
-        #total F for this area (will be distributed among fleets)- this approach for now, for testing
-        total_F_area <- 0
-
-        for(f in 1:nfleets) {
-
-          # new addition: handle both 3D and 4D histEffortDev arrays
-         # if(yr <= TimeAreaObj@historicalYears) {
-          if(length(dim(histEffortDev)) == 4) {
-            effort_dev_value <- histEffortDev[yr + 1, k, m, f]  # +1 because histEffortDev starts at index 1 for year 0
-          } else {
-            effort_dev_value <- histEffortDev[yr + 1, k, m]     # +1 because histEffortDev starts at index 1 for year 0
-          }
-
-          # fleet-specific F calculation
-          F_fleet <- F_eq_by_fleet[f] * TimeAreaObj@historicalEffort[yr,m] * effort_dev_value
-          total_F_area <- total_F_area + F_fleet
-
-          #add fleet-specific row (for tracking purposes)
-          Flocal<-rbind(Flocal, c(j, k, m, f, F_fleet))
+    #Multi-fleet
+    if(is_multifleet){
+      Flocal<-data.frame()
+      for (m in 1:areas){
+        for(f in 1:nfleets){
+          Flocal<-rbind(Flocal, c(j, k, m, f, MultifleetObj@fleet_historicalEffort[yr,m,f]*is$F_by_fleet[f]*histEffortDev[j,k,m,f]))
         }
-        # add total F row (for backward compatibility)
-        Flocal<-rbind(Flocal, c(j, k, m, 0, total_F_area))  # fleet=0 indicates total-  indicates this row contains the total F across all fleets rather than an individual F fleet
       }
-
-      colnames(Flocal) <- c("year", "iteration", "area", "fleet", "Flocal")
-      return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3],
-                  fleet=Flocal[,4], Flocal=Flocal[,5]))
-
-    } else {
-
-    #otherwise continue with original implementation
-    #Create a temp data frame of fishing mortalities by area
-    # fixing single fleet bug - previous issue with 3D and 4D hist effort dev arrays
-    Flocal<-data.frame()
-    for (m in 1:areas) {
-
-      if(length(dim(histEffortDev)) == 4) {
-        effort_dev_value <- histEffortDev[yr + 1, k, m, 1]  # +1 because histEffortDev starts at index 1 for year 0
-      } else {
-        effort_dev_value <- histEffortDev[yr + 1, k, m]     # +1 because histEffortDev starts at index 1 for year 0
-      }
-
-      Flocal <- rbind(Flocal, c(j, k, m, TimeAreaObj@historicalEffort[yr,m] * is$Feq * effort_dev_value))
+      return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3], fleet = Flocal[,4],  Flocal=Flocal[,5]))
     }
-
-    return(list(year=Flocal[,1], iteration=Flocal[,2], area=Flocal[,3], Flocal=Flocal[,4]))
-    }
-
-    } else {
-
-      return(NULL)
   }
-}
 }
 
 #-------------------------------------------------------------------

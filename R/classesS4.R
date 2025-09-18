@@ -394,6 +394,7 @@ setClass("LCompObs",
 #' @param allocation_type Either "effort" or "catch" for equilibrium allocation
 #' @param fleet_selectivity_hist_list List of Fishery objects (length = nfleets)
 #' @param fleet_selectivity_proj_list List of Fishery objects (length = nfleets)
+#' @param fleet_historicalEffort Array of dim(historical years, areas, fleets)
 #' @importFrom methods new
 
 setClass("Multifleet",
@@ -403,6 +404,7 @@ setClass("Multifleet",
            fleet_proportions = "numeric",
            allocation_type = "character",
            fleet_selectivity_hist_list = "list",
-           fleet_selectivity_proj_list = "list"
+           fleet_selectivity_proj_list = "list",
+           fleet_historicalEffort = "array"
          )
 )
