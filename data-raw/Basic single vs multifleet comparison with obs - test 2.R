@@ -51,7 +51,7 @@ ta@title <- "Validation Test"
 ta@gtg <- 13
 ta@areas <- 2
 ta@recArea <- c(0.99, 0.01)
-ta@iterations <- 2
+ta@iterations <- 20
 ta@historicalYears <- 10
 ta@historicalBio <- 0.5
 ta@historicalBioType <- "relB"
@@ -365,7 +365,8 @@ result_single_comp <- runProjection(
   fileName = "test1_single_with_obs",
   seed = test_seed,
   doPlot = FALSE,
-  doDiagnostic = FALSE
+  doDiagnostic = FALSE,
+  customToCluster = "singleCompMP"
 )
 
 cat("Single fleet comprehensive simulation with obs models completed\n")
@@ -505,15 +506,29 @@ multiCompMP <- function(phase, dataObject) {
   }
 
   if(phase == 2) return(list())
-  if(phase == 3) {
-    year <- rep(j, areas)
-    iteration <- rep(k, areas)
-    area <- 1:areas
-    fleet <- rep(0, areas)  # 0 = total F
-    Flocal <- rep(0.10, areas)  # Conservative F
 
-    return(list(year=year, iteration=iteration, area=area,
-                fleet=fleet, Flocal=Flocal))
+  #need to modify phase 3
+  if(phase == 3) {
+
+    #return fleet-specific F values for each area-fleet combination
+    result_data <- data.frame()
+
+    for(area in 1:areas) {
+      for(fleet in 1:nfleets) {
+        result_data <- rbind(result_data, data.frame(
+          year = j,
+          iteration = k,
+          area = area,
+          fleet = fleet,
+          Flocal = 0.05  # Conservative F for testing
+        ))
+      }
+    }
+
+
+
+    return(list(year=result_data$year, iteration=result_data$iteration, area=result_data$area,
+                fleet=result_data$fleet, Flocal=result_data$Flocal))
   }
 }
 
@@ -526,15 +541,29 @@ strategy_multi_comp@projectionParams <- list()
 
 
 # ============================================================================
-# MULTIFLEET (3 FLEETS) OBJECT
+# MULTIFLEET (2 FLEETS) OBJECT
 # ============================================================================
 
-multifleet_3fleet <- new("Multifleet")
-multifleet_3fleet@nfleets <- 2
-multifleet_3fleet@fleet_proportions <- c(0.6, 0.4)
-multifleet_3fleet@allocation_type <- "catch"
-multifleet_3fleet@fleet_selectivity_hist_list <- list(fleet1_sel_hist, fleet2_sel_hist)
-multifleet_3fleet@fleet_selectivity_proj_list <- list(fleet1_sel_proj, fleet2_sel_proj)
+multifleet_2fleet <- new("Multifleet")
+multifleet_2fleet@nfleets <- 2
+multifleet_2fleet@fleet_proportions <- c(0.6, 0.4)
+multifleet_2fleet@allocation_type <- "catch"
+multifleet_2fleet@fleet_selectivity_hist_list <- list(fleet1_sel_hist, fleet2_sel_hist)
+#multifleet_2fleet@fleet_selectivity_proj_list <- list(fleet1_sel_proj, fleet2_sel_proj)
+
+#changing prj sel with the nested structure
+multifleet_2fleet@fleet_selectivity_proj_list <- list(
+  # Area 1 projections - both fleets
+  list(fleet1_sel_proj, fleet2_sel_proj),
+  # Area 2 projections - both fleets
+  list(fleet1_sel_proj, fleet2_sel_proj)
+)
+
+
+#adding the array of fleet historical eefort
+multifleet_2fleet@fleet_historicalEffort <- array(dim = c(ta@historicalYears, ta@areas, 2))
+multifleet_2fleet@fleet_historicalEffort[,,1] <- ta@historicalEffort
+multifleet_2fleet@fleet_historicalEffort[,,2] <- ta@historicalEffort
 
 
 # ============================================================================
@@ -734,7 +763,7 @@ result_multi_comp <- runProjection(
   TimeAreaObj = ta,
   StrategyObj = strategy_multi_comp,
   StochasticObj = stochastic_obj,
-  MultifleetObj = multifleet_3fleet,
+  MultifleetObj = multifleet_2fleet,
   IndexObj = multi_comprehensive_index,
   CatchObsObj = multi_comprehensive_catch,
   LengthCompObj = multi_comprehensive_lcomp,
@@ -742,7 +771,8 @@ result_multi_comp <- runProjection(
   fileName = "test2_multi_comprehensive",
   seed = test_seed,
   doPlot = FALSE,
-  doDiagnostic = FALSE
+  doDiagnostic = FALSE,
+  customToCluster = "multiCompMP"
 )
 cat("Multifleet (2 fleeets) comprehensive simulation completed\n")
 
