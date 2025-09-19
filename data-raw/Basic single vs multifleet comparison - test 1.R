@@ -61,9 +61,6 @@ ta@historicalEffort <- matrix(c(1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6
                               nrow = 10, ncol = 2, byrow = FALSE)
 
 
-#ta@historicalEffort <- matrix(1:1,
- #                             nrow = 10, ncol = 2, byrow = FALSE)
-
 # Stochastic - minimal variation for clear comparison
 stochastic_obj <- new("Stochastic")
 stochastic_obj@historicalBio <- c(0.55, 0.65)
@@ -447,11 +444,9 @@ for(i in 1:length(all_results)) {
 }
 
 #Same selectivity: final_effort_proportions = actual_catch_proportions
-result_multifleet_2A$dynamics$multifleet$final_effort_proportions
 result_multifleet_2A$dynamics$multifleet$actual_catch_proportions
 
 #Different selectivity: final_effort_proportions != actual_catch_proportions
-result_multifleet_2B$dynamics$multifleet$final_effort_proportions
 result_multifleet_2B$dynamics$multifleet$actual_catch_proportions
 
 
@@ -491,11 +486,10 @@ cat("Multifleet (3 fleets) simulation completed\n")
 result_multifleet_3 <- readProjection(getwd(), "test5_multifleet_3_fleets")
 
 result_multifleet_3$dynamics$SB
-result_multifleet_3$dynamics$VB
-#result_multifleet_3$dynamics$Ftotal
+result_multifleet_3$dynamics$multifleet$VB_by_fleet
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet
 
-dim(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet)#[16,2,2,3] #years, iter, area, fleet
+dim(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet)#[11,2,2,3] #years, iter, area, fleet
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,1] #iter 1, area 1, fleet 1
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,2] #iter 1, area 1, fleet 2
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,3] #iter 1, area 1, fleet 3
@@ -513,11 +507,6 @@ Farea1<- apply(cbind(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,
 Farea2<- apply(cbind(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,1],
     result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,2],
     result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,3]),1,sum)
-
-#total F
-#result_multifleet_3$dynamics$Ftotal
-
-cat("Sum of F by fleet = Ftotal\n")
 
 
 # Clean up intermediate files

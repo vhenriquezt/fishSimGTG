@@ -520,7 +520,7 @@ multiCompMP <- function(phase, dataObject) {
           iteration = k,
           area = area,
           fleet = fleet,
-          Flocal = 0.05  # Conservative F for testing
+          Flocal = 0.05  # conservative F for testing
         ))
       }
     }
