@@ -2761,6 +2761,1314 @@ plotIndex_simple <- function(index_result, save_plot = FALSE,
 
 
 
+#' #' Function for integrating observation models
+#' #'
+#' #' @title Function for integrating observation models
+#' #' @param IndexObj A Index object
+#' #' @export
+#'
+#' calculate_single_Index  <- function(dataObject){
+#'   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+#'
+#'   # adding multifleet detection
+#'   is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
+#'
+#'   #adding some multifleet checks early in the code
+#'   #validate required arrays are available in multifleet mode
+#'   # Without these arrays, fleet-specific calculations cannot be performed
+#'   if(is_multifleet) {
+#'     required_arrays <- c("RB_by_fleet", "catchB_by_fleet", "catchN_by_fleet", "Ftotal_by_fleet")
+#'     missing_arrays <- c()
+#'
+#'    #check if each required array exists in the dataObject environment
+#'     for(array_name in required_arrays) {
+#'       if(!exists(array_name)) {
+#'         missing_arrays <- c(missing_arrays, array_name)
+#'       }
+#'     }
+#'
+#'     if(length(missing_arrays) > 0) {
+#'       stop("Multifleet mode requires these arrays: ", paste(missing_arrays, collapse = ", "),
+#'            ". Check that evalMSE() multifleet implementation is complete.")
+#'     }
+#'   }
+#'
+#'   # define the dimensions (to get the structure of the simulation)
+#'   years <- dim(VB)[1]       #total years hist+future
+#'   iterations <- dim(VB)[2]  #total iterations
+#'   total_areas <- dim(VB)[3] #total areas
+#'   historicalYears <- TimeAreaObj@historicalYears #total historical years- before management
+#'   historical_end <- 1 + historicalYears
+#'
+#'   # counts number of individual survey/CPUE programs defined in the design list.
+#'   n_indices <- length(IndexObj@survey_design)
+#'
+#'   if(n_indices == 0) {
+#'     stop("survey_design list must contain at least one survey or CPUE design")
+#'   }
+#'
+#'   # modified validation loop with fleet-specific checks
+#'   #  add validation for each survey/CPUE design
+#'   #  lopp through each individual survey/CPUE design for validation.
+#'   for(index_idx in 1:n_indices) {
+#'     design <- IndexObj@survey_design[[index_idx]] #extracts current survey design from the list (for each index)
+#'
+#'     #DEBUG
+#'     # cat("\n=== LOOP START DEBUG ===\n")
+#'     # cat("Processing index_idx:", index_idx, "\n")
+#'     # cat("design$areas from IndexObj:", paste(IndexObj@survey_design[[index_idx]]$areas, collapse = "_"), "\n")
+#'     # cat("design$areas from variable:", paste(design$areas, collapse = "_"), "\n")
+#'     # if(design$indextype == "FI") {
+#'     #   cat("design$selectivity_hist_idx:", design$selectivity_hist_idx, "\n")
+#'     #   cat("design$survey_timing:", design$survey_timing, "\n")
+#'     # }
+#'     # cat("=========================\n")
+#'
+#'
+#'     # common required elements for surveys/CPUEs
+#'     required_elements <- c("indextype", "areas", "indexYears",
+#'                            "q_hist_bounds", "q_proj_bounds",
+#'                            "hyperstability_hist_bounds", "hyperstability_proj_bounds",
+#'                            "obsError_CV_hist_bounds", "obsError_CV_proj_bounds")
+#'
+#'     # for FI surveys only, selectivity indices and survey_timing are needed
+#'     if("indextype" %in% names(design) && design$indextype == "FI") {
+#'       required_elements <- c(required_elements, "selectivity_hist_idx",
+#'                              "selectivity_proj_idx", "survey_timing")
+#'     }
+#'
+#'     #for FD in multifleet, require fleet_id
+#'     if(design$indextype == "FD" && is_multifleet) {
+#'       required_elements <- c(required_elements, "fleet_id")
+#'     }
+#'
+#'     # check the required elements are available
+#'     if(!all(required_elements %in% names(design))) { # check if required element exist
+#'       missing <- required_elements[!required_elements %in% names(design)]   # identify what element is misssing
+#'       stop(paste("Survey design", index_idx, "missing elements:", paste(missing, collapse = ", ")))
+#'     }
+#'
+#'     # validate fleet_id if present
+#'     if(design$indextype == "FD" && is_multifleet) {
+#'       fleet_id <- design$fleet_id
+#'       nfleets <- MultifleetObj@nfleets
+#'       if(!is.numeric(fleet_id) || length(fleet_id) != 1 || fleet_id < 1 || fleet_id > nfleets) {
+#'         stop(paste("Survey design", index_idx, ": fleet_id must be between 1 and", nfleets))
+#'       }
+#'     }
+#'
+#'     # prevent FI indices from having fleet_id
+#'     # FI indices are independent of fleets by definition
+#'     if(design$indextype == "FI" && "fleet_id" %in% names(design)) {
+#'       stop(paste("Survey design", index_idx, ": FI indices cannot have fleet_id"))
+#'     }
+#'
+#'
+#'     # validate indextype -standard validation continues...
+#'     if(!design$indextype %in% c("FD", "FI")) {
+#'       stop(paste("Survey design", index_idx, ": indextype must be 'FD' or 'FI'"))
+#'     }
+#'
+#'
+#'     # validation of n areas
+#'     if(any(design$areas > total_areas)) {
+#'       stop(paste("Survey design", index_idx, ": areas exceed total areas in simulation"))
+#'     }
+#'
+#'     # validation of parameter bounds (each should be vector of length 2)
+#'     param_bounds <- c("q_hist_bounds", "q_proj_bounds",
+#'                       "hyperstability_hist_bounds", "hyperstability_proj_bounds",
+#'                       "obsError_CV_hist_bounds", "obsError_CV_proj_bounds")
+#'
+#'     for(param in param_bounds) {
+#'       if(length(design[[param]]) != 2 || design[[param]][2] < design[[param]][1]) {
+#'         stop(paste("Survey design", index_idx, ":", param, "must be vector [min, max] with max >= min"))
+#'       }
+#'     }
+#'
+#'     # validate survey_timing for FI surveys
+#'     if(design$indextype == "FI") {
+#'       if(!is.numeric(design$survey_timing) || length(design$survey_timing) != 1 ||
+#'          design$survey_timing < 0 || design$survey_timing > 1) {
+#'         stop(paste("Survey design", index_idx, ": survey_timing must be a single value between 0 and 1"))
+#'       }
+#'     }
+#'
+#'     # for FI surveys: validation of selectivity
+#'     # validates that selectivity indices do not exceed available selectivity objects
+#'     if(design$indextype == "FI") {
+#'       if(design$selectivity_hist_idx > length(IndexObj@selectivity_hist_list)) {
+#'         stop(paste("Survey design", index_idx, ": selectivity_hist_idx exceeds available selectivity objects"))
+#'       }
+#'       if(design$selectivity_proj_idx > length(IndexObj@selectivity_proj_list)) {
+#'         stop(paste("Survey design", index_idx, ": selectivity_proj_idx exceeds available selectivity objects"))
+#'       }
+#'     }
+#'   } # close loop for specific surveys/CPUE validations
+#'
+#'
+#'   # determine final index type (FD, FI, or Mixed) with multifleet awareness
+#'   actual_types <- unique(sapply(IndexObj@survey_design, function(d) d$indextype))
+#'   if(length(actual_types) == 1) {
+#'     final_indextype <- actual_types[1]
+#'   } else {
+#'     final_indextype <- "Mixed"
+#'   }
+#'
+#'   # Creating the tibble
+#'   # save the tibble in observation_return
+#'   # each element are the columns of the tibble - creating one row at a time
+#'   observation_return <- tibble::tibble(
+#'     k = k,                              # current iter
+#'     j = j,                              # current year
+#'     indexID = IndexObj@indexID,         # index identifier
+#'     title = IndexObj@title,             # index title
+#'     final_indextype = final_indextype,  # "FD", "FI", or "Mixed"
+#'     useWeight = IndexObj@useWeight,     # TRUE=biomass, FALSE=numbers
+#'     n_indices = n_indices,              # number of indices in this index object
+#'     years_total = years,                # total years in simulation
+#'     iterations_total = iterations,      # total iterations in simulation
+#'     areas_total = total_areas,          # total areas in simulation
+#'     historical_end = historical_end,     # end of historical period
+#'
+#'     #New addition (adding multifleet metadata):
+#'     is_multifleet = is_multifleet,              # does simulation uses multifleet?
+#'     nfleets = if(is_multifleet) MultifleetObj@nfleets else 1  # number of fleets
+#'   )
+#'
+#'
+#'   # add the main loop through survey / CPUE individually
+#'
+#'   for(index_idx in 1:n_indices) {
+#'     design <- IndexObj@survey_design[[index_idx]]  #extract current index design
+#'
+#'     #NEW - adding:
+#'     # extract fleet_id for FD indices in multifleet mode
+#'     # fleet_id is NA for FI indices or single fleet mode
+#'     fleet_id <- if("fleet_id" %in% names(design)) design$fleet_id else NA
+#'
+#'     # what are we processing - Improvin progress reporting
+#'     if(design$indextype == "FD" && is_multifleet) {
+#'       cat(paste("Processing Fleet", fleet_id, "CPUE", index_idx,
+#'                 "- Areas:", paste(design$areas, collapse = ","), "\n"))
+#'     } else {
+#'       cat(paste("Processing", ifelse(design$indextype == "FI", "Survey", "CPUE"), index_idx,
+#'                 "- Areas:", paste(design$areas, collapse = ","), "\n"))
+#'     }
+#'
+#'
+#'
+#'     # create selectivity based on the data type "FD" or "FI"
+#'     # this section determines which  selectivity to use for calculating indices
+#'     # in different time periods
+#'
+#'     # historical period
+#'     # creates historical period selectivity using fishSimGTG's historical fishery object
+#'
+#'     #NEW addition (double check)
+#'     if(design$indextype == "FI") {
+#'       # FI: use survey selectivity (unchanged)
+#'       # extracts selectivity objects from provided lists and creates selectivity using sel wrappers
+#'       hist_selectivity_obj <- IndexObj@selectivity_hist_list[[design$selectivity_hist_idx]]
+#'       proj_selectivity_obj <- IndexObj@selectivity_proj_list[[design$selectivity_proj_idx]]
+#'
+#'       index_selectivity_hist <- selWrapper(lh, TimeAreaObj,
+#'                                            FisheryObj = hist_selectivity_obj,
+#'                                            doPlot = FALSE)$vul
+#'
+#'       index_selectivity_proj <- selWrapper(lh, TimeAreaObj,
+#'                                            FisheryObj = proj_selectivity_obj,
+#'                                            doPlot = FALSE)
+#'     }
+#'
+#'     #check if CPUE data exists in this year
+#'     #only calculates CPUE/Surveys for years where data is collected
+#'     if((j-1) %in% design$indexYears) {
+#'
+#'       # Create a branch to account for index covering (sampling) only one area
+#'       # or covering multiple areas
+#'
+#'       # same patern as LC
+#'       # checks if this survey/CPUE covers one area or multiple areas
+#'       # unchanged for single area
+#'       if(length(design$areas) == 1) {
+#'         area <- design$areas[1] # if single area (e.g., c(1)): extract value for that area
+#'
+#'         # get the precalc data for this single area
+#'         if(IndexObj@useWeight && design$indextype == "FD") {
+#'
+#'           # for CPUE biomass: get retained biomass from this area
+#'           # MULTIFLEET MODE: extract fleet-specific retained biomass
+#'           # uses 4D array RB_by_fleet[year, iteration, area, fleet]
+#'           if(is_multifleet) {
+#'           area_value <- RB_by_fleet[j, k, area, fleet_id]  # Fleet-specific retained biomass
+#'           } else {
+#'
+#'           #Original: aggregated retained biomass across all fleets
+#'           #For CPUE biomass: get VB from this area
+#'           area_value <- RB[j, k, area] #directly extracts vulnerable biomass from simulation results
+#'           }
+#'           } else {
+#'
+#'           #Number data calcs: Manual calculation from N arrays
+#'           #manually calculates by applying selectivity to N arrays
+#'           #and summing across GTGs.
+#'           area_value <- 0           # starts with zero and accumulate
+#'           # get selectivity
+#'           # chose selectivity based on:
+#'           # time period: historical vs projection
+#'           # data type: FD (fishery) vs FI (survey)
+#'           # area: For FD in proj, each area might have different fishing sel
+#'
+#'           if(j <= historical_end) {
+#'             if(design$indextype == "FD") {
+#'               if(is_multifleet) {
+#'               # MULTIFLEET MODE: selHist[[area]][[fleet]]$keep
+#'                 selectivity <- selHist[[area]][[fleet_id]]$keep
+#'               } else {
+#'                 selectivity <- selHist[[area]]$keep  #fixed
+#'             }
+#'               }else {
+#'               # For FI, use pre-created survey selectivity
+#'               selectivity <- index_selectivity_hist
+#'             }
+#'           } else {
+#'
+#'             if(design$indextype == "FD") {
+#'               if(is_multifleet) {
+#'                 # MULTIFLEET MODE: selPro[[area]][[fleet]]$keep
+#'                 selectivity <- selPro[[area]][[fleet_id]]$keep
+#'               } else {
+#'                 # SINGLE FLEET MODE: selPro[[area]]$keep
+#'                 selectivity <- selPro[[area]]$keep
+#'               }
+#'             } else {
+#'               # FI INDICES: use pre-created survey selectivity
+#'               selectivity <- index_selectivity_proj$vul
+#'             }
+#'           }
+#'
+#'           # sum across GTGs for this single area (retained numbers)
+#'           for(gtg in 1:lh$gtg) {
+#'             N_gtg_area <- N[[gtg]][, j, area]
+#'
+#'             # introducing survey timing correction here
+#'             if(design$indextype == "FI") {
+#'               survey_timing <- design$survey_timing
+#'               timing_correction <- exp(-Z[[gtg]][, j, area] * survey_timing)
+#'               N_gtg_area <- N_gtg_area * timing_correction
+#'             }
+#'
+#'             # calculating contribution from this GTG
+#'             if(IndexObj@useWeight) {
+#'               survey_calc <- sum(N_gtg_area * selectivity[[gtg]] * lh$W[[gtg]])
+#'             } else {
+#'               survey_calc <- sum(N_gtg_area * selectivity[[gtg]])
+#'             }
+#'             area_value <- area_value + survey_calc
+#'           }
+#'         }
+#'
+#'       } else {
+#'         # Here multiarea starts
+#'         # For multi-area data collection: Sum data across multiple areas
+#'         # Same approach used in length composition obs models: rowSums(true_length_array[, year, design$areas])
+#'
+#'         if(IndexObj@useWeight && design$indextype == "FD") {
+#'           # NEW addition: For CPUE biomass across multiple areas
+#'           if(is_multifleet) {
+#'             # MULTIFLEET MODE: Sum fleet-specific RB across specified areas
+#'             # This maintains fleet specificity while allowing multi-area indices
+#'             area_value <- sum(RB_by_fleet[j, k, design$areas, fleet_id])  # sum fleet-specific RB across areas
+#'           } else {
+#'           # Original- SINGLE FLEET MODE: Sum VB across all specified areas - like rowSums() in length composition
+#'           # Sum aggregated RB across areas (backward compatibility)
+#'             area_value <- sum(RB[j, k, design$areas])
+#'           }
+#'
+#'         } else {
+#'           # sum calculated values across all specified areas
+#'           area_value <- 0
+#'
+#'           # loop through each area and sum their contributions
+#'           for(area in design$areas) {
+#'             # get area-specific selectivity for this time period
+#'             if(j <= historical_end) {
+#'               if(design$indextype == "FD") {
+#'                 if(is_multifleet) {
+#'                 #MULTIFLEET MODE: use selHist[[area]][[fleet]]$keep
+#'                 selectivity <- selHist[[area]][[fleet_id]]$keep
+#'                 } else {
+#'                 #SINGLE FLEET MODE: selHist[[area]]$keep
+#'                 selectivity <- selHist[[area]]$keep
+#'                 }
+#'                 } else {
+#'                 # for FI: Use pre-created survey selectivity
+#'                 selectivity <- index_selectivity_hist
+#'                 }
+#'             } else {
+#'               if(design$indextype == "FD") {
+#'                 if(is_multifleet) {
+#'                   # MULTIFLEET MODE: use selPro[[area]][[fleet]]$keep
+#'                   selectivity <- selPro[[area]][[fleet_id]]$keep
+#'                 } else {
+#'                   # SINGLE FLEET MODE: use selPro[[area]]$keep
+#'                   selectivity <- selPro[[area]]$keep
+#'                 }
+#'               } else {
+#'                 # FI INDICES: same selectivity for all areas this survey covers
+#'                 selectivity <- index_selectivity_proj$vul
+#'               }
+#'             }
+#'
+#'             # calculate contribution from this area
+#'             area_contribution <- 0
+#'             for(gtg in 1:lh$gtg) {
+#'               N_gtg_area <- N[[gtg]][, j, area]
+#'
+#'               # applying survey correction
+#'               if(design$indextype == "FI") {
+#'                 survey_timing <- design$survey_timing
+#'                 timing_correction <- exp(-Z[[gtg]][, j, area] * survey_timing)
+#'                 N_gtg_area <- N_gtg_area * timing_correction
+#'               }
+#'
+#'               #calculate contribution from this GTG in this area
+#'
+#'               if(IndexObj@useWeight) {
+#'                 survey_calc <- sum(N_gtg_area * selectivity[[gtg]] * lh$W[[gtg]])
+#'               } else {
+#'                 survey_calc <- sum(N_gtg_area * selectivity[[gtg]])
+#'               }
+#'               area_contribution <- area_contribution + survey_calc
+#'             }
+#'             # add this area contribution to the total (like i did in lc)
+#'             area_value <- area_value + area_contribution
+#'           }
+#'         }
+#'       }
+#'
+#'       # get index specific parameters with bounds
+#'       # Whether the index covers 1 area or multiple areas, it has ONE set of parameters
+#'
+#'       # Sample parameters based on historical vs projection period
+#'       if(j <= historical_end) {
+#'
+#'         q_area_year <- runif(1,
+#'                              min = design$q_hist_bounds[1],
+#'                              max = design$q_hist_bounds[2])
+#'
+#'
+#'         hyperstability_area <- runif(1,
+#'                                      min = design$hyperstability_hist_bounds[1],
+#'                                      max = design$hyperstability_hist_bounds[2])
+#'
+#'         obs_CV <- runif(1,
+#'                         min = design$obsError_CV_hist_bounds[1],
+#'                         max = design$obsError_CV_hist_bounds[2])
+#'
+#'
+#'
+#'       } else {
+#'         # Projection
+#'         q_area_year <- runif(1,
+#'                              min = design$q_proj_bounds[1],
+#'                              max = design$q_proj_bounds[2])
+#'
+#'         hyperstability_area <- runif(1,
+#'                                      min = design$hyperstability_proj_bounds[1],
+#'                                      max = design$hyperstability_proj_bounds[2])
+#'
+#'         obs_CV <- runif(1,
+#'                         min = design$obsError_CV_proj_bounds[1],
+#'                         max = design$obsError_CV_proj_bounds[2])
+#'       }
+#'
+#'       #apply the observation model to the area_value (which is either single area value or sum of multiple areas)
+#'
+#'       if(hyperstability_area != 1) {
+#'         index_value <- q_area_year * (area_value^hyperstability_area)
+#'       } else {
+#'         index_value <- q_area_year*area_value
+#'       }
+#'
+#'       #add observation error with bias correction
+#'       if(obs_CV > 0) {
+#'         obs_error <- exp(rnorm(1, mean = 0, sd = obs_CV) - 0.5 * obs_CV^2)
+#'         index_value <- index_value * obs_error
+#'       }
+#'
+#'
+#'       #New adding: fleet-specific column naming for FD indices in multifleet mode
+#'       if(design$indextype == "FD" && is_multifleet) {
+#'         #fleet-specific naming for multifleet FD indices
+#'         index_name <- paste0("IDX_CPUE_", index_idx, "_Fleet_", fleet_id)
+#'       } else {
+#'         # original naming
+#'         index_name <- paste0("IDX_", ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
+#'       }
+#'       #debugging code
+#'       # cat("\n=== DEBUG INFO (HAS OBSERVATION) ===\n")
+#'       # cat("Index:", index_idx, "Name:", index_name, "\n")
+#'       # cat("design$areas:", design$areas, "\n")
+#'       # cat("paste result:", paste(design$areas, collapse = "_"), "\n")
+#'
+#'
+#'         # Adding more columns to the tibble
+#'         # add to the tibble with appropriate column name (create column name like "CPUE_1" or "Survey_2")
+#'
+#'       observation_return[[index_name]] <- index_value  # add the new column to the tibble
+#'
+#'       # Add individual index columns (from the original results_list)
+#'       observation_return[[paste0(index_name, "_indextype")]] <- design$indextype
+#'
+#'       #Debug
+#'       # cat("CRITICAL DEBUG - About to store areas for", index_name, "\n")
+#'       # cat("design$indextype:", design$indextype, "\n")
+#'       # cat("design$areas:", design$areas, "\n")
+#'       # cat("index_idx:", index_idx, "\n")
+#'
+#'
+#'
+#'       observation_return[[paste0(index_name, "_areas")]] <- paste(design$areas, collapse = "_")
+#'       cat("Actually stored:", observation_return[[paste0(index_name, "_areas")]], "\n")
+#'       cat("----\n")
+#'
+#'       observation_return[[paste0(index_name, "_indexYears")]] <- paste(design$indexYears, collapse = "_")
+#'
+#'       # NEW addition: adding fleet metadata
+#'       if(design$indextype == "FD" && is_multifleet) {
+#'         observation_return[[paste0(index_name, "_fleet_id")]] <- fleet_id
+#'       } else {
+#'         observation_return[[paste0(index_name, "_fleet_id")]] <- NA
+#'       }
+#'
+#'       observation_return[[paste0(index_name, "_survey_timing")]] <- if(design$indextype == "FI") design$survey_timing else NA
+#'       observation_return[[paste0(index_name, "_selectivity_hist_idx")]] <- if(design$indextype == "FI") design$selectivity_hist_idx else NA
+#'       observation_return[[paste0(index_name, "_selectivity_proj_idx")]] <- if(design$indextype == "FI") design$selectivity_proj_idx else NA
+#'     } else {
+#'
+#'       # For the years with no obervation (set to NA but still include) (see if(j %in% design$indexYears))
+#'
+#'       # NEW addition: Apply same fleet-aware naming for NA cases
+#'       if(design$indextype == "FD" && is_multifleet) {
+#'         index_name <- paste0("IDX_CPUE_", index_idx, "_Fleet_", fleet_id)
+#'       } else {
+#'         index_name <- paste0("IDX_", ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
+#'       }
+#'
+#'       #debugging code
+#'       # cat("\n=== DEBUG INFO (NO OBSERVATION) ===\n")
+#'       # cat("Index:", index_idx, "Name:", index_name, "\n")
+#'       # cat("design$areas:", design$areas, "\n")
+#'       # cat("paste result:", paste(design$areas, collapse = "_"), "\n")
+#'
+#'       #index_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "CPUE_"), index_idx)
+#'       observation_return[[index_name]] <- NA
+#'       observation_return[[paste0(index_name, "_indextype")]] <- design$indextype
+#'       #debug
+#'       # cat("CRITICAL DEBUG - About to store areas for", index_name, "(NO OBS)\n")
+#'       # cat("design$indextype:", design$indextype, "\n")
+#'       # cat("design$areas:", design$areas, "\n")
+#'       # cat("index_idx:", index_idx, "\n")
+#'
+#'
+#'
+#'
+#'       observation_return[[paste0(index_name, "_areas")]] <- paste(design$areas, collapse = "_")
+#'       #debugging
+#'       # cat("Actually stored:", observation_return[[paste0(index_name, "_areas")]], "\n")
+#'       # cat("----\n")
+#'       #
+#'       # cat("FINAL CHECK - Actually stored in tibble:", observation_return[[paste0(index_name, "_areas")]], "\n")
+#'       observation_return[[paste0(index_name, "_indexYears")]] <- paste(design$indexYears, collapse = "_")
+#'
+#'       # NEW addition: Add fleet metadata for NA cases
+#'       if(design$indextype == "FD" && is_multifleet) {
+#'         observation_return[[paste0(index_name, "_fleet_id")]] <- fleet_id
+#'       } else {
+#'         observation_return[[paste0(index_name, "_fleet_id")]] <- NA
+#'       }
+#'
+#'
+#'       observation_return[[paste0(index_name, "_survey_timing")]] <- if(design$indextype == "FI") design$survey_timing else NA
+#'       observation_return[[paste0(index_name, "_selectivity_hist_idx")]] <- if(design$indextype == "FI") design$selectivity_hist_idx else NA
+#'       observation_return[[paste0(index_name, "_selectivity_proj_idx")]] <- if(design$indextype == "FI") design$selectivity_proj_idx else NA
+#'     }
+#'   }
+#'
+#'   #debugginng index area idx issue
+#'   # if(j %in% c(2, 3, 5, 8)) {  # Check a few different years
+#'   #   cat("YEAR", j-1, "- Survey_3_areas being returned:", observation_return$Survey_3_areas, "\n")
+#'   #   cat("YEAR", j-1, "- class:", class(observation_return$Survey_3_areas), "\n")
+#'   #   cat("YEAR", j-1, "- Survey_3_indextype:", observation_return$Survey_3_indextype, "\n")
+#'   # }
+#'
+#'   # ensure consistent column ordering (to check the bug)
+#'   # expected_cols <- c("k", "j", "indexID", "title", "final_indextype", "useWeight",
+#'   #                    "n_indices", "years_total", "iterations_total", "areas_total",
+#'   #                    "historical_end", "is_multifleet", "nfleets")
+#'   #
+#'   # observation_return <- observation_return[, c(expected_cols,
+#'   #                                              setdiff(names(observation_return), expected_cols))]
+#'
+#'   return(observation_return)
+#' } # close the fucntion
+#'
+#'
+#' #' Function for integrating observation models
+#' #'
+#' #' @title Function for integrating catch observation models
+#' #' @param CatchObsObj A Catch observation model object
+#' #' @export
+#'
+#' calculate_single_CatchObs <- function(dataObject) {
+#'   # Unpack dataObject (a list containing all needed data)
+#'   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+#'
+#'   # Detect multifleet mode
+#'   is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
+#'
+#'   #debugging code
+#'   # cat("=== DEBUG CATCH OBS ===\n")
+#'   # cat("is_multifleet:", is_multifleet, "\n")
+#'   # cat("fleet_configs in slotNames:", "fleet_configs" %in% slotNames(CatchObsObj), "\n")
+#'   # cat("fleet_configs length:", length(CatchObsObj@fleet_configs), "\n")
+#'   # cat("class(CatchObsObj):", class(CatchObsObj), "\n")
+#'   # cat("slotNames(CatchObsObj):", paste(slotNames(CatchObsObj), collapse = ", "), "\n")
+#'   # if(length(CatchObsObj@fleet_configs) > 0) {
+#'   #   cat("First fleet_config fleet_id:", CatchObsObj@fleet_configs[[1]]$fleet_id, "\n")
+#'   # }
+#'   # cat("=====================\n")
+#'
+#'
+#'
+#'
+#'
+#'   #dimensions
+#'   years <- dim(catchB)[1]
+#'   iterations <- dim(catchB)[2]
+#'   historicalYears <- TimeAreaObj@historicalYears
+#'   historical_end <- 1 + historicalYears
+#'   end_proj <- years
+#'
+#'    #validate multifleet arrays when needed
+#'   if(is_multifleet) {
+#'     required_arrays <- c("catchB_by_fleet")
+#'     missing_arrays <- c()
+#'
+#'     for(array_name in required_arrays) {
+#'       if(!exists(array_name)) {
+#'         missing_arrays <- c(missing_arrays, array_name)
+#'       }
+#'     }
+#'
+#'     if(length(missing_arrays) > 0) {
+#'       stop("Multifleet mode requires these arrays: ", paste(missing_arrays, collapse = ", "))
+#'     }
+#'   }
+#'
+#'   # initialize the outputs in a tibble
+#'   obs_catch_return <- tibble::tibble(
+#'     k = k,
+#'     j = j,
+#'     catchID = CatchObsObj@catchID,
+#'     total_years = years,
+#'     total_iterations = iterations,
+#'     historical_years = historicalYears,
+#'     end_hist = historical_end,
+#'     end_proj = end_proj,
+#'     period = ifelse(j <= historical_end, "Historical", "Projection"),
+#'     # NEW: Add multifleet metadata
+#'     is_multifleet = is_multifleet,
+#'     nfleets = if(is_multifleet) MultifleetObj@nfleets else 1
+#'   )
+#'
+#'
+#'
+#'   ########################################################################
+#'   #changing this section
+#'   # Determine if any fleet or the global config has data for this year
+#'   has_catch_data <- FALSE
+#'
+#'   if(is_multifleet && length(CatchObsObj@fleet_configs) > 0) {
+#'     #multifleet mode: check if any fleet has data for this year
+#'     for(config in CatchObsObj@fleet_configs) {
+#'       if((j-1) %in% config$catchYears) {
+#'         has_catch_data <- TRUE
+#'         break
+#'       }
+#'     }
+#'     cat("Multifleet catch check for year", j-1, ":", has_catch_data, "\n")
+#'   } else {
+#'     #single fleet mode: use global catchYears
+#'     has_catch_data <- (j-1) %in% CatchObsObj@catchYears
+#'     cat("Single fleet catch check for year", j-1, ":", has_catch_data, "\n")
+#'   }
+#'
+#'   if(has_catch_data) {
+#'     #process observations based on mode
+#'     if(is_multifleet && "fleet_configs" %in% slotNames(CatchObsObj) &&
+#'        length(CatchObsObj@fleet_configs) > 0) {
+#'
+#'       # MULTIFLEET MODE: Process each fleet
+#'       result <- process_multifleet_catch_obs(CatchObsObj, catchB_by_fleet,
+#'                                                    j, k, obs_catch_return)
+#'
+#'     } else {
+#'       # SINGLE FLEET MODE: Original behavior (backward compatibility)
+#'       catch_year_position <- which(CatchObsObj@catchYears == (j-1))
+#'
+#'       result <- process_single_fleet_catch_obs(CatchObsObj, catch_year_position,
+#'                                                      catchB, j, k, obs_catch_return)
+#'     }
+#'
+#'     return(result)
+#'
+#'   } else {
+#'     #no observation this year - set to NA with CONSISTENT structure
+#'     if(is_multifleet && "fleet_configs" %in% slotNames(CatchObsObj) &&
+#'        length(CatchObsObj@fleet_configs) > 0) {
+#'
+#'       result <- set_multifleet_nas(CatchObsObj, obs_catch_return)
+#'     } else {
+#'       result <- set_single_fleet_nas(CatchObsObj, obs_catch_return)
+#'     }
+#'
+#'     return(result)
+#'   }
+#' }
+#'
+#' #Fixed
+#' #now calling the helper function for multifleet catch observations
+#' process_multifleet_catch_obs <- function(CatchObsObj, catchB_by_fleet,
+#'                                          j, k, obs_catch_return) {
+#'
+#'   #debugging code
+#'   # cat("=== MULTIFLEET CATCH PROCESSING ===\n")
+#'   # cat("j (simulation year):", j, "\n")
+#'   # cat("k (iteration):", k, "\n")
+#'   # cat("Looking for year (j-1) =", j-1, "\n")
+#'   # cat("catchB_by_fleet dimensions:", dim(catchB_by_fleet), "\n")
+#'
+#'   #process each fleet configuration
+#'   total_true_catch <- 0
+#'   total_observed_catch <- 0
+#'   n_fleets_with_data <- 0
+#'
+#'
+#'   #process each fleet configuration
+#'   for(config_idx in 1:length(CatchObsObj@fleet_configs)) {
+#'     config <- CatchObsObj@fleet_configs[[config_idx]]
+#'
+#'     fleet_id <- config$fleet_id
+#'     areas_list <- config$areas
+#'
+#'     cat("Processing Fleet", fleet_id, "\n")
+#'     cat("  Fleet catchYears (first 5):", paste(head(config$catchYears, 5), collapse=", "), "\n")
+#'     cat("  Is (j-1) in fleet catchYears?", (j-1) %in% config$catchYears, "\n")
+#'
+#'     # Check if this fleet has data for this year (CRITICAL)
+#'     if(!((j-1) %in% config$catchYears)) {
+#'       cat("  SKIP: Fleet", fleet_id, "has no data for year", j-1, "\n")
+#'
+#'       #set NA values for this fleet
+#'       obs_catch_return <- set_fleet_na_columns(obs_catch_return, fleet_id, areas_list)
+#'       next
+#'     }
+#'
+#'     n_fleets_with_data <- n_fleets_with_data + 1
+#'
+#'     #calculate fleet-specific catch_year_position
+#'     fleet_catch_year_position <- which(config$catchYears == (j-1))
+#'
+#'     #get fleet-specific parameters for this year (fixed)
+#'     R_t <- config$reporting_rates[fleet_catch_year_position]
+#'
+#'     #fleet-specific CV bounds
+#'     cv_min <- config$obs_CVs[fleet_catch_year_position, 1]
+#'     cv_max <- config$obs_CVs[fleet_catch_year_position, 2]
+#'
+#'     #generate INDEPENDENT observation error for this fleet-area combination
+#'     obs_CV <- runif(1, min = cv_min, max = cv_max)
+#'     obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
+#'
+#'     #calculate fleet-specific catches by area
+#'     n_areas <- length(areas_list)
+#'     true_catch_by_area <- numeric(n_areas)
+#'     catch_with_reporting_by_area <- numeric(n_areas)
+#'     observed_catch_by_area <- numeric(n_areas)
+#'
+#'     for(i in 1:n_areas) {
+#'       area_id <- areas_list[i]
+#'
+#'       #extract fleet-specific catch from 4D array [year, iteration, area, fleet]
+#'       true_catch_by_area[i] <- catchB_by_fleet[j, k, area_id, fleet_id]
+#'       catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
+#'       observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
+#'
+#'       cat("  Area", area_id, "true catch:", true_catch_by_area[i], "\n")
+#'     }
+#'
+#'     #add fleet-specific columns with consistent names
+#'     #adding fleet-specific columns to tibble
+#'     fleet_prefix <- paste0("fleet_", fleet_id)
+#'
+#'     obs_catch_return[[paste0(fleet_prefix, "_true_catch")]] <- sum(true_catch_by_area)
+#'     obs_catch_return[[paste0(fleet_prefix, "_R_t")]] <- R_t
+#'     #obs_catch_return[[paste0(fleet_prefix, "_catch_with_reporting")]] <- sum(catch_with_reporting_by_area)
+#'     obs_catch_return[[paste0(fleet_prefix, "_cv_min")]] <- cv_min
+#'     obs_catch_return[[paste0(fleet_prefix, "_cv_max")]] <- cv_max
+#'     obs_catch_return[[paste0(fleet_prefix, "_obs_CV")]] <- obs_CV
+#'     obs_catch_return[[paste0(fleet_prefix, "_observed_catch")]] <- sum(observed_catch_by_area)
+#'     obs_catch_return[[paste0(fleet_prefix, "_n_areas")]] <- n_areas
+#'     obs_catch_return[[paste0(fleet_prefix, "_areas_included")]] <- paste(areas_list, collapse = "_")
+#'
+#'     #add fleet-area specific columns
+#'     for(i in 1:n_areas) {
+#'       area_id <- areas_list[i]
+#'       obs_catch_return[[paste0(fleet_prefix, "_true_catch_area_", area_id)]] <- true_catch_by_area[i]
+#'       #obs_catch_return[[paste0(fleet_prefix, "_catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
+#'       obs_catch_return[[paste0(fleet_prefix, "_observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
+#'     }
+#'
+#'     cat(" SUCCESS: Fleet", fleet_id, "total observed catch:", sum(observed_catch_by_area), "\n")
+#'
+#'     #accumulate totals
+#'     total_true_catch <- total_true_catch + sum(true_catch_by_area)
+#'     total_observed_catch <- total_observed_catch + sum(observed_catch_by_area)
+#'   }
+#'   #add aggregated totals (for backward compatibility)
+#'   obs_catch_return$total_true_catch <- total_true_catch
+#'   obs_catch_return$total_observed_catch <- total_observed_catch
+#'   obs_catch_return$n_fleet_configs <- length(CatchObsObj@fleet_configs)
+#'   obs_catch_return$n_fleets_with_data <- n_fleets_with_data
+#'
+#'   cat("TOTAL across all fleets - True:", total_true_catch, "Observed:", total_observed_catch, "\n")
+#'   cat("===================================\n")
+#'
+#'   return(obs_catch_return)
+#' }
+#'
+#'
+#' #fixing Helper function for single fleet catch observations
+#'
+#' # Helper function for single fleet catch observations
+#' process_single_fleet_catch_obs <- function(CatchObsObj, catch_year_position,
+#'                                            catchB, j, k, obs_catch_return) {
+#'
+#'     # Continue with original single fleet logic
+#'     # reporting rate for each year (to simulate over reporitng or under reporting)
+#'     R_t <- CatchObsObj@reporting_rates[catch_year_position]
+#'
+#'     # CV obs bounds for this year and sample a CV value for each iteration
+#'     if(nrow(CatchObsObj@obs_CVs) >= catch_year_position && ncol(CatchObsObj@obs_CVs) == 2) {
+#'       cv_min <- CatchObsObj@obs_CVs[catch_year_position, 1]
+#'       cv_max <- CatchObsObj@obs_CVs[catch_year_position, 2]
+#'       obs_CV <- runif(1, min = cv_min, max = cv_max)
+#'     } else {
+#'       stop(paste("obs_CVs matrix must have 2 columns (min, max) and at least", length(CatchObsObj@catchYears), "rows"))
+#'     }
+#'
+#'
+#'     # apply  lognormal error with bias correction
+#'     obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
+#'
+#'     # calculate catch by individual area
+#'     areas_list <- CatchObsObj@areas
+#'     n_areas <- length(areas_list)
+#'
+#'     # store individual area catches
+#'     true_catch_by_area <- numeric(n_areas)
+#'     catch_with_reporting_by_area <- numeric(n_areas)
+#'     observed_catch_by_area <- numeric(n_areas)
+#'
+#'     # apply the obs model to catch by area
+#'
+#'     for(i in 1:n_areas) {
+#'       area_id <- areas_list[i]
+#'
+#'       # take true catch for the area
+#'       true_catch_by_area[i] <- catchB[j, k, area_id]
+#'
+#'       # apply reporting rate to the area
+#'       catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
+#'
+#'       # apply observation error to the area
+#'       observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
+#'     }
+#'
+#'     # store results with consistent structure
+#'     obs_catch_return$true_catch <- sum(true_catch_by_area)
+#'     obs_catch_return$R_t <- R_t
+#'     obs_catch_return$catch_with_reporting <- sum(catch_with_reporting_by_area)
+#'     obs_catch_return$cv_min <- cv_min
+#'     obs_catch_return$cv_max <- cv_max
+#'     obs_catch_return$obs_CV <- obs_CV
+#'     obs_catch_return$observed_catch <- sum(observed_catch_by_area)
+#'     # add individual area catches to output
+#'     obs_catch_return$n_areas <- n_areas
+#'     obs_catch_return$areas_included <- paste(areas_list, collapse = "_")
+#'
+#'     # store complete observation model results by area
+#'     for(i in 1:n_areas) {
+#'       area_id <- areas_list[i]
+#'
+#'       # true catch by area
+#'       obs_catch_return[[paste0("true_catch_area_", area_id)]] <- true_catch_by_area[i]
+#'
+#'       # catch with reporting by area
+#'       obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
+#'
+#'       # observed catch by area
+#'       obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
+#'     }
+#'     return(obs_catch_return)
+#' }
+#'
+#'
+#' # fixing helper function to set fleet-specific NA columns
+#'   set_fleet_na_columns <- function(obs_catch_return, fleet_id, areas_list) {
+#'   fleet_prefix <- paste0("fleet_", fleet_id)
+#'
+#'   obs_catch_return[[paste0(fleet_prefix, "_true_catch")]] <- NA
+#'   obs_catch_return[[paste0(fleet_prefix, "_R_t")]] <- NA
+#'   obs_catch_return[[paste0(fleet_prefix, "_cv_min")]] <- NA
+#'   obs_catch_return[[paste0(fleet_prefix, "_cv_max")]] <- NA
+#'   obs_catch_return[[paste0(fleet_prefix, "_obs_CV")]] <- NA
+#'   obs_catch_return[[paste0(fleet_prefix, "_observed_catch")]] <- NA
+#'   obs_catch_return[[paste0(fleet_prefix, "_n_areas")]] <- NA
+#'   obs_catch_return[[paste0(fleet_prefix, "_areas_included")]] <- NA
+#'
+#'   #set fleet-area specific NAs
+#'   for(area_id in areas_list) {
+#'     obs_catch_return[[paste0(fleet_prefix, "_true_catch_area_", area_id)]] <- NA
+#'     obs_catch_return[[paste0(fleet_prefix, "_observed_catch_area_", area_id)]] <- NA
+#'   }
+#'   #adding return the modified tibble
+#'   return(obs_catch_return)
+#' }
+#'
+#' #helper function to set NAs for multifleet
+#'   set_multifleet_nas <- function(CatchObsObj, obs_catch_return) {
+#'
+#'   #set fleet-specific NAs
+#'   for(config_idx in 1:length(CatchObsObj@fleet_configs)) {
+#'     config <- CatchObsObj@fleet_configs[[config_idx]]
+#'     fleet_id <- config$fleet_id
+#'     areas_list <- config$areas
+#'     set_fleet_na_columns(obs_catch_return, fleet_id, areas_list)
+#'   }
+#'
+#'   #set aggregated NAs
+#'   obs_catch_return$total_true_catch <- NA
+#'   obs_catch_return$total_observed_catch <- NA
+#'   obs_catch_return$n_fleet_configs <- length(CatchObsObj@fleet_configs)
+#'   obs_catch_return$n_fleets_with_data <- 0
+#'
+#'   return(obs_catch_return)
+#'   }
+#'
+#'
+#'    #helper function to set NAs for single fleet (original behavior)
+#'    set_single_fleet_nas <- function(CatchObsObj, obs_catch_return) {
+#'
+#'     #no observation this year - set to NA
+#'     obs_catch_return$true_catch <- NA
+#'     obs_catch_return$R_t <- NA
+#'     obs_catch_return$catch_with_reporting <- NA
+#'     obs_catch_return$cv_min <- NA
+#'     obs_catch_return$cv_max <- NA
+#'     obs_catch_return$obs_CV <- NA
+#'     obs_catch_return$observed_catch <- NA
+#'     obs_catch_return$n_areas <- NA
+#'     obs_catch_return$areas_included <- NA
+#'     # set individual area catches to NA
+#'     for(area_id in CatchObsObj@areas) {
+#'       obs_catch_return[[paste0("true_catch_area_", area_id)]] <- NA
+#'       obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- NA
+#'       obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- NA
+#'     }
+#'     return(obs_catch_return)
+#'    }
+#'
+#'
+#'    #' Function for integrating length composition observation models
+#'    #'
+#'    #' @title Function for integrating length composition observation models
+#'    #' @param LengthCompObj A Length Comp observation model object
+#'    #' @export
+#'
+#'    calculate_single_LengthComp  <- function(dataObject) {
+#'
+#'      # unpack dataObject
+#'      for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+#'
+#'      # NEW: Detect multifleet mode
+#'      is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
+#'
+#'      if(is_multifleet) {
+#'        nfleets <- MultifleetObj@nfleets
+#'
+#'        # validate required arrays for multifleet
+#'        required_arrays <- c("catchNage")  # We need catchNage arrays for FD calculations
+#'        missing_arrays <- c()
+#'
+#'        for(array_name in required_arrays) {
+#'          if(!exists(array_name)) {
+#'            missing_arrays <- c(missing_arrays, array_name)
+#'          }
+#'        }
+#'
+#'        if(length(missing_arrays) > 0) {
+#'          stop("Multifleet mode requires these arrays: ", paste(missing_arrays, collapse = ", "),
+#'               ". Check that evalMSE() multifleet implementation is complete.")
+#'        }
+#'      } else {
+#'        nfleets <- 1
+#'      }
+#'
+#'      # get dimensions from simulation
+#'      years <- dim(VB)[1]
+#'      total_areas <- dim(VB)[3]
+#'      iterations <- dim(VB)[2]
+#'      historical_years <- TimeAreaObj@historicalYears
+#'      historical_end <- 1 + historical_years
+#'
+#'      # length bins setup
+#'      # find the range of lengths across all GTGs and ages - useful to define bins
+#'      # length_bin_width from the LCompObs object
+#'      length_bin_width <- LengthCompObj@length_bin_width
+#'      all_lengths <- unlist(lh$L)   # unlist() converts the list of length vectors into one big vector
+#'      min_length <- min(all_lengths)# find the smallest length across all GTGs and ages
+#'      max_length <- max(all_lengths)# find the largest length across all GTGs and ages
+#'
+#'
+#'      # define the bins
+#'      length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width) #create the sequence of bin edges
+#'      n_length_bins <- length(length_bins) - 1  #number of edges - 1  [0-1), [1-2), [2-3)..... etc
+#'
+#'      # count indices
+#'      n_indices <- length(LengthCompObj@survey_design)
+#'
+#'      # determine the indextype
+#'      all_types <- unique(sapply(LengthCompObj@survey_design, function(d) d$indextype))
+#'      if(length(all_types) == 1) {
+#'        final_indextype <- all_types[1]
+#'      } else {
+#'        final_indextype <- "Mixed"
+#'      }
+#'
+#'      #initialize the tibble reurt (iteration/year combination)
+#'      lengthcomp_return <- tibble::tibble(
+#'        k = k,                              # current iteration
+#'        j = j,                              # current year
+#'        indexID = LengthCompObj@indexID,    # length comp ID
+#'        title = LengthCompObj@title,        # length comp title
+#'        indextype = final_indextype,        # indextype
+#'        years_total = years,                # total years in simulation
+#'        total_areas = total_areas,          # total areas in simulation
+#'        iterations_total = iterations,        # total iterartions
+#'        historical_end = historical_end,    # end of historical period
+#'        n_length_bins = n_length_bins,     # number of length bins
+#'        length_bin_width = length_bin_width, # width of each bin
+#'        n_indices = n_indices,              # number of length comp indices
+#'        period = ifelse(j <= historical_end, "Historical", "Projection"),
+#'
+#'        # NEW: adding multifleet metadata
+#'        is_multifleet = is_multifleet,
+#'        nfleets = nfleets
+#'      )
+#'
+#'      # process each LC program
+#'
+#'      for(index_idx in 1:n_indices) {
+#'        design <- LengthCompObj@survey_design[[index_idx]]
+#'
+#'        #NEW: extract fleet_id for FD indices in multifleet mode
+#'        fleet_id <- if("fleet_id" %in% names(design)) design$fleet_id else NA
+#'
+#'        # define program name
+#'        #program_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
+#'
+#'        #NEW: program name for single fleet and multifleet
+#'        if(design$indextype == "FD" && is_multifleet && !is.na(fleet_id)) {
+#'          program_name <- paste0("LC_Fishery_", index_idx, "_Fleet_", fleet_id)
+#'        } else {
+#'          program_name <- paste0("LC_", ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
+#'        }
+#'
+#'        #adding validations
+#'        required_elements <- c("indextype", "areas", "years", "sample_sizes")
+#'        if(design$indextype == "FI") {
+#'          required_elements <- c(required_elements, "selectivity_hist_idx", "selectivity_proj_idx","survey_timing")
+#'        }
+#'
+#'        #NEW: for FD in multifleet, require fleet_id
+#'        if(design$indextype == "FD" && is_multifleet) {
+#'          required_elements <- c(required_elements, "fleet_id")
+#'        }
+#'
+#'        if(!all(required_elements %in% names(design))) {
+#'          missing <- required_elements[!required_elements %in% names(design)]
+#'          stop(paste("Survey design", index_idx, "missing elements:", paste(missing, collapse = ", ")))
+#'        }
+#'
+#'        if(!design$indextype %in% c("FD", "FI")) {
+#'          stop(paste("Survey design", index_idx, ": indextype must be 'FD' or 'FI'"))
+#'        }
+#'
+#'        # NEW:validate fleet_id if present
+#'        if(design$indextype == "FD" && is_multifleet) {
+#'          if(!is.numeric(fleet_id) || length(fleet_id) != 1 || fleet_id < 1 || fleet_id > nfleets) {
+#'            stop(paste("Survey design", index_idx, ": fleet_id must be between 1 and", nfleets))
+#'          }
+#'        }
+#'
+#'        #preventing FI indices from having fleet_id
+#'        if(design$indextype == "FI" && "fleet_id" %in% names(design)) {
+#'          stop(paste("Survey design", index_idx, ": FI indices cannot have fleet_id"))
+#'        }
+#'
+#'
+#'        if(length(design$years) != length(design$sample_sizes)) {
+#'          stop(paste("Survey design", index_idx, ": years and sample_sizes must have same length"))
+#'        }
+#'
+#'        if(any(design$areas > total_areas)) {
+#'          stop(paste("Survey design", index_idx, ": areas exceed total areas in simulation"))
+#'        }
+#'
+#'        # check if this data collection program samples in current year
+#'        # program samples are collected in this year (this year has sampling)
+#'        if((j-1) %in% design$years) {
+#'
+#'
+#'          # selectivity for FI programas
+#'          if(design$indextype == "FI") {
+#'            if(design$selectivity_hist_idx > length(LengthCompObj@selectivity_hist_list)) {
+#'              stop(paste("Survey design", index_idx, ": selectivity_hist_idx exceeds available objects"))
+#'            }
+#'            if(design$selectivity_proj_idx > length(LengthCompObj@selectivity_proj_list)) {
+#'              stop(paste("Survey design", index_idx, ": selectivity_proj_idx exceeds available objects"))
+#'            }
+#'
+#'            hist_selectivity_obj <- LengthCompObj@selectivity_hist_list[[design$selectivity_hist_idx]]
+#'            proj_selectivity_obj <- LengthCompObj@selectivity_proj_list[[design$selectivity_proj_idx]]
+#'
+#'            index_selectivity_hist <- selWrapper(lh, TimeAreaObj,
+#'                                                 FisheryObj = hist_selectivity_obj,
+#'                                                 doPlot = FALSE)
+#'            index_selectivity_proj <- selWrapper(lh, TimeAreaObj,
+#'                                                 FisheryObj = proj_selectivity_obj,
+#'                                                 doPlot = FALSE)
+#'          }
+#'
+#'
+#'          # create the empty the length-based array: [length_bins, areas]
+#'          # this will store the final result: numbers in each length bin, area
+#'          length_array <- array(0, dim = c(n_length_bins, total_areas))
+#'
+#'          # TO DO list - improve this section, remove loops and replace with vectorization
+#'
+#'          # the next loops go through every combination year, area, GTG, and age
+#'
+#'          # loop through each area
+#'          for(area in 1:total_areas) {
+#'            # loop through each GTG
+#'            for(gtg in 1:lh$gtg) {
+#'              # loop through each age within the corresponding GTG
+#'              for(age in 1:lh$ageClasses) {
+#'
+#'                # NEW: improved data source selection for multifleet
+#'
+#'                # choose data source based on type (FI or FD)
+#'                if(design$indextype == "FD") {
+#'                  if(is_multifleet) {
+#'                    # MULTIFLEET MODE: Use fleet-specific catch data
+#'                    # catchNage_by_fleet[[fleet]][[gtg]][age, year, area]
+#'                    if(!exists("catchNage_by_fleet")) {
+#'                      stop("Multifleet FD length composition requires catchNage_by_fleet arrays")
+#'                    }
+#'                    selected_data <- catchNage_by_fleet[[fleet_id]][[gtg]][age, j, area]
+#'                  } else {
+#'
+#'                  # SINGLE FLEET MODE: Use aggregated catch data (remain unchanged)
+#'                  selected_data <- catchNage[[gtg]][age, j, area]
+#'                  }
+#'                  } else {  # FI
+#'                  # get the N of fish for this [[GTG]][age, year, area]
+#'                  numbers_at_age <- N[[gtg]][age, j, area]
+#'
+#'                  # get selectivity for FI
+#'                  if(j <= historical_end) {
+#'                    selectivity <- index_selectivity_hist
+#'                  } else {
+#'                    selectivity <- index_selectivity_proj
+#'                  }
+#'
+#'                  # apply FI (surveys) selectivity
+#'                  selected_data <- numbers_at_age * selectivity$vul[[gtg]][age]
+#'
+#'                   #survey timing correction (exp(-total_mortality * LengthCompObj@survey_timing))
+#'                  survey_timing <- design$survey_timing
+#'                  timing_correction <- exp(-Z[[gtg]][age, j, area] * survey_timing)
+#'                  # apply timing correction
+#'                  selected_data <- selected_data * timing_correction
+#'
+#'                }
+#'
+#'
+#'                if(selected_data > 0) {  # only if there are fish
+#'
+#'                  # get the mean length for this GTG at this age: extract the specific length for this GTG and age
+#'                  length_at_age <- lh$L[[gtg]][age]
+#'
+#'                    #we look up which length bin this GTG-age combination belongs to
+#'                    length_bin_index <- findInterval(length_at_age, length_bins)
+#'
+#'
+#'
+#'                  # Then we store the match/ or mapping
+#'                  # store the bin number in the matching table, but only if it's valid
+#'                  # (if(length_bin_index > 0 && length_bin_index <= n_length_bins))
+#'
+#'                  ## for example:  GTG 1, Age 4, Year 1, Area 1
+#'                  #simulation_result$dynamics$N[[1]][4, 1, 1] =107.968 # N fish
+#'                  ## find out which "length bin" GTG 1, Age 4 belongs to (in this case bin 11)
+#'                  #age_to_length_bin[1, 4] = bin 11
+#'                  ## assuming there are some fish already in this bin (from previous GTG/age combination
+#'                  ## assuming there are already 75 fish in bin 11
+#'                  # N_length[11, 1, 1] <- 75  # starting with 75 fish already there
+#'                  ## we found more fish from  specific example: GTG 1, Age 4
+#'                  #selected_data <- simulation_result$dynamics$N[[1]][4, 1, 1]  # = 107.968
+#'
+#'                  #current_count <- N_length[11, 1, 1] =75
+#'                  #add the new fish
+#'                  #total_count <- current_count + 107.968
+#'
+#'                  if(length_bin_index > 0 && length_bin_index <= n_length_bins) {
+#'                    length_array[length_bin_index, area] <- length_array[length_bin_index, area] + selected_data
+#'                  }
+#'                }
+#'              }
+#'            }
+#'          }
+#'
+#'
+#'          #----------------------------------------------------------#
+#'          #--------------------------Part 3--------------------------#
+#'          #--sample from the TRUE length composition using rmult-----#
+#'          #----------------------------------------------------------#
+#'
+#'
+#'          # get true comp for this index design
+#'          if(length(design$areas) == 1) {
+#'            # single area sampling: extract composition for that area
+#'            true_comp <- length_array[, design$areas[1]]                   #true_length_array_for_survey: rows=bins, cols= years
+#'          } else {
+#'            # multi-area sampling: sum composition across specified areas
+#'            # this simulates a survey that operates across multiple areas in same sampling event
+#'            # drop=FALSE, keep the shape of the data, so rowsums works
+#'            true_comp <- rowSums(length_array[, design$areas, drop = FALSE]) # true_length_array_for_survey: rows=bins, cols= years
+#'          }
+#'
+#'          # get sample size for this year
+#'          year_idx <- which(design$years == (j-1))
+#'          sample_size <- design$sample_sizes[year_idx]
+#'
+#'          # multinomial sampling
+#'          # calculate total available fish for sampling
+#'          total_catch <- sum(true_comp)
+#'
+#'
+#'          # apply multinomial sampling if fish are available to sample
+#'          if(total_catch > 0 && sample_size > 0) {
+#'
+#'            # convert true composition to proportions (probabilities for multinomial)
+#'            true_props <- true_comp / total_catch
+#'
+#'            # perform multinomial sampling: randomly select sample_size fish
+#'            # according to the true length proportions
+#'            observed_counts <- as.vector(rmultinom(1, size = sample_size, prob = true_props))
+#'
+#'            #observed_proportions <- observed_counts / sum(observed_counts)
+#'            observed_numbers <- observed_counts
+#'
+#'          } else {
+#'            # No fish available but sampled occurr
+#'            observed_numbers <- rep(0, n_length_bins)
+#'          }
+#'
+#'
+#'          # Add columns to tibble
+#'          lengthcomp_return[[paste0(program_name, "_indextype")]] <- design$indextype
+#'          lengthcomp_return[[paste0(program_name, "_areas")]] <- paste(design$areas, collapse = "_")
+#'          lengthcomp_return[[paste0(program_name, "_years")]] <- paste(design$years, collapse = "_")
+#'          lengthcomp_return[[paste0(program_name, "_sample_size")]] <- sample_size
+#'          lengthcomp_return[[paste0(program_name, "_total_catch")]] <- total_catch
+#'
+#'          #NEW: add fleet metadata for FD programs
+#'          if(design$indextype == "FD" && is_multifleet) {
+#'            lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- fleet_id
+#'          } else {
+#'            lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- NA
+#'          }
+#'
+#'          # Add selectivity info for FI programs
+#'          if(design$indextype == "FI") {
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- design$selectivity_hist_idx
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- design$selectivity_proj_idx
+#'            lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- design$survey_timing
+#'          } else {
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- NA
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- NA
+#'            lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- NA
+#'          }
+#'
+#'          # Add length composition numbers for each bin
+#'          for(bin in 1:n_length_bins) {
+#'            lengthcomp_return[[paste0(program_name, "_count_bin_", bin)]] <- observed_numbers[bin]
+#'          }
+#'
+#'        } else {
+#'          # This program does not sample this year - set to NA
+#'          lengthcomp_return[[paste0(program_name, "_indextype")]] <- design$indextype
+#'          lengthcomp_return[[paste0(program_name, "_areas")]] <- paste(design$areas, collapse = "_")
+#'          lengthcomp_return[[paste0(program_name, "_years")]] <- paste(design$years, collapse = "_")
+#'          lengthcomp_return[[paste0(program_name, "_sample_size")]] <- NA
+#'          lengthcomp_return[[paste0(program_name, "_total_catch")]] <- NA
+#'
+#'          #NEW: Add fleet metadata for NA cases
+#'          if(design$indextype == "FD" && is_multifleet) {
+#'            lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- fleet_id
+#'          } else {
+#'            lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- NA
+#'          }
+#'
+#'          # Selectivity info
+#'          if(design$indextype == "FI") {
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- design$selectivity_hist_idx
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- design$selectivity_proj_idx
+#'            lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- design$survey_timing
+#'          } else {
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- NA
+#'            lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- NA
+#'            lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- NA
+#'          }
+#'
+#'          # Add NA for all length bins
+#'          for(bin in 1:n_length_bins) {
+#'            lengthcomp_return[[paste0(program_name, "_count_bin_", bin)]] <- NA
+#'          }
+#'        }
+#'      }
+#'
+#'      return(lengthcomp_return)
+#'    }
+
+
+# adding modifications after Bill's edits
 #' Function for integrating observation models
 #'
 #' @title Function for integrating observation models
@@ -2780,7 +4088,7 @@ calculate_single_Index  <- function(dataObject){
     required_arrays <- c("RB_by_fleet", "catchB_by_fleet", "catchN_by_fleet", "Ftotal_by_fleet")
     missing_arrays <- c()
 
-   #check if each required array exists in the dataObject environment
+    #check if each required array exists in the dataObject environment
     for(array_name in required_arrays) {
       if(!exists(array_name)) {
         missing_arrays <- c(missing_arrays, array_name)
@@ -2791,12 +4099,35 @@ calculate_single_Index  <- function(dataObject){
       stop("Multifleet mode requires these arrays: ", paste(missing_arrays, collapse = ", "),
            ". Check that evalMSE() multifleet implementation is complete.")
     }
+  } else {
+    # Single fleet mode - check for typical arrays            # Vania's edits
+    if(!exists("VB") || !exists("RB")) {
+      stop("Single fleet mode requires VB and RB arrays")
+    }
+
   }
 
   # define the dimensions (to get the structure of the simulation)
+  # years <- dim(VB)[1]       #total years hist+future
+  # iterations <- dim(VB)[2]  #total iterations
+  # total_areas <- dim(VB)[3] #total areas
+  # historicalYears <- TimeAreaObj@historicalYears #total historical years- before management
+  # historical_end <- 1 + historicalYears
+
+  # Vania's edits: modifying previous section with appropiate arrays depending on mode
+  if(is_multifleet) {
+  years <- dim(RB_by_fleet)[1]      #total years hist+future
+  iterations <- dim(RB_by_fleet)[2]  #total iterations
+  total_areas <- dim(RB_by_fleet)[3] #total areas
+  nfleets <- dim(RB_by_fleet)[4] #nfleets
+
+  } else {
   years <- dim(VB)[1]       #total years hist+future
   iterations <- dim(VB)[2]  #total iterations
   total_areas <- dim(VB)[3] #total areas
+  nfleets <- 1              #nfleets
+  }
+
   historicalYears <- TimeAreaObj@historicalYears #total historical years- before management
   historical_end <- 1 + historicalYears
 
@@ -2851,7 +4182,7 @@ calculate_single_Index  <- function(dataObject){
     # validate fleet_id if present
     if(design$indextype == "FD" && is_multifleet) {
       fleet_id <- design$fleet_id
-      nfleets <- MultifleetObj@nfleets
+      #nfleets <- MultifleetObj@nfleets  #Vania's edits
       if(!is.numeric(fleet_id) || length(fleet_id) != 1 || fleet_id < 1 || fleet_id > nfleets) {
         stop(paste("Survey design", index_idx, ": fleet_id must be between 1 and", nfleets))
       }
@@ -2933,7 +4264,7 @@ calculate_single_Index  <- function(dataObject){
 
     #New addition (adding multifleet metadata):
     is_multifleet = is_multifleet,              # does simulation uses multifleet?
-    nfleets = if(is_multifleet) MultifleetObj@nfleets else 1  # number of fleets
+    nfleets = nfleets #Vania's edits
   )
 
 
@@ -3001,14 +4332,14 @@ calculate_single_Index  <- function(dataObject){
           # MULTIFLEET MODE: extract fleet-specific retained biomass
           # uses 4D array RB_by_fleet[year, iteration, area, fleet]
           if(is_multifleet) {
-          area_value <- RB_by_fleet[j, k, area, fleet_id]  # Fleet-specific retained biomass
+            area_value <- RB_by_fleet[j, k, area, fleet_id]  # Fleet-specific retained biomass
           } else {
 
-          #Original: aggregated retained biomass across all fleets
-          #For CPUE biomass: get VB from this area
-          area_value <- RB[j, k, area] #directly extracts vulnerable biomass from simulation results
+            #Original: aggregated retained biomass across all fleets
+            #For CPUE biomass: get VB from this area
+            area_value <- RB[j, k, area] #directly extracts vulnerable biomass from simulation results
           }
-          } else {
+        } else {
 
           #Number data calcs: Manual calculation from N arrays
           #manually calculates by applying selectivity to N arrays
@@ -3023,12 +4354,12 @@ calculate_single_Index  <- function(dataObject){
           if(j <= historical_end) {
             if(design$indextype == "FD") {
               if(is_multifleet) {
-              # MULTIFLEET MODE: selHist[[area]][[fleet]]$keep
+                # MULTIFLEET MODE: selHist[[area]][[fleet]]$keep
                 selectivity <- selHist[[area]][[fleet_id]]$keep
               } else {
                 selectivity <- selHist[[area]]$keep  #fixed
-            }
-              }else {
+              }
+            }else {
               # For FI, use pre-created survey selectivity
               selectivity <- index_selectivity_hist
             }
@@ -3081,8 +4412,8 @@ calculate_single_Index  <- function(dataObject){
             # This maintains fleet specificity while allowing multi-area indices
             area_value <- sum(RB_by_fleet[j, k, design$areas, fleet_id])  # sum fleet-specific RB across areas
           } else {
-          # Original- SINGLE FLEET MODE: Sum VB across all specified areas - like rowSums() in length composition
-          # Sum aggregated RB across areas (backward compatibility)
+            # Original- SINGLE FLEET MODE: Sum VB across all specified areas - like rowSums() in length composition
+            # Sum aggregated RB across areas (backward compatibility)
             area_value <- sum(RB[j, k, design$areas])
           }
 
@@ -3096,16 +4427,16 @@ calculate_single_Index  <- function(dataObject){
             if(j <= historical_end) {
               if(design$indextype == "FD") {
                 if(is_multifleet) {
-                #MULTIFLEET MODE: use selHist[[area]][[fleet]]$keep
-                selectivity <- selHist[[area]][[fleet_id]]$keep
+                  #MULTIFLEET MODE: use selHist[[area]][[fleet]]$keep
+                  selectivity <- selHist[[area]][[fleet_id]]$keep
                 } else {
-                #SINGLE FLEET MODE: selHist[[area]]$keep
-                selectivity <- selHist[[area]]$keep
+                  #SINGLE FLEET MODE: selHist[[area]]$keep
+                  selectivity <- selHist[[area]]$keep
                 }
-                } else {
+              } else {
                 # for FI: Use pre-created survey selectivity
                 selectivity <- index_selectivity_hist
-                }
+              }
             } else {
               if(design$indextype == "FD") {
                 if(is_multifleet) {
@@ -3214,8 +4545,8 @@ calculate_single_Index  <- function(dataObject){
       # cat("paste result:", paste(design$areas, collapse = "_"), "\n")
 
 
-        # Adding more columns to the tibble
-        # add to the tibble with appropriate column name (create column name like "CPUE_1" or "Survey_2")
+      # Adding more columns to the tibble
+      # add to the tibble with appropriate column name (create column name like "CPUE_1" or "Survey_2")
 
       observation_return[[index_name]] <- index_value  # add the new column to the tibble
 
@@ -3346,13 +4677,25 @@ calculate_single_CatchObs <- function(dataObject) {
 
 
   #dimensions
-  years <- dim(catchB)[1]
-  iterations <- dim(catchB)[2]
+  # years <- dim(catchB)[1]
+  # iterations <- dim(catchB)[2]
+
+  #Vania's edits
+  if(is_multifleet) {
+    years <- dim(catchB_by_fleet)[1]
+    iterations <- dim(catchB_by_fleet)[2]
+  } else {
+    years <- dim(catchB)[1]
+    iterations <- dim(catchB)[2]
+  }
+
   historicalYears <- TimeAreaObj@historicalYears
   historical_end <- 1 + historicalYears
   end_proj <- years
 
-   #validate multifleet arrays when needed
+
+
+  #validate multifleet arrays when needed
   if(is_multifleet) {
     required_arrays <- c("catchB_by_fleet")
     missing_arrays <- c()
@@ -3413,14 +4756,14 @@ calculate_single_CatchObs <- function(dataObject) {
 
       # MULTIFLEET MODE: Process each fleet
       result <- process_multifleet_catch_obs(CatchObsObj, catchB_by_fleet,
-                                                   j, k, obs_catch_return)
+                                             j, k, obs_catch_return)
 
     } else {
       # SINGLE FLEET MODE: Original behavior (backward compatibility)
       catch_year_position <- which(CatchObsObj@catchYears == (j-1))
 
       result <- process_single_fleet_catch_obs(CatchObsObj, catch_year_position,
-                                                     catchB, j, k, obs_catch_return)
+                                               catchB, j, k, obs_catch_return)
     }
 
     return(result)
@@ -3557,78 +4900,78 @@ process_multifleet_catch_obs <- function(CatchObsObj, catchB_by_fleet,
 process_single_fleet_catch_obs <- function(CatchObsObj, catch_year_position,
                                            catchB, j, k, obs_catch_return) {
 
-    # Continue with original single fleet logic
-    # reporting rate for each year (to simulate over reporitng or under reporting)
-    R_t <- CatchObsObj@reporting_rates[catch_year_position]
+  # Continue with original single fleet logic
+  # reporting rate for each year (to simulate over reporitng or under reporting)
+  R_t <- CatchObsObj@reporting_rates[catch_year_position]
 
-    # CV obs bounds for this year and sample a CV value for each iteration
-    if(nrow(CatchObsObj@obs_CVs) >= catch_year_position && ncol(CatchObsObj@obs_CVs) == 2) {
-      cv_min <- CatchObsObj@obs_CVs[catch_year_position, 1]
-      cv_max <- CatchObsObj@obs_CVs[catch_year_position, 2]
-      obs_CV <- runif(1, min = cv_min, max = cv_max)
-    } else {
-      stop(paste("obs_CVs matrix must have 2 columns (min, max) and at least", length(CatchObsObj@catchYears), "rows"))
-    }
+  # CV obs bounds for this year and sample a CV value for each iteration
+  if(nrow(CatchObsObj@obs_CVs) >= catch_year_position && ncol(CatchObsObj@obs_CVs) == 2) {
+    cv_min <- CatchObsObj@obs_CVs[catch_year_position, 1]
+    cv_max <- CatchObsObj@obs_CVs[catch_year_position, 2]
+    obs_CV <- runif(1, min = cv_min, max = cv_max)
+  } else {
+    stop(paste("obs_CVs matrix must have 2 columns (min, max) and at least", length(CatchObsObj@catchYears), "rows"))
+  }
 
 
-    # apply  lognormal error with bias correction
-    obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
+  # apply  lognormal error with bias correction
+  obs_error <- exp(rnorm(1, 0, obs_CV) - 0.5 * obs_CV^2)
 
-    # calculate catch by individual area
-    areas_list <- CatchObsObj@areas
-    n_areas <- length(areas_list)
+  # calculate catch by individual area
+  areas_list <- CatchObsObj@areas
+  n_areas <- length(areas_list)
 
-    # store individual area catches
-    true_catch_by_area <- numeric(n_areas)
-    catch_with_reporting_by_area <- numeric(n_areas)
-    observed_catch_by_area <- numeric(n_areas)
+  # store individual area catches
+  true_catch_by_area <- numeric(n_areas)
+  catch_with_reporting_by_area <- numeric(n_areas)
+  observed_catch_by_area <- numeric(n_areas)
 
-    # apply the obs model to catch by area
+  # apply the obs model to catch by area
 
-    for(i in 1:n_areas) {
-      area_id <- areas_list[i]
+  for(i in 1:n_areas) {
+    area_id <- areas_list[i]
 
-      # take true catch for the area
-      true_catch_by_area[i] <- catchB[j, k, area_id]
+    # take true catch for the area
+    true_catch_by_area[i] <- catchB[j, k, area_id]
 
-      # apply reporting rate to the area
-      catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
+    # apply reporting rate to the area
+    catch_with_reporting_by_area[i] <- true_catch_by_area[i] * R_t
 
-      # apply observation error to the area
-      observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
-    }
+    # apply observation error to the area
+    observed_catch_by_area[i] <- catch_with_reporting_by_area[i] * obs_error
+  }
 
-    # store results with consistent structure
-    obs_catch_return$true_catch <- sum(true_catch_by_area)
-    obs_catch_return$R_t <- R_t
-    obs_catch_return$catch_with_reporting <- sum(catch_with_reporting_by_area)
-    obs_catch_return$cv_min <- cv_min
-    obs_catch_return$cv_max <- cv_max
-    obs_catch_return$obs_CV <- obs_CV
-    obs_catch_return$observed_catch <- sum(observed_catch_by_area)
-    # add individual area catches to output
-    obs_catch_return$n_areas <- n_areas
-    obs_catch_return$areas_included <- paste(areas_list, collapse = "_")
+  # store results with consistent structure
+  obs_catch_return$true_catch <- sum(true_catch_by_area)
+  obs_catch_return$R_t <- R_t
+  obs_catch_return$catch_with_reporting <- sum(catch_with_reporting_by_area)
+  obs_catch_return$cv_min <- cv_min
+  obs_catch_return$cv_max <- cv_max
+  obs_catch_return$obs_CV <- obs_CV
+  obs_catch_return$observed_catch <- sum(observed_catch_by_area)
+  # add individual area catches to output
+  obs_catch_return$n_areas <- n_areas
+  obs_catch_return$areas_included <- paste(areas_list, collapse = "_")
 
-    # store complete observation model results by area
-    for(i in 1:n_areas) {
-      area_id <- areas_list[i]
+  # store complete observation model results by area
+  for(i in 1:n_areas) {
+    area_id <- areas_list[i]
 
-      # true catch by area
-      obs_catch_return[[paste0("true_catch_area_", area_id)]] <- true_catch_by_area[i]
+    # true catch by area
+    obs_catch_return[[paste0("true_catch_area_", area_id)]] <- true_catch_by_area[i]
 
-      # catch with reporting by area
-      obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
+    # catch with reporting by area
+    obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- catch_with_reporting_by_area[i]
 
-      # observed catch by area
-      obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
-    }
-    return(obs_catch_return)
+    # observed catch by area
+    obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- observed_catch_by_area[i]
+  }
+  return(obs_catch_return)
 }
 
 
 # fixing helper function to set fleet-specific NA columns
-  set_fleet_na_columns <- function(obs_catch_return, fleet_id, areas_list) {
+set_fleet_na_columns <- function(obs_catch_return, fleet_id, areas_list) {
   fleet_prefix <- paste0("fleet_", fleet_id)
 
   obs_catch_return[[paste0(fleet_prefix, "_true_catch")]] <- NA
@@ -3650,7 +4993,7 @@ process_single_fleet_catch_obs <- function(CatchObsObj, catch_year_position,
 }
 
 #helper function to set NAs for multifleet
-  set_multifleet_nas <- function(CatchObsObj, obs_catch_return) {
+set_multifleet_nas <- function(CatchObsObj, obs_catch_return) {
 
   #set fleet-specific NAs
   for(config_idx in 1:length(CatchObsObj@fleet_configs)) {
@@ -3667,405 +5010,420 @@ process_single_fleet_catch_obs <- function(CatchObsObj, catch_year_position,
   obs_catch_return$n_fleets_with_data <- 0
 
   return(obs_catch_return)
+}
+
+
+#helper function to set NAs for single fleet (original behavior)
+set_single_fleet_nas <- function(CatchObsObj, obs_catch_return) {
+
+  #no observation this year - set to NA
+  obs_catch_return$true_catch <- NA
+  obs_catch_return$R_t <- NA
+  obs_catch_return$catch_with_reporting <- NA
+  obs_catch_return$cv_min <- NA
+  obs_catch_return$cv_max <- NA
+  obs_catch_return$obs_CV <- NA
+  obs_catch_return$observed_catch <- NA
+  obs_catch_return$n_areas <- NA
+  obs_catch_return$areas_included <- NA
+  # set individual area catches to NA
+  for(area_id in CatchObsObj@areas) {
+    obs_catch_return[[paste0("true_catch_area_", area_id)]] <- NA
+    obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- NA
+    obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- NA
+  }
+  return(obs_catch_return)
+}
+
+
+#' Function for integrating length composition observation models
+#'
+#' @title Function for integrating length composition observation models
+#' @param LengthCompObj A Length Comp observation model object
+#' @export
+
+calculate_single_LengthComp  <- function(dataObject) {
+
+  # unpack dataObject
+  for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
+
+  # NEW: Detect multifleet mode
+  is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
+
+  if(is_multifleet) {
+    nfleets <- MultifleetObj@nfleets
+
+    # validate required arrays for multifleet
+    required_arrays <- c("catchNage")  # We need catchNage arrays for FD calculations
+    missing_arrays <- c()
+
+    for(array_name in required_arrays) {
+      if(!exists(array_name)) {
+        missing_arrays <- c(missing_arrays, array_name)
+      }
+    }
+
+    if(length(missing_arrays) > 0) {
+      stop("Multifleet mode requires these arrays: ", paste(missing_arrays, collapse = ", "),
+           ". Check that evalMSE() multifleet implementation is complete.")
+    }
+  } else {
+    nfleets <- 1
   }
 
+  # get dimensions from simulation
 
-   #helper function to set NAs for single fleet (original behavior)
-   set_single_fleet_nas <- function(CatchObsObj, obs_catch_return) {
 
-    #no observation this year - set to NA
-    obs_catch_return$true_catch <- NA
-    obs_catch_return$R_t <- NA
-    obs_catch_return$catch_with_reporting <- NA
-    obs_catch_return$cv_min <- NA
-    obs_catch_return$cv_max <- NA
-    obs_catch_return$obs_CV <- NA
-    obs_catch_return$observed_catch <- NA
-    obs_catch_return$n_areas <- NA
-    obs_catch_return$areas_included <- NA
-    # set individual area catches to NA
-    for(area_id in CatchObsObj@areas) {
-      obs_catch_return[[paste0("true_catch_area_", area_id)]] <- NA
-      obs_catch_return[[paste0("catch_with_reporting_area_", area_id)]] <- NA
-      obs_catch_return[[paste0("observed_catch_area_", area_id)]] <- NA
+  #Vania's edits
+  #Get dimensions from appropriate arrays
+  if(is_multifleet) {
+    if(exists("catchB_by_fleet")) {
+      years <- dim(catchB_by_fleet)[1]
+      total_areas <- dim(catchB_by_fleet)[3]
+      iterations <- dim(catchB_by_fleet)[2]
+    } else{
+      stop("Cannot determine dimensions in multifleet mode")
     }
-    return(obs_catch_return)
-   }
-
-
-   #' Function for integrating length composition observation models
-   #'
-   #' @title Function for integrating length composition observation models
-   #' @param LengthCompObj A Length Comp observation model object
-   #' @export
-
-   calculate_single_LengthComp  <- function(dataObject) {
-
-     # unpack dataObject
-     for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
-
-     # NEW: Detect multifleet mode
-     is_multifleet <- !is.null(MultifleetObj) && MultifleetObj@nfleets >= 1
-
-     if(is_multifleet) {
-       nfleets <- MultifleetObj@nfleets
-
-       # validate required arrays for multifleet
-       required_arrays <- c("catchNage")  # We need catchNage arrays for FD calculations
-       missing_arrays <- c()
-
-       for(array_name in required_arrays) {
-         if(!exists(array_name)) {
-           missing_arrays <- c(missing_arrays, array_name)
-         }
-       }
-
-       if(length(missing_arrays) > 0) {
-         stop("Multifleet mode requires these arrays: ", paste(missing_arrays, collapse = ", "),
-              ". Check that evalMSE() multifleet implementation is complete.")
-       }
-     } else {
-       nfleets <- 1
-     }
-
-     # get dimensions from simulation
-     years <- dim(VB)[1]
-     total_areas <- dim(VB)[3]
-     iterations <- dim(VB)[2]
-     historical_years <- TimeAreaObj@historicalYears
-     historical_end <- 1 + historical_years
-
-     # length bins setup
-     # find the range of lengths across all GTGs and ages - useful to define bins
-     # length_bin_width from the LCompObs object
-     length_bin_width <- LengthCompObj@length_bin_width
-     all_lengths <- unlist(lh$L)   # unlist() converts the list of length vectors into one big vector
-     min_length <- min(all_lengths)# find the smallest length across all GTGs and ages
-     max_length <- max(all_lengths)# find the largest length across all GTGs and ages
-
-
-     # define the bins
-     length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width) #create the sequence of bin edges
-     n_length_bins <- length(length_bins) - 1  #number of edges - 1  [0-1), [1-2), [2-3)..... etc
-
-     # count indices
-     n_indices <- length(LengthCompObj@survey_design)
-
-     # determine the indextype
-     all_types <- unique(sapply(LengthCompObj@survey_design, function(d) d$indextype))
-     if(length(all_types) == 1) {
-       final_indextype <- all_types[1]
-     } else {
-       final_indextype <- "Mixed"
-     }
-
-     #initialize the tibble reurt (iteration/year combination)
-     lengthcomp_return <- tibble::tibble(
-       k = k,                              # current iteration
-       j = j,                              # current year
-       indexID = LengthCompObj@indexID,    # length comp ID
-       title = LengthCompObj@title,        # length comp title
-       indextype = final_indextype,        # indextype
-       years_total = years,                # total years in simulation
-       total_areas = total_areas,          # total areas in simulation
-       iterations_total = iterations,        # total iterartions
-       historical_end = historical_end,    # end of historical period
-       n_length_bins = n_length_bins,     # number of length bins
-       length_bin_width = length_bin_width, # width of each bin
-       n_indices = n_indices,              # number of length comp indices
-       period = ifelse(j <= historical_end, "Historical", "Projection"),
-
-       # NEW: adding multifleet metadata
-       is_multifleet = is_multifleet,
-       nfleets = nfleets
-     )
-
-     # process each LC program
-
-     for(index_idx in 1:n_indices) {
-       design <- LengthCompObj@survey_design[[index_idx]]
-
-       #NEW: extract fleet_id for FD indices in multifleet mode
-       fleet_id <- if("fleet_id" %in% names(design)) design$fleet_id else NA
-
-       # define program name
-       #program_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
-
-       #NEW: program name for single fleet and multifleet
-       if(design$indextype == "FD" && is_multifleet && !is.na(fleet_id)) {
-         program_name <- paste0("LC_Fishery_", index_idx, "_Fleet_", fleet_id)
-       } else {
-         program_name <- paste0("LC_", ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
-       }
-
-       #adding validations
-       required_elements <- c("indextype", "areas", "years", "sample_sizes")
-       if(design$indextype == "FI") {
-         required_elements <- c(required_elements, "selectivity_hist_idx", "selectivity_proj_idx","survey_timing")
-       }
-
-       #NEW: for FD in multifleet, require fleet_id
-       if(design$indextype == "FD" && is_multifleet) {
-         required_elements <- c(required_elements, "fleet_id")
-       }
-
-       if(!all(required_elements %in% names(design))) {
-         missing <- required_elements[!required_elements %in% names(design)]
-         stop(paste("Survey design", index_idx, "missing elements:", paste(missing, collapse = ", ")))
-       }
-
-       if(!design$indextype %in% c("FD", "FI")) {
-         stop(paste("Survey design", index_idx, ": indextype must be 'FD' or 'FI'"))
-       }
-
-       # NEW:validate fleet_id if present
-       if(design$indextype == "FD" && is_multifleet) {
-         if(!is.numeric(fleet_id) || length(fleet_id) != 1 || fleet_id < 1 || fleet_id > nfleets) {
-           stop(paste("Survey design", index_idx, ": fleet_id must be between 1 and", nfleets))
-         }
-       }
-
-       #preventing FI indices from having fleet_id
-       if(design$indextype == "FI" && "fleet_id" %in% names(design)) {
-         stop(paste("Survey design", index_idx, ": FI indices cannot have fleet_id"))
-       }
-
-
-       if(length(design$years) != length(design$sample_sizes)) {
-         stop(paste("Survey design", index_idx, ": years and sample_sizes must have same length"))
-       }
-
-       if(any(design$areas > total_areas)) {
-         stop(paste("Survey design", index_idx, ": areas exceed total areas in simulation"))
-       }
-
-       # check if this data collection program samples in current year
-       # program samples are collected in this year (this year has sampling)
-       if((j-1) %in% design$years) {
-
-
-         # selectivity for FI programas
-         if(design$indextype == "FI") {
-           if(design$selectivity_hist_idx > length(LengthCompObj@selectivity_hist_list)) {
-             stop(paste("Survey design", index_idx, ": selectivity_hist_idx exceeds available objects"))
-           }
-           if(design$selectivity_proj_idx > length(LengthCompObj@selectivity_proj_list)) {
-             stop(paste("Survey design", index_idx, ": selectivity_proj_idx exceeds available objects"))
-           }
-
-           hist_selectivity_obj <- LengthCompObj@selectivity_hist_list[[design$selectivity_hist_idx]]
-           proj_selectivity_obj <- LengthCompObj@selectivity_proj_list[[design$selectivity_proj_idx]]
-
-           index_selectivity_hist <- selWrapper(lh, TimeAreaObj,
-                                                FisheryObj = hist_selectivity_obj,
-                                                doPlot = FALSE)
-           index_selectivity_proj <- selWrapper(lh, TimeAreaObj,
-                                                FisheryObj = proj_selectivity_obj,
-                                                doPlot = FALSE)
-         }
-
-
-         # create the empty the length-based array: [length_bins, areas]
-         # this will store the final result: numbers in each length bin, area
-         length_array <- array(0, dim = c(n_length_bins, total_areas))
-
-         # TO DO list - improve this section, remove loops and replace with vectorization
-
-         # the next loops go through every combination year, area, GTG, and age
-
-         # loop through each area
-         for(area in 1:total_areas) {
-           # loop through each GTG
-           for(gtg in 1:lh$gtg) {
-             # loop through each age within the corresponding GTG
-             for(age in 1:lh$ageClasses) {
-
-               # NEW: improved data source selection for multifleet
-
-               # choose data source based on type (FI or FD)
-               if(design$indextype == "FD") {
-                 if(is_multifleet) {
-                   # MULTIFLEET MODE: Use fleet-specific catch data
-                   # catchNage_by_fleet[[fleet]][[gtg]][age, year, area]
-                   if(!exists("catchNage_by_fleet")) {
-                     stop("Multifleet FD length composition requires catchNage_by_fleet arrays")
-                   }
-                   selected_data <- catchNage_by_fleet[[fleet_id]][[gtg]][age, j, area]
-                 } else {
-
-                 # SINGLE FLEET MODE: Use aggregated catch data (remain unchanged)
-                 selected_data <- catchNage[[gtg]][age, j, area]
-                 }
-                 } else {  # FI
-                 # get the N of fish for this [[GTG]][age, year, area]
-                 numbers_at_age <- N[[gtg]][age, j, area]
-
-                 # get selectivity for FI
-                 if(j <= historical_end) {
-                   selectivity <- index_selectivity_hist
-                 } else {
-                   selectivity <- index_selectivity_proj
-                 }
-
-                 # apply FI (surveys) selectivity
-                 selected_data <- numbers_at_age * selectivity$vul[[gtg]][age]
-
-                  #survey timing correction (exp(-total_mortality * LengthCompObj@survey_timing))
-                 survey_timing <- design$survey_timing
-                 timing_correction <- exp(-Z[[gtg]][age, j, area] * survey_timing)
-                 # apply timing correction
-                 selected_data <- selected_data * timing_correction
-
-               }
-
-
-               if(selected_data > 0) {  # only if there are fish
-
-                 # get the mean length for this GTG at this age: extract the specific length for this GTG and age
-                 length_at_age <- lh$L[[gtg]][age]
-
-                   #we look up which length bin this GTG-age combination belongs to
-                   length_bin_index <- findInterval(length_at_age, length_bins)
-
-
-
-                 # Then we store the match/ or mapping
-                 # store the bin number in the matching table, but only if it's valid
-                 # (if(length_bin_index > 0 && length_bin_index <= n_length_bins))
-
-                 ## for example:  GTG 1, Age 4, Year 1, Area 1
-                 #simulation_result$dynamics$N[[1]][4, 1, 1] =107.968 # N fish
-                 ## find out which "length bin" GTG 1, Age 4 belongs to (in this case bin 11)
-                 #age_to_length_bin[1, 4] = bin 11
-                 ## assuming there are some fish already in this bin (from previous GTG/age combination
-                 ## assuming there are already 75 fish in bin 11
-                 # N_length[11, 1, 1] <- 75  # starting with 75 fish already there
-                 ## we found more fish from  specific example: GTG 1, Age 4
-                 #selected_data <- simulation_result$dynamics$N[[1]][4, 1, 1]  # = 107.968
-
-                 #current_count <- N_length[11, 1, 1] =75
-                 #add the new fish
-                 #total_count <- current_count + 107.968
-
-                 if(length_bin_index > 0 && length_bin_index <= n_length_bins) {
-                   length_array[length_bin_index, area] <- length_array[length_bin_index, area] + selected_data
-                 }
-               }
-             }
-           }
-         }
-
-
-         #----------------------------------------------------------#
-         #--------------------------Part 3--------------------------#
-         #--sample from the TRUE length composition using rmult-----#
-         #----------------------------------------------------------#
-
-
-         # get true comp for this index design
-         if(length(design$areas) == 1) {
-           # single area sampling: extract composition for that area
-           true_comp <- length_array[, design$areas[1]]                   #true_length_array_for_survey: rows=bins, cols= years
-         } else {
-           # multi-area sampling: sum composition across specified areas
-           # this simulates a survey that operates across multiple areas in same sampling event
-           # drop=FALSE, keep the shape of the data, so rowsums works
-           true_comp <- rowSums(length_array[, design$areas, drop = FALSE]) # true_length_array_for_survey: rows=bins, cols= years
-         }
-
-         # get sample size for this year
-         year_idx <- which(design$years == (j-1))
-         sample_size <- design$sample_sizes[year_idx]
-
-         # multinomial sampling
-         # calculate total available fish for sampling
-         total_catch <- sum(true_comp)
-
-
-         # apply multinomial sampling if fish are available to sample
-         if(total_catch > 0 && sample_size > 0) {
-
-           # convert true composition to proportions (probabilities for multinomial)
-           true_props <- true_comp / total_catch
-
-           # perform multinomial sampling: randomly select sample_size fish
-           # according to the true length proportions
-           observed_counts <- as.vector(rmultinom(1, size = sample_size, prob = true_props))
-
-           #observed_proportions <- observed_counts / sum(observed_counts)
-           observed_numbers <- observed_counts
-
-         } else {
-           # No fish available but sampled occurr
-           observed_numbers <- rep(0, n_length_bins)
-         }
-
-
-         # Add columns to tibble
-         lengthcomp_return[[paste0(program_name, "_indextype")]] <- design$indextype
-         lengthcomp_return[[paste0(program_name, "_areas")]] <- paste(design$areas, collapse = "_")
-         lengthcomp_return[[paste0(program_name, "_years")]] <- paste(design$years, collapse = "_")
-         lengthcomp_return[[paste0(program_name, "_sample_size")]] <- sample_size
-         lengthcomp_return[[paste0(program_name, "_total_catch")]] <- total_catch
-
-         #NEW: add fleet metadata for FD programs
-         if(design$indextype == "FD" && is_multifleet) {
-           lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- fleet_id
-         } else {
-           lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- NA
-         }
-
-         # Add selectivity info for FI programs
-         if(design$indextype == "FI") {
-           lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- design$selectivity_hist_idx
-           lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- design$selectivity_proj_idx
-           lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- design$survey_timing
-         } else {
-           lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- NA
-           lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- NA
-           lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- NA
-         }
-
-         # Add length composition numbers for each bin
-         for(bin in 1:n_length_bins) {
-           lengthcomp_return[[paste0(program_name, "_count_bin_", bin)]] <- observed_numbers[bin]
-         }
-
-       } else {
-         # This program does not sample this year - set to NA
-         lengthcomp_return[[paste0(program_name, "_indextype")]] <- design$indextype
-         lengthcomp_return[[paste0(program_name, "_areas")]] <- paste(design$areas, collapse = "_")
-         lengthcomp_return[[paste0(program_name, "_years")]] <- paste(design$years, collapse = "_")
-         lengthcomp_return[[paste0(program_name, "_sample_size")]] <- NA
-         lengthcomp_return[[paste0(program_name, "_total_catch")]] <- NA
-
-         #NEW: Add fleet metadata for NA cases
-         if(design$indextype == "FD" && is_multifleet) {
-           lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- fleet_id
-         } else {
-           lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- NA
-         }
-
-         # Selectivity info
-         if(design$indextype == "FI") {
-           lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- design$selectivity_hist_idx
-           lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- design$selectivity_proj_idx
-           lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- design$survey_timing
-         } else {
-           lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- NA
-           lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- NA
-           lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- NA
-         }
-
-         # Add NA for all length bins
-         for(bin in 1:n_length_bins) {
-           lengthcomp_return[[paste0(program_name, "_count_bin_", bin)]] <- NA
-         }
-       }
-     }
-
-     return(lengthcomp_return)
-   }
+  } else {
+    years <- dim(VB)[1]
+    total_areas <- dim(VB)[3]
+    iterations <- dim(VB)[2]
+  }
+
+  historical_years <- TimeAreaObj@historicalYears
+  historical_end <- 1 + historical_years
+
+  # length bins setup
+  # find the range of lengths across all GTGs and ages - useful to define bins
+  # length_bin_width from the LCompObs object
+  length_bin_width <- LengthCompObj@length_bin_width
+  all_lengths <- unlist(lh$L)   # unlist() converts the list of length vectors into one big vector
+  min_length <- min(all_lengths)# find the smallest length across all GTGs and ages
+  max_length <- max(all_lengths)# find the largest length across all GTGs and ages
+
+
+  # define the bins
+  length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width) #create the sequence of bin edges
+  n_length_bins <- length(length_bins) - 1  #number of edges - 1  [0-1), [1-2), [2-3)..... etc
+
+  # count indices
+  n_indices <- length(LengthCompObj@survey_design)
+
+  # determine the indextype
+  all_types <- unique(sapply(LengthCompObj@survey_design, function(d) d$indextype))
+  if(length(all_types) == 1) {
+    final_indextype <- all_types[1]
+  } else {
+    final_indextype <- "Mixed"
+  }
+
+  #initialize the tibble reurt (iteration/year combination)
+  lengthcomp_return <- tibble::tibble(
+    k = k,                              # current iteration
+    j = j,                              # current year
+    indexID = LengthCompObj@indexID,    # length comp ID
+    title = LengthCompObj@title,        # length comp title
+    indextype = final_indextype,        # indextype
+    years_total = years,                # total years in simulation
+    total_areas = total_areas,          # total areas in simulation
+    iterations_total = iterations,        # total iterartions
+    historical_end = historical_end,    # end of historical period
+    n_length_bins = n_length_bins,     # number of length bins
+    length_bin_width = length_bin_width, # width of each bin
+    n_indices = n_indices,              # number of length comp indices
+    period = ifelse(j <= historical_end, "Historical", "Projection"),
+
+    # NEW: adding multifleet metadata
+    is_multifleet = is_multifleet,
+    nfleets = nfleets
+  )
+
+  # process each LC program
+
+  for(index_idx in 1:n_indices) {
+    design <- LengthCompObj@survey_design[[index_idx]]
+
+    #NEW: extract fleet_id for FD indices in multifleet mode
+    fleet_id <- if("fleet_id" %in% names(design)) design$fleet_id else NA
+
+    # define program name
+    #program_name <- paste0(ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
+
+    #NEW: program name for single fleet and multifleet
+    if(design$indextype == "FD" && is_multifleet && !is.na(fleet_id)) {
+      program_name <- paste0("LC_Fishery_", index_idx, "_Fleet_", fleet_id)
+    } else {
+      program_name <- paste0("LC_", ifelse(design$indextype == "FI", "Survey_", "Fishery_"), index_idx)
+    }
+
+    #adding validations
+    required_elements <- c("indextype", "areas", "years", "sample_sizes")
+    if(design$indextype == "FI") {
+      required_elements <- c(required_elements, "selectivity_hist_idx", "selectivity_proj_idx","survey_timing")
+    }
+
+    #NEW: for FD in multifleet, require fleet_id
+    if(design$indextype == "FD" && is_multifleet) {
+      required_elements <- c(required_elements, "fleet_id")
+    }
+
+    if(!all(required_elements %in% names(design))) {
+      missing <- required_elements[!required_elements %in% names(design)]
+      stop(paste("Survey design", index_idx, "missing elements:", paste(missing, collapse = ", ")))
+    }
+
+    if(!design$indextype %in% c("FD", "FI")) {
+      stop(paste("Survey design", index_idx, ": indextype must be 'FD' or 'FI'"))
+    }
+
+    # NEW:validate fleet_id if present
+    if(design$indextype == "FD" && is_multifleet) {
+      if(!is.numeric(fleet_id) || length(fleet_id) != 1 || fleet_id < 1 || fleet_id > nfleets) {
+        stop(paste("Survey design", index_idx, ": fleet_id must be between 1 and", nfleets))
+      }
+    }
+
+    #preventing FI indices from having fleet_id
+    if(design$indextype == "FI" && "fleet_id" %in% names(design)) {
+      stop(paste("Survey design", index_idx, ": FI indices cannot have fleet_id"))
+    }
+
+
+    if(length(design$years) != length(design$sample_sizes)) {
+      stop(paste("Survey design", index_idx, ": years and sample_sizes must have same length"))
+    }
+
+    if(any(design$areas > total_areas)) {
+      stop(paste("Survey design", index_idx, ": areas exceed total areas in simulation"))
+    }
+
+    # check if this data collection program samples in current year
+    # program samples are collected in this year (this year has sampling)
+    if((j-1) %in% design$years) {
+
+
+      # selectivity for FI programas
+      if(design$indextype == "FI") {
+        if(design$selectivity_hist_idx > length(LengthCompObj@selectivity_hist_list)) {
+          stop(paste("Survey design", index_idx, ": selectivity_hist_idx exceeds available objects"))
+        }
+        if(design$selectivity_proj_idx > length(LengthCompObj@selectivity_proj_list)) {
+          stop(paste("Survey design", index_idx, ": selectivity_proj_idx exceeds available objects"))
+        }
+
+        hist_selectivity_obj <- LengthCompObj@selectivity_hist_list[[design$selectivity_hist_idx]]
+        proj_selectivity_obj <- LengthCompObj@selectivity_proj_list[[design$selectivity_proj_idx]]
+
+        index_selectivity_hist <- selWrapper(lh, TimeAreaObj,
+                                             FisheryObj = hist_selectivity_obj,
+                                             doPlot = FALSE)
+        index_selectivity_proj <- selWrapper(lh, TimeAreaObj,
+                                             FisheryObj = proj_selectivity_obj,
+                                             doPlot = FALSE)
+      }
+
+
+      # create the empty the length-based array: [length_bins, areas]
+      # this will store the final result: numbers in each length bin, area
+      length_array <- array(0, dim = c(n_length_bins, total_areas))
+
+      # TO DO list - improve this section, remove loops and replace with vectorization
+
+      # the next loops go through every combination year, area, GTG, and age
+
+      # loop through each area
+      for(area in 1:total_areas) {
+        # loop through each GTG
+        for(gtg in 1:lh$gtg) {
+          # loop through each age within the corresponding GTG
+          for(age in 1:lh$ageClasses) {
+
+            # NEW: improved data source selection for multifleet
+
+            # choose data source based on type (FI or FD)
+            if(design$indextype == "FD") {
+              if(is_multifleet) {
+                # MULTIFLEET MODE: Use fleet-specific catch data
+                # catchNage_by_fleet[[fleet]][[gtg]][age, year, area]
+                if(!exists("catchNage_by_fleet")) {
+                  stop("Multifleet FD length composition requires catchNage_by_fleet arrays")
+                }
+                selected_data <- catchNage_by_fleet[[fleet_id]][[gtg]][age, j, area]
+              } else {
+
+                # SINGLE FLEET MODE: Use aggregated catch data (remain unchanged)
+                selected_data <- catchNage[[gtg]][age, j, area]
+              }
+            } else {  # FI
+              # get the N of fish for this [[GTG]][age, year, area]
+              numbers_at_age <- N[[gtg]][age, j, area]
+
+              # get selectivity for FI
+              if(j <= historical_end) {
+                selectivity <- index_selectivity_hist
+              } else {
+                selectivity <- index_selectivity_proj
+              }
+
+              # apply FI (surveys) selectivity
+              selected_data <- numbers_at_age * selectivity$vul[[gtg]][age]
+
+              #survey timing correction (exp(-total_mortality * LengthCompObj@survey_timing))
+              survey_timing <- design$survey_timing
+              timing_correction <- exp(-Z[[gtg]][age, j, area] * survey_timing)
+              # apply timing correction
+              selected_data <- selected_data * timing_correction
+
+            }
+
+
+            if(selected_data > 0) {  # only if there are fish
+
+              # get the mean length for this GTG at this age: extract the specific length for this GTG and age
+              length_at_age <- lh$L[[gtg]][age]
+
+              #we look up which length bin this GTG-age combination belongs to
+              length_bin_index <- findInterval(length_at_age, length_bins)
+
+
+
+              # Then we store the match/ or mapping
+              # store the bin number in the matching table, but only if it's valid
+              # (if(length_bin_index > 0 && length_bin_index <= n_length_bins))
+
+              ## for example:  GTG 1, Age 4, Year 1, Area 1
+              #simulation_result$dynamics$N[[1]][4, 1, 1] =107.968 # N fish
+              ## find out which "length bin" GTG 1, Age 4 belongs to (in this case bin 11)
+              #age_to_length_bin[1, 4] = bin 11
+              ## assuming there are some fish already in this bin (from previous GTG/age combination
+              ## assuming there are already 75 fish in bin 11
+              # N_length[11, 1, 1] <- 75  # starting with 75 fish already there
+              ## we found more fish from  specific example: GTG 1, Age 4
+              #selected_data <- simulation_result$dynamics$N[[1]][4, 1, 1]  # = 107.968
+
+              #current_count <- N_length[11, 1, 1] =75
+              #add the new fish
+              #total_count <- current_count + 107.968
+
+              if(length_bin_index > 0 && length_bin_index <= n_length_bins) {
+                length_array[length_bin_index, area] <- length_array[length_bin_index, area] + selected_data
+              }
+            }
+          }
+        }
+      }
+
+
+      #----------------------------------------------------------#
+      #--------------------------Part 3--------------------------#
+      #--sample from the TRUE length composition using rmult-----#
+      #----------------------------------------------------------#
+
+
+      # get true comp for this index design
+      if(length(design$areas) == 1) {
+        # single area sampling: extract composition for that area
+        true_comp <- length_array[, design$areas[1]]                   #true_length_array_for_survey: rows=bins, cols= years
+      } else {
+        # multi-area sampling: sum composition across specified areas
+        # this simulates a survey that operates across multiple areas in same sampling event
+        # drop=FALSE, keep the shape of the data, so rowsums works
+        true_comp <- rowSums(length_array[, design$areas, drop = FALSE]) # true_length_array_for_survey: rows=bins, cols= years
+      }
+
+      # get sample size for this year
+      year_idx <- which(design$years == (j-1))
+      sample_size <- design$sample_sizes[year_idx]
+
+      # multinomial sampling
+      # calculate total available fish for sampling
+      total_catch <- sum(true_comp)
+
+
+      # apply multinomial sampling if fish are available to sample
+      if(total_catch > 0 && sample_size > 0) {
+
+        # convert true composition to proportions (probabilities for multinomial)
+        true_props <- true_comp / total_catch
+
+        # perform multinomial sampling: randomly select sample_size fish
+        # according to the true length proportions
+        observed_counts <- as.vector(rmultinom(1, size = sample_size, prob = true_props))
+
+        #observed_proportions <- observed_counts / sum(observed_counts)
+        observed_numbers <- observed_counts
+
+      } else {
+        # No fish available but sampled occurr
+        observed_numbers <- rep(0, n_length_bins)
+      }
+
+
+      # Add columns to tibble
+      lengthcomp_return[[paste0(program_name, "_indextype")]] <- design$indextype
+      lengthcomp_return[[paste0(program_name, "_areas")]] <- paste(design$areas, collapse = "_")
+      lengthcomp_return[[paste0(program_name, "_years")]] <- paste(design$years, collapse = "_")
+      lengthcomp_return[[paste0(program_name, "_sample_size")]] <- sample_size
+      lengthcomp_return[[paste0(program_name, "_total_catch")]] <- total_catch
+
+      #NEW: add fleet metadata for FD programs
+      if(design$indextype == "FD" && is_multifleet) {
+        lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- fleet_id
+      } else {
+        lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- NA
+      }
+
+      # Add selectivity info for FI programs
+      if(design$indextype == "FI") {
+        lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- design$selectivity_hist_idx
+        lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- design$selectivity_proj_idx
+        lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- design$survey_timing
+      } else {
+        lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- NA
+        lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- NA
+        lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- NA
+      }
+
+      # Add length composition numbers for each bin
+      for(bin in 1:n_length_bins) {
+        lengthcomp_return[[paste0(program_name, "_count_bin_", bin)]] <- observed_numbers[bin]
+      }
+
+    } else {
+      # This program does not sample this year - set to NA
+      lengthcomp_return[[paste0(program_name, "_indextype")]] <- design$indextype
+      lengthcomp_return[[paste0(program_name, "_areas")]] <- paste(design$areas, collapse = "_")
+      lengthcomp_return[[paste0(program_name, "_years")]] <- paste(design$years, collapse = "_")
+      lengthcomp_return[[paste0(program_name, "_sample_size")]] <- NA
+      lengthcomp_return[[paste0(program_name, "_total_catch")]] <- NA
+
+      #NEW: Add fleet metadata for NA cases
+      if(design$indextype == "FD" && is_multifleet) {
+        lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- fleet_id
+      } else {
+        lengthcomp_return[[paste0(program_name, "_fleet_id")]] <- NA
+      }
+
+      # Selectivity info
+      if(design$indextype == "FI") {
+        lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- design$selectivity_hist_idx
+        lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- design$selectivity_proj_idx
+        lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- design$survey_timing
+      } else {
+        lengthcomp_return[[paste0(program_name, "_selectivity_hist_idx")]] <- NA
+        lengthcomp_return[[paste0(program_name, "_selectivity_proj_idx")]] <- NA
+        lengthcomp_return[[paste0(program_name, "_survey_timing")]] <- NA
+      }
+
+      # Add NA for all length bins
+      for(bin in 1:n_length_bins) {
+        lengthcomp_return[[paste0(program_name, "_count_bin_", bin)]] <- NA
+      }
+    }
+  }
+
+  return(lengthcomp_return)
+}
 
 
 
