@@ -51,7 +51,7 @@ ta@title <- "Validation Test"
 ta@gtg <- 13
 ta@areas <- 2
 ta@recArea <- c(0.99, 0.01)
-ta@iterations <- 20
+ta@iterations <- 15
 ta@historicalYears <- 10
 ta@historicalBio <- 0.5
 ta@historicalBioType <- "relB"
@@ -502,12 +502,30 @@ multiCompMP <- function(phase, dataObject) {
       }
     }
 
+
+    #debugging
+    if(phase == 1 && j == 2 && k == 1) {
+      cat("=== ARRAY AVAILABILITY CHECK ===\n")
+      cat("N exists:", exists("N"), "\n")
+      cat("Z exists:", exists("Z"), "\n")
+      cat("catchNage exists:", exists("catchNage"), "\n")
+      cat("VB exists:", exists("VB"), "\n")
+      cat("RB exists:", exists("RB"), "\n")
+      cat("catchB exists:", exists("catchB"), "\n")
+      cat("is_multifleet:", is_multifleet, "\n")
+      if(is_multifleet) {
+        cat("RB_by_fleet exists:", exists("RB_by_fleet"), "\n")
+        cat("catchB_by_fleet exists:", exists("catchB_by_fleet"), "\n")
+      }
+      cat("================================\n")
+    }
+
     return(combined_data)
   }
 
   if(phase == 2) return(list())
 
-  #need to modify phase 3
+  #Vania edit's to match Bill's edits
   if(phase == 3) {
 
     #return fleet-specific F values for each area-fleet combination
@@ -781,8 +799,8 @@ result_multi_comp  <- readProjection(getwd(), "test2_multi_comprehensive")
 # Population outputs
 
 result_multi_comp$dynamics$SB
-result_multi_comp$dynamics$VB
-result_multi_comp$dynamics$Ftotal
+#result_multi_comp$dynamics$VB
+#result_multi_comp$dynamics$Ftotal
 result_multi_comp$dynamics$recN
 result_multi_comp$dynamics$SPR
 
