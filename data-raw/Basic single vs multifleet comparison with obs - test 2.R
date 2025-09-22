@@ -4,7 +4,7 @@
 # Purpose: Test observation models in single fleet vs multifleet contexts
 # Tests:
 # 1. Single fleet with all observation types
-# 2. Multifleet (3 fleets) with comprehensive observation models
+# 2. Multifleet (2 fleets) with comprehensive observation models
 # 3. Mixed temporal coverage (some indices annual, others periodic)
 # 4. Different spatial coverage (some indices single area, others multi-area)
 # 5. Length composition with multiple sampling programs
@@ -386,33 +386,9 @@ result_single_comp$dynamics$recN
 result_single_comp$dynamics$SPR
 
 
-# obs model outputs
-result_single_comp$HCR$decisionData$IDX_CPUE_1
-result_single_comp$HCR$decisionData$IDX_CPUE_1_areas
-result_single_comp$HCR$decisionData$IDX_CPUE_2
-result_single_comp$HCR$decisionData$IDX_CPUE_2_areas
-result_single_comp$HCR$decisionData$IDX_Survey_3
-result_single_comp$HCR$decisionData$IDX_Survey_3_areas
-result_single_comp$HCR$decisionData$IDX_Survey_4
-result_single_comp$HCR$decisionData$IDX_Survey_4_areas
+# obs model outputs (data frame now)
+str(result_single_comp$HCR$decisionData)
 
-#Exploring length obs
-result_single_comp$HCR$decisionData$LC_Fishery_1_indextype
-result_single_comp$HCR$decisionData$LC_Fishery_1_areas
-
-result_single_comp$HCR$decisionData$LC_Survey_2_indextype
-result_single_comp$HCR$decisionData$LC_Survey_2_areas
-
-result_single_comp$HCR$decisionData$LC_Survey_3_indextype
-result_single_comp$HCR$decisionData$LC_Survey_3_areas
-
-
-#exploring cacth obs
-result_single_comp$HCR$decisionData$true_catch
-result_single_comp$HCR$decisionData$observed_catch
-
-result_single_comp$HCR$decisionData$observed_catch_area_1
-result_single_comp$HCR$decisionData$observed_catch_area_2
 
 
 # ============================================================================
@@ -481,6 +457,23 @@ multiCompMP <- function(phase, dataObject) {
   if(phase == 1) {
     combined_data <- list()
 
+    #debugging
+    if(phase == 1 && j == 2 && k == 1) {
+      cat("=== ARRAY AVAILABILITY CHECK ===\n")
+      cat("N exists:", exists("N"), "\n")
+      cat("Z exists:", exists("Z"), "\n")
+      cat("catchNage exists:", exists("catchNage"), "\n")
+      cat("VB exists:", exists("VB"), "\n")
+      cat("RB exists:", exists("RB"), "\n")
+      cat("catchB exists:", exists("catchB"), "\n")
+      cat("is_multifleet:", is_multifleet, "\n")
+      if(is_multifleet) {
+        cat("RB_by_fleet exists:", exists("RB_by_fleet"), "\n")
+        cat("catchB_by_fleet exists:", exists("catchB_by_fleet"), "\n")
+      }
+      cat("================================\n")
+    }
+
     if(!is.null(IndexObj)) {
       index_result <- calculate_single_Index(dataObject)
       for(col_name in names(index_result)) {
@@ -503,23 +496,6 @@ multiCompMP <- function(phase, dataObject) {
     }
 
 
-    #debugging
-    if(phase == 1 && j == 2 && k == 1) {
-      cat("=== ARRAY AVAILABILITY CHECK ===\n")
-      cat("N exists:", exists("N"), "\n")
-      cat("Z exists:", exists("Z"), "\n")
-      cat("catchNage exists:", exists("catchNage"), "\n")
-      cat("VB exists:", exists("VB"), "\n")
-      cat("RB exists:", exists("RB"), "\n")
-      cat("catchB exists:", exists("catchB"), "\n")
-      cat("is_multifleet:", is_multifleet, "\n")
-      if(is_multifleet) {
-        cat("RB_by_fleet exists:", exists("RB_by_fleet"), "\n")
-        cat("catchB_by_fleet exists:", exists("catchB_by_fleet"), "\n")
-      }
-      cat("================================\n")
-    }
-
     return(combined_data)
   }
 
@@ -528,25 +504,38 @@ multiCompMP <- function(phase, dataObject) {
   #Vania edit's to match Bill's edits
   if(phase == 3) {
 
-    #return fleet-specific F values for each area-fleet combination
-    result_data <- data.frame()
+    # return vectors following Bill's multifleet structure
+    # create vectors for all area-fleet combinations
 
+    n_combinations <- areas * nfleets
+
+    #initialize vectors
+    year_vec <- numeric(n_combinations)
+    iteration_vec <- numeric(n_combinations)
+    area_vec <- numeric(n_combinations)
+    fleet_vec <- numeric(n_combinations)
+    Flocal_vec <- numeric(n_combinations)
+
+    index <- 1
     for(area in 1:areas) {
       for(fleet in 1:nfleets) {
-        result_data <- rbind(result_data, data.frame(
-          year = j,
-          iteration = k,
-          area = area,
-          fleet = fleet,
-          Flocal = 0.05  # conservative F for testing
-        ))
+        year_vec[index] <- j
+        iteration_vec[index] <- k
+        area_vec[index] <- area
+        fleet_vec[index] <- fleet
+        Flocal_vec[index] <- 0.05  # Conservative F for testing
+        index <- index + 1
+
       }
     }
 
-
-
-    return(list(year=result_data$year, iteration=result_data$iteration, area=result_data$area,
-                fleet=result_data$fleet, Flocal=result_data$Flocal))
+    return(list(
+      year = year_vec,
+      iteration = iteration_vec,
+      area = area_vec,
+      fleet = fleet_vec,
+      Flocal = Flocal_vec
+    ))
   }
 }
 
@@ -569,11 +558,11 @@ multifleet_2fleet@allocation_type <- "catch"
 multifleet_2fleet@fleet_selectivity_hist_list <- list(fleet1_sel_hist, fleet2_sel_hist)
 #multifleet_2fleet@fleet_selectivity_proj_list <- list(fleet1_sel_proj, fleet2_sel_proj)
 
-#changing prj sel with the nested structure
+# New structure: For 2 areas, 2 fleets
 multifleet_2fleet@fleet_selectivity_proj_list <- list(
-  # Area 1 projections - both fleets
+  # Area 1
   list(fleet1_sel_proj, fleet2_sel_proj),
-  # Area 2 projections - both fleets
+  # Area 2
   list(fleet1_sel_proj, fleet2_sel_proj)
 )
 
@@ -804,52 +793,8 @@ result_multi_comp$dynamics$SB
 result_multi_comp$dynamics$recN
 result_multi_comp$dynamics$SPR
 
-# obs model outputs
-result_multi_comp$HCR$decisionData$IDX_Survey_1
-result_multi_comp$HCR$decisionData$IDX_Survey_1_areas
-
-result_multi_comp$HCR$decisionData$IDX_Survey_2
-result_multi_comp$HCR$decisionData$IDX_Survey_2_areas
-
-
-result_multi_comp$HCR$decisionData$IDX_CPUE_3_Fleet_1
-result_multi_comp$HCR$decisionData$IDX_CPUE_3_Fleet_1_areas
-
-result_multi_comp$HCR$decisionData$IDX_CPUE_4_Fleet_1
-result_multi_comp$HCR$decisionData$IDX_CPUE_4_Fleet_1_areas
-
-result_multi_comp$HCR$decisionData$IDX_CPUE_5_Fleet_2
-result_multi_comp$HCR$decisionData$IDX_CPUE_5_Fleet_2_areas
-
-result_multi_comp$HCR$decisionData$IDX_CPUE_6_Fleet_2
-result_multi_comp$HCR$decisionData$IDX_CPUE_6_Fleet_2_areas
-
-
-#LC obs
-result_multi_comp$HCR$decisionData$LC_Fishery_1_Fleet_1_indextype
-result_multi_comp$HCR$decisionData$LC_Fishery_1_Fleet_1_areas
-
-result_multi_comp$HCR$decisionData$LC_Fishery_2_Fleet_2_indextype
-result_multi_comp$HCR$decisionData$LC_Fishery_2_Fleet_2_areas
-
-result_multi_comp$HCR$decisionData$LC_Survey_3_indextype
-result_multi_comp$HCR$decisionData$LC_Survey_3_areas
-
-result_multi_comp$HCR$decisionData$LC_Survey_4_indextype
-result_multi_comp$HCR$decisionData$LC_Survey_4_areas
-
-
-#catch obs
-result_multi_comp$HCR$decisionData$total_true_catch
-result_multi_comp$HCR$decisionData$total_observed_catch
-
-result_multi_comp$HCR$decisionData$fleet_1_true_catch
-result_multi_comp$HCR$decisionData$fleet_1_observed_catch
-
-result_multi_comp$HCR$decisionData$fleet_2_true_catch
-result_multi_comp$HCR$decisionData$fleet_2_observed_catch
-
-
+# obs model outputs (new structure data frame)
+result_multi_comp$HCR$decisionData
 
 
 # # Clean up intermediate files
