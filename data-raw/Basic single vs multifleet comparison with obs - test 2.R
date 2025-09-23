@@ -51,7 +51,7 @@ ta@title <- "Validation Test"
 ta@gtg <- 13
 ta@areas <- 2
 ta@recArea <- c(0.99, 0.01)
-ta@iterations <- 15
+ta@iterations <- 6
 ta@historicalYears <- 10
 ta@historicalBio <- 0.5
 ta@historicalBioType <- "relB"
@@ -150,23 +150,28 @@ test_seed <- 12345
 singleCompMP <- function(phase, dataObject) {
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
+  #phase 1 called once per year/iter combination
   if(phase == 1) {
     combined_data <- list()
 
+    #each observation model returns ONE ROW for this j,k combination
+    #the model calls phase 1 repeatedly and builds the complete dataset
     if(!is.null(IndexObj)) {
-      index_result <- calculate_single_Index(dataObject)
+      index_result <- calculate_single_Index(dataObject) #returns 1-row tibble
+      #add each column from the tibble to combined_data
       for(col_name in names(index_result)) {
         combined_data[[col_name]] <- index_result[[col_name]]
       }
     }
 
     if(!is.null(CatchObsObj)) {
-      catch_result <- calculate_single_CatchObs(dataObject)
+      catch_result <- calculate_single_CatchObs(dataObject) #returns 1-row tibble
+      # add catch observation columns
       for(col_name in names(catch_result)) {
         combined_data[[col_name]] <- catch_result[[col_name]]
       }
     }
-
+    #same
     if(!is.null(LengthCompObj)) {
       lc_result <- calculate_single_LengthComp(dataObject)
       for(col_name in names(lc_result)) {
@@ -174,11 +179,13 @@ singleCompMP <- function(phase, dataObject) {
       }
     }
 
-    return(combined_data)
+    return(combined_data) #returns single row of obsrvtation
   }
 
   if(phase == 2) return(list())
+  #phase 3 called once per year/iter
   if(phase == 3) {
+    #create vectors for each area
     year <- rep(j, areas)
     iteration <- rep(k, areas)
     area <- 1:areas
@@ -187,6 +194,8 @@ singleCompMP <- function(phase, dataObject) {
     return(list(year=year, iteration=iteration, area=area, Flocal=Flocal))
   }
 }
+
+#Single fleet Phase 3: Returns 2 F values (one per area)
 
 strategy_single_comp <- new("Strategy")
 strategy_single_comp@title <- "Single Fleet Comprehensive"
@@ -388,7 +397,7 @@ result_single_comp$dynamics$SPR
 
 # obs model outputs (data frame now)
 str(result_single_comp$HCR$decisionData)
-
+result_single_comp$HCR$decisionData$IDX_CPUE_1
 
 
 # ============================================================================
@@ -473,9 +482,10 @@ multiCompMP <- function(phase, dataObject) {
       }
       cat("================================\n")
     }
-
+     #if indexObj exist
     if(!is.null(IndexObj)) {
-      index_result <- calculate_single_Index(dataObject)
+      index_result <- calculate_single_Index(dataObject) #returns 1-row tibble
+      #add each column from the tibble to combined_data
       for(col_name in names(index_result)) {
         combined_data[[col_name]] <- index_result[[col_name]]
       }
@@ -504,40 +514,46 @@ multiCompMP <- function(phase, dataObject) {
   #Vania edit's to match Bill's edits
   if(phase == 3) {
 
-    # return vectors following Bill's multifleet structure
-    # create vectors for all area-fleet combinations
+    Flocal <- data.frame()
 
-    n_combinations <- areas * nfleets
-
-    #initialize vectors
-    year_vec <- numeric(n_combinations)
-    iteration_vec <- numeric(n_combinations)
-    area_vec <- numeric(n_combinations)
-    fleet_vec <- numeric(n_combinations)
-    Flocal_vec <- numeric(n_combinations)
-
-    index <- 1
-    for(area in 1:areas) {
-      for(fleet in 1:nfleets) {
-        year_vec[index] <- j
-        iteration_vec[index] <- k
-        area_vec[index] <- area
-        fleet_vec[index] <- fleet
-        Flocal_vec[index] <- 0.05  # Conservative F for testing
-        index <- index + 1
-
+    #creating one row per area-fleet combination
+    for(m in 1:areas) {
+      for(f in 1:nfleets) {
+        #row contain: [year, iteration, area, fleet, F_value]
+        Flocal <- rbind(Flocal, c(j, k, m, f, 0.05))  # Conservative F = 0.05
       }
     }
 
+    #results in 4 rows: (1,1), (1,2), (2,1), (2,2) for 2 areas × 2 fleets
+    #                   (A1,F1) (A1,F2)
+
     return(list(
-      year = year_vec,
-      iteration = iteration_vec,
-      area = area_vec,
-      fleet = fleet_vec,
-      Flocal = Flocal_vec
+      year = Flocal[,1],           # [j, j, j, j]
+      iteration = Flocal[,2],      # [k, k, k, k]
+      area = Flocal[,3],           # [1, 1, 2, 2]
+      fleet = Flocal[,4],          # [1, 2, 1, 2]
+      Flocal = Flocal[,5]          # [0.05, 0.05, 0.05, 0.05]
     ))
   }
 }
+
+#Multi Fleet Phase 3: Returns 4 F values (one per area-fleet combination)
+
+# For a simulation with 15 years × 6 iterations = 90
+# Phase 1 gets called 90 times
+# Each call returns one row of observation data
+# the model rbinds these together into decisionData
+
+#Now, each obs column becomes a vector of length 90
+#For example:
+#IDX_CPUE_1
+#Year 1, Iter 1: value_1
+#Year 1, Iter 2: value_2
+
+#This creates: [value_1, value_2, value_3, value_4, ...] - a long vector of length 90
+
+
+
 
 # Strategy objects
 strategy_multi_comp <- new("Strategy")
@@ -795,6 +811,7 @@ result_multi_comp$dynamics$SPR
 
 # obs model outputs (new structure data frame)
 result_multi_comp$HCR$decisionData
+result_multi_comp$HCR$decisionData$IDX_Survey_1
 
 
 # # Clean up intermediate files
