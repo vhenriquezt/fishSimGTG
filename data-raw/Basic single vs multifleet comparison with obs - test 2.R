@@ -400,6 +400,72 @@ str(result_single_comp$HCR$decisionData)
 result_single_comp$HCR$decisionData$IDX_CPUE_1
 
 
+#plots
+# loading plot fucntion for toher plots
+
+# #obs: need to add units
+plot_SB(result_single_comp)
+plot_SB(result_single_comp, areas=1)
+plot_SB(result_single_comp, areas=2)
+plot_SB(result_single_comp, areas=c(1,2))
+
+plot_VB(result_single_comp)
+plot_VB(result_single_comp, areas=1)
+plot_VB(result_single_comp, areas=2)
+
+plot_Ftotal(result_single_comp)
+plot_Ftotal(result_single_comp, areas=1)
+plot_Ftotal(result_single_comp, areas=2)
+
+
+plot_catchB(result_single_comp)
+plot_catchB(result_single_comp,areas=1)
+plot_catchB(result_single_comp,areas=2)
+
+plot_catchN(result_single_comp)
+plot_catchN(result_single_comp, areas=1)
+plot_catchN(result_single_comp, areas=2)
+
+plot_discB(result_single_comp)
+plot_discB(result_single_comp,areas=1)
+plot_discB(result_single_comp,areas=2)
+
+plot_discN(result_single_comp)
+plot_discN(result_single_comp,areas=1)
+plot_discN(result_single_comp,areas=2)
+
+plot_catchB_multi(result_single_comp)
+plot_catchB_multi(result_single_comp, areas=1)
+plot_catchB_multi(result_single_comp, areas=2)
+
+plot_catchN_multi(result_single_comp,show_individual = TRUE)
+plot_catchN_multi(result_single_comp, areas=1)
+plot_catchN_multi(result_single_comp, areas=2)
+
+plot_SPR(result_single_comp)
+plot_recN(result_single_comp)
+
+
+# #plot obs models (indices)
+plot_survey_indices(result_single_comp)
+plot_cpue_indices(result_single_comp)
+
+plot_all_indices(result_single_comp)
+
+plot_catch_observations_both(result_single_comp,show_individual = FALSE)
+plot_catch_observations_both(result_single_comp,show_individual = TRUE)
+
+
+# plot LC obs models
+# NEW: Area-specific functions (median across iterations are dispayed)
+plot_fishery_length_comp(result_single_comp,show_individual = TRUE)
+
+plot_survey_length_comp(result_single_comp,show_individual = TRUE)
+plot_survey_length_comp(result_single_comp, areas=1,show_individual = TRUE)
+plot_survey_length_comp(result_single_comp, areas=2,show_individual = TRUE)
+
+
+
 # ============================================================================
 # TEST 2: MULTIFLEET 2 FLEETS WITH COMPREHENSIVE OBSERVATION MODELS
 # ============================================================================
@@ -821,4 +887,104 @@ result_multi_comp$HCR$decisionData$IDX_Survey_1
 # file.remove("test3_multifleet_2_fleets.rds")
 # file.remove("test4_multifleet_2_fleets.rds")
 # file.remove("test5_multifleet_3_fleets.rds")
+
+
+#obs: need to add units
+plot_SB(result_multi_comp)
+plot_SB(result_multi_comp, areas=1)
+plot_SB(result_multi_comp, areas=2)
+plot_SB(result_multi_comp, areas=c(1,2))
+
+
+plot_catchB(result_multi_comp)
+plot_catchB(result_multi_comp,areas=1)
+plot_catchB(result_multi_comp,areas=2)
+
+plot_catchN(result_multi_comp)
+plot_catchN(result_multi_comp, areas=1)
+plot_catchN(result_multi_comp, areas=2)
+
+# plot_discB(result_multi_comp)
+# plot_discB(result_multi_comp,areas=1)
+# plot_discB(result_multi_comp,areas=2)
+
+plot_discN(result_multi_comp)
+plot_discN(result_multi_comp,areas=1)
+plot_discN(result_multi_comp,areas=2)
+
+plot_catchB_multi(result_multi_comp)
+plot_catchB_multi(result_multi_comp, areas=1)
+plot_catchB_multi(result_multi_comp, areas=2)
+
+plot_catchN_multi(result_multi_comp,show_individual = TRUE)
+plot_catchN_multi(result_multi_comp, areas=1)
+plot_catchN_multi(result_multi_comp, areas=2)
+
+plot_SPR(result_multi_comp)
+plot_recN(result_multi_comp)
+
+
+#plot obs models (indices)
+plot_survey_indices(result_multi_comp)
+plot_cpue_indices(result_multi_comp)
+
+plot_all_indices(result_multi_comp)
+
+#plot individual indices
+plot_indices(result_multi_comp,
+             index_pattern = "IDX_CPUE.*Fleet_1",
+             show_individual = TRUE,
+             title = "Fleet 1 CPUE Only")
+
+plot_indices(result_multi_comp,
+             index_pattern = "IDX_CPUE.*Fleet_2",
+             show_individual = TRUE,
+             title = "Fleet 2 CPUE Only")
+
+
+
+
+
+plot_catch_observations_both(result_multi_comp,show_individual = TRUE)
+plot_catch_observations_multifleet(result_multi_comp,show_individual = TRUE)
+
+
+# plot LC obs models
+# NEW: Area-specific functions (median across iterations are dispayed)
+plot_fishery_length_comp(result_multi_comp,show_individual = TRUE)
+plot_fishery_length_comp(result_multi_comp, areas=1,show_individual = TRUE)
+plot_fishery_length_comp(result_multi_comp, areas=2,show_individual = TRUE)
+
+plot_survey_length_comp(result_multi_comp,show_individual = TRUE)
+plot_survey_length_comp(result_multi_comp, areas=1,show_individual = TRUE)
+plot_survey_length_comp(result_multi_comp, areas=2,show_individual = TRUE)
+
+
+
+# NEW: Custom filtering for fleets and areas
+plot_length_composition_by_area(result_multi_comp,
+                                program_pattern = "LC_Fishery",
+                                area_filter = c(1),    # Specific areas
+                                fleet_filter = c(1),
+                                show_individual = TRUE)   # Specific fleets
+
+
+
+plot_length_composition_by_area(result_multi_comp,
+                                program_pattern = "LC_Fishery",
+                                area_filter = c(1,2),    # Specific areas
+                                fleet_filter = c(2),
+                                show_individual = TRUE)   # Specific fleets
+
+
+plot_length_composition_by_area(result_multi_comp,
+                                program_pattern = "LC_Survey",
+                                area_filter = c(1,2),    # Specific areas
+                                fleet_filter = c(2),
+                                show_individual = TRUE)   # Specific fleets
+
+
+
+
+
 
