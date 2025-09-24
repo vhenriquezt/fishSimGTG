@@ -1,6 +1,0 @@
-"test","fleet","nfleets","allocation_type","original_fleet_proportion","target_catch_proportion","actual_catch_proportion","final_effort_proportion","allocation_error"
-"Multifleet_2_Identical",1,2,"catch",0.6,0.6,0.595429375794366,0.595429375794366,0.00457062420563448
-"Multifleet_2_Identical",2,2,"catch",0.4,0.4,0.404570624205634,0.404570624205634,0.00457062420563442
-"Multifleet_1_Fleet",1,1,"catch",1,1,1,1,0
-"Multifleet_Different",1,2,"catch",0.7,0.7,0.695743165724294,0.689418608988618,0.00425683427570578
-"Multifleet_Different",2,2,"catch",0.3,0.3,0.304256834275706,0.310581391011382,0.00425683427570589
