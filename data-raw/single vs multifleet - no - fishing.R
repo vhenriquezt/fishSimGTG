@@ -59,7 +59,7 @@ ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
 #                               nrow = 10, ncol = 2, byrow = FALSE)
 
 
-ta@historicalEffort <- matrix(0.0001, nrow = 10, ncol = 2, byrow = FALSE)
+ta@historicalEffort <- matrix(0.001, nrow = 10, ncol = 2, byrow = FALSE)
 
 # Stochastic (not used)
 stochastic_obj <- new("Stochastic")
@@ -469,12 +469,12 @@ multiCompMP <- function(phase, dataObject) {
       }
     }
 
-    if(!is.null(CatchObsObj)) {
-      catch_result <- calculate_single_CatchObs(dataObject)
-      for(col_name in names(catch_result)) {
-        combined_data[[col_name]] <- catch_result[[col_name]]
-      }
-    }
+    # if(!is.null(CatchObsObj)) {
+    #   catch_result <- calculate_single_CatchObs(dataObject)
+    #   for(col_name in names(catch_result)) {
+    #     combined_data[[col_name]] <- catch_result[[col_name]]
+    #   }
+    # }
 
     if(!is.null(LengthCompObj)) {
       lc_result <- calculate_single_LengthComp(dataObject)
@@ -498,7 +498,7 @@ multiCompMP <- function(phase, dataObject) {
     for(m in 1:areas) {
       for(f in 1:nfleets) {
         #row contain: [year, iteration, area, fleet, F_value]
-        Flocal <- rbind(Flocal, c(j, k, m, f, 0.0001))  # Conservative F = 0.05
+        Flocal <- rbind(Flocal, c(j, k, m, f, 0.01))  # Conservative F = 0.05
       }
     }
 
@@ -659,17 +659,17 @@ result_multi_comp <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
   StrategyObj = strategy_multi_comp,
-  StochasticObj = NULL,
+  #StochasticObj = NULL,
   MultifleetObj = multifleet_2fleet,
   IndexObj = multi_comprehensive_index,
-  CatchObsObj = NULL,
+  #CatchObsObj = NULL,
   LengthCompObj = multi_comprehensive_lcomp,
   wd = getwd(),
   fileName = "test_multifleet_no_fishing",
   seed = test_seed,
   doPlot = FALSE,
-  doDiagnostic = FALSE,
-  customToCluster = "multiCompMP"
+  doDiagnostic = FALSE
+  #customToCluster = "multiCompMP"
 )
 cat("Multifleet (2 fleeets) comprehensive simulation completed\n")
 
