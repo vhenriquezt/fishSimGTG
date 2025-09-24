@@ -1022,7 +1022,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
 
     #Check for Projection sel
     if(is(StrategyObj, "Strategy") &&
-       length(MultifleetObj@fleet_selectivity_proj_list) != nfleets) {
+       isTRUE(sapply(1:TimeAreaObj@areas, function(x){length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets}))) {
       stop(paste("fleet_selectivity_proj_list must contain", nfleets, "Fishery objects"))
     }
 
@@ -1194,7 +1194,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     #changed
     for(f in 1:nfleets) {
       if(is(StrategyObj, "Strategy") &&
-         is.null(MultifleetObj@fleet_selectivity_proj_list[[f]])) {
+         isTRUE(sapply(1:TimeAreaObj@areas, function(x){is.null(MultifleetObj@fleet_selectivity_proj_list[[x]][[f]])}))) {
         proceedMSE<-FALSE
         print(paste("Fleet", f, "projection selectivity object is missing"))
       }
