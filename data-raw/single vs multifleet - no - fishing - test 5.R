@@ -6,6 +6,7 @@
 # 1. Removing fishing
 
 
+
 rm(list=ls())
 devtools::load_all()
 library(ggplot2)
@@ -63,7 +64,7 @@ ta@gtg <- 13
 ta@areas <- 2
 ta@recArea <- c(0.99, 0.01)
 ta@iterations <- 2  # Small for quick testing
-ta@historicalYears <- 40
+ta@historicalYears <- 60
 ta@historicalBio <- 0.5
 ta@historicalBioType <- "relB"
 ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
@@ -74,7 +75,7 @@ ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
 #                               nrow = 10, ncol = 2, byrow = FALSE)
 
 
-ta@historicalEffort <- matrix(0,nrow = 40, ncol = 2, byrow = FALSE)
+ta@historicalEffort <- matrix(0,nrow = 60, ncol = 2, byrow = FALSE)
 
 
 # Stochastic - minimal variation for clear comparison
@@ -235,6 +236,45 @@ result_single <- runProjection(
 )
 
 cat("Single fleet simulation completed\n")
+result_single <- readProjection(getwd(), "test1_single_fleet")
+
+result_single$dynamics$Ftotal
+
+plot_SB(result_single)
+plot_SB(result_single, areas=1)
+plot_SB(result_single, areas=2)
+plot_SB(result_single, areas=c(1,2))
+
+
+plot_catchB(result_single)
+plot_catchB(result_single,areas=1)
+plot_catchB(result_single,areas=2)
+
+plot_catchN(result_single)
+plot_catchN(result_single, areas=1)
+plot_catchN(result_single, areas=2)
+
+plot_discB(result_single)
+plot_discB(result_single,areas=1)
+plot_discB(result_single,areas=2)
+
+plot_discN(result_single)
+plot_discN(result_single,areas=1)
+plot_discN(result_single,areas=2)
+
+plot_catchB_multi(result_single)
+plot_catchB_multi(result_single, areas=1)
+plot_catchB_multi(result_single, areas=2)
+
+plot_catchN_multi(result_single,show_individual = TRUE)
+plot_catchN_multi(result_single, areas=1)
+plot_catchN_multi(result_single, areas=2)
+
+plot_SPR(result_single)
+plot_recN(result_single)
+
+
+
 
 # ============================================================================
 # TEST 2: MULTIFLEET WITH 1 FLEET (effort) (SHOULD MATCH SINGLE FLEET)
@@ -267,6 +307,45 @@ result_multifleet_1E <- runProjection(
 
 cat("Multifleet (1 fleet - effort) simulation completed\n")
 
+result_multifleet_1E <- readProjection(getwd(), "test2_multifleet_1_fleetE")
+
+result_multifleet_1E$dynamics$multifleet$Ftotal_by_fleet
+
+plot_SB(result_multifleet_1E)
+plot_SB(result_multifleet_1E, areas=1)
+plot_SB(result_multifleet_1E, areas=2)
+plot_SB(result_multifleet_1E, areas=c(1,2))
+
+
+plot_catchB(result_multifleet_1E)
+plot_catchB(result_multifleet_1E,areas=1)
+plot_catchB(result_multifleet_1E,areas=2)
+
+plot_catchN(result_multifleet_1E)
+plot_catchN(result_multifleet_1E, areas=1)
+plot_catchN(result_multifleet_1E, areas=2)
+
+# plot_discB(result_multifleet_1E)
+# plot_discB(result_multifleet_1E,areas=1)
+# plot_discB(result_multifleet_1E,areas=2)
+
+plot_discN(result_multifleet_1E)
+plot_discN(result_multifleet_1E,areas=1)
+plot_discN(result_multifleet_1E,areas=2)
+
+plot_catchB_multi(result_multifleet_1E)
+plot_catchB_multi(result_multifleet_1E, areas=1)
+plot_catchB_multi(result_multifleet_1E, areas=2)
+
+plot_catchN_multi(result_multifleet_1E,show_individual = TRUE)
+plot_catchN_multi(result_multifleet_1E, areas=1)
+plot_catchN_multi(result_multifleet_1E, areas=2)
+
+plot_SPR(result_multifleet_1E)
+plot_recN(result_multifleet_1E)
+
+
+
 
 # ============================================================================
 # TEST 3: MULTIFLEET WITH 1 FLEET (catch) (SHOULD MATCH SINGLE FLEET)
@@ -297,6 +376,45 @@ result_multifleet_1C <- runProjection(
 )
 
 cat("Multifleet (1 fleet - catch) simulation completed\n")
+
+
+result_multifleet_1C <- readProjection(getwd(), "test2_multifleet_1_fleetC")
+
+result_multifleet_1C$dynamics$multifleet$Ftotal_by_fleet
+
+plot_SB(result_multifleet_1C)
+plot_SB(result_multifleet_1C, areas=1)
+plot_SB(result_multifleet_1C, areas=2)
+plot_SB(result_multifleet_1C, areas=c(1,2))
+
+
+plot_catchB(result_multifleet_1C)
+plot_catchB(result_multifleet_1C,areas=1)
+plot_catchB(result_multifleet_1C,areas=2)
+
+plot_catchN(result_multifleet_1C)
+plot_catchN(result_multifleet_1C, areas=1)
+plot_catchN(result_multifleet_1C, areas=2)
+
+# plot_discB(result_multifleet_1C)
+# plot_discB(result_multifleet_1C,areas=1)
+# plot_discB(result_multifleet_1C,areas=2)
+
+plot_discN(result_multifleet_1C)
+plot_discN(result_multifleet_1C,areas=1)
+plot_discN(result_multifleet_1C,areas=2)
+
+plot_catchB_multi(result_multifleet_1C)
+plot_catchB_multi(result_multifleet_1C, areas=1)
+plot_catchB_multi(result_multifleet_1C, areas=2)
+
+plot_catchN_multi(result_multifleet_1C,show_individual = TRUE)
+plot_catchN_multi(result_multifleet_1C, areas=1)
+plot_catchN_multi(result_multifleet_1C, areas=2)
+
+plot_SPR(result_multifleet_1C)
+plot_recN(result_multifleet_1C)
+
 
 
 # ============================================================================
@@ -398,7 +516,7 @@ result_multifleet_2A <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
   #StrategyObj = strategy_obj,
-  StochasticObj = stochastic_obj,
+  #StochasticObj = stochastic_obj,
   MultifleetObj = multifleet_2,
   wd = getwd(),
   fileName = "test3_multifleet_2_fleets",
@@ -408,6 +526,49 @@ result_multifleet_2A <- runProjection(
 )
 
 cat("Multifleet (2 fleets) simulation completed\n")
+
+
+
+result_multifleet_2A <- readProjection(getwd(), "test3_multifleet_2_fleets")
+result_multifleet_2A$dynamics$multifleet$catchB_by_fleet
+result_multifleet_2A$dynamics$multifleet$actual_catch_proportions
+
+dim(result_multifleet_2A$dynamics$multifleet$Ftotal_by_fleet)
+
+
+plot_SB(result_multifleet_2A)
+plot_SB(result_multifleet_2A, areas=1)
+plot_SB(result_multifleet_2A, areas=2)
+plot_SB(result_multifleet_2A, areas=c(1,2))
+
+
+plot_catchB(result_multifleet_2A)
+plot_catchB(result_multifleet_2A,areas=1)
+plot_catchB(result_multifleet_2A,areas=2)
+
+plot_catchN(result_multifleet_2A)
+plot_catchN(result_multifleet_2A, areas=1)
+plot_catchN(result_multifleet_2A, areas=2)
+
+# plot_discB(result_multifleet_2A)
+# plot_discB(result_multifleet_2A,areas=1)
+# plot_discB(result_multifleet_2A,areas=2)
+
+plot_discN(result_multifleet_2A)
+plot_discN(result_multifleet_2A,areas=1)
+plot_discN(result_multifleet_2A,areas=2)
+
+plot_catchB_multi(result_multifleet_2A)
+plot_catchB_multi(result_multifleet_2A, areas=1)
+plot_catchB_multi(result_multifleet_2A, areas=2)
+
+plot_catchN_multi(result_multifleet_2A,show_individual = TRUE)
+plot_catchN_multi(result_multifleet_2A, areas=1)
+plot_catchN_multi(result_multifleet_2A, areas=2)
+
+plot_SPR(result_multifleet_2A)
+plot_recN(result_multifleet_2A)
+
 
 
 
@@ -431,7 +592,7 @@ result_multifleet_2B <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
   #StrategyObj = strategy_obj,
-  StochasticObj = stochastic_obj,
+  #StochasticObj = stochastic_obj,
   MultifleetObj = multifleet_2,
   wd = getwd(),
   fileName = "test4_multifleet_2_fleets",
@@ -442,28 +603,45 @@ result_multifleet_2B <- runProjection(
 
 cat("Multifleet (2 fleets) simulation completed\n")
 
-
-result_multifleet_2A <- readProjection(getwd(), "test3_multifleet_2_fleets")
 result_multifleet_2B <- readProjection(getwd(), "test4_multifleet_2_fleets")
-
-# Test Multifleet (2 fleets) - same selectivity vs differnt selectivity
-Compare_diff_sel <- compare_metrics(result_multifleet_2A, result_multifleet_2B,
-                                    "result_multifleet_2A", "result_multifleet_2B", 1e-8)
-
-all_results <- list(result_multifleet_2A, result_multifleet_2B)
-result_names <- c("result_multifleet_2A", "result_multifleet_2B")
-
-cat("\nFinal biomass by test:\n")
-for(i in 1:length(all_results)) {
-  final_sb <- sum(all_results[[i]]$dynamics$SB[10, , ])  # Year 15, all iterations, all areas
-  cat(sprintf("  %s: %.2f\n", result_names[i], final_sb))
-}
-
-#Same selectivity: final_effort_proportions = actual_catch_proportions
-result_multifleet_2A$dynamics$multifleet$actual_catch_proportions
-
-#Different selectivity: final_effort_proportions != actual_catch_proportions
+result_multifleet_2B$dynamics$multifleet$catchB_by_fleet
 result_multifleet_2B$dynamics$multifleet$actual_catch_proportions
+
+dim(result_multifleet_2B$dynamics$multifleet$Ftotal_by_fleet)
+
+
+plot_SB(result_multifleet_2B)
+plot_SB(result_multifleet_2B, areas=1)
+plot_SB(result_multifleet_2B, areas=2)
+plot_SB(result_multifleet_2B, areas=c(1,2))
+
+
+plot_catchB(result_multifleet_2B)
+plot_catchB(result_multifleet_2B,areas=1)
+plot_catchB(result_multifleet_2B,areas=2)
+
+plot_catchN(result_multifleet_2B)
+plot_catchN(result_multifleet_2B, areas=1)
+plot_catchN(result_multifleet_2B, areas=2)
+
+# plot_discB(result_multifleet_2B)
+# plot_discB(result_multifleet_2B,areas=1)
+# plot_discB(result_multifleet_2B,areas=2)
+
+plot_discN(result_multifleet_2B)
+plot_discN(result_multifleet_2B,areas=1)
+plot_discN(result_multifleet_2B,areas=2)
+
+plot_catchB_multi(result_multifleet_2B)
+plot_catchB_multi(result_multifleet_2B, areas=1)
+plot_catchB_multi(result_multifleet_2B, areas=2)
+
+plot_catchN_multi(result_multifleet_2B,show_individual = TRUE)
+plot_catchN_multi(result_multifleet_2B, areas=1)
+plot_catchN_multi(result_multifleet_2B, areas=2)
+
+plot_SPR(result_multifleet_2B)
+result_multifleet_2B
 
 
 # ============================================================================
@@ -488,7 +666,7 @@ result_multifleet_3 <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
   #StrategyObj = strategy_obj,
-  StochasticObj = stochastic_obj,
+  #StochasticObj = stochastic_obj,
   MultifleetObj = multifleet_3,
   wd = getwd(),
   fileName = "test5_multifleet_3_fleets",
@@ -514,15 +692,57 @@ result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,1] #iter 1, area 2,
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,2] #iter 1, area 2, fleet 2
 result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,3] #iter 1, area 2, fleet 3
 
-# sum F across fleets - Area 1
-Farea1<- apply(cbind(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,1],
-                     result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,2],
-                     result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,3]), 1, sum)
+# # sum F across fleets - Area 1
+# Farea1<- apply(cbind(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,1],
+#                      result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,2],
+#                      result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,1,3]), 1, sum)
+#
+# # sum F across fleets - Area 2
+# Farea2<- apply(cbind(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,1],
+#                      result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,2],
+#                      result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,3]),1,sum)
 
-# sum F across fleets - Area 2
-Farea2<- apply(cbind(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,1],
-                     result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,2],
-                     result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet[,1,2,3]),1,sum)
+
+result_multifleet_3$dynamics$multifleet$catchB_by_fleet
+result_multifleet_3$dynamics$multifleet$actual_catch_proportions
+
+dim(result_multifleet_3$dynamics$multifleet$Ftotal_by_fleet)
+
+
+plot_SB(result_multifleet_3)
+plot_SB(result_multifleet_3, areas=1)
+plot_SB(result_multifleet_3, areas=2)
+plot_SB(result_multifleet_3, areas=c(1,2))
+
+
+plot_catchB(result_multifleet_3)
+plot_catchB(result_multifleet_3,areas=1)
+plot_catchB(result_multifleet_3,areas=2)
+
+plot_catchN(result_multifleet_3)
+plot_catchN(result_multifleet_3, areas=1)
+plot_catchN(result_multifleet_3, areas=2)
+
+# plot_discB(result_multifleet_3)
+# plot_discB(result_multifleet_3,areas=1)
+# plot_discB(result_multifleet_3,areas=2)
+
+plot_discN(result_multifleet_3)
+plot_discN(result_multifleet_3,areas=1)
+plot_discN(result_multifleet_3,areas=2)
+
+plot_catchB_multi(result_multifleet_3)
+plot_catchB_multi(result_multifleet_3, areas=1)
+plot_catchB_multi(result_multifleet_3, areas=2)
+
+plot_catchN_multi(result_multifleet_3,show_individual = TRUE)
+plot_catchN_multi(result_multifleet_3, areas=1)
+plot_catchN_multi(result_multifleet_3, areas=2)
+
+plot_SPR(result_multifleet_3)
+result_multifleet_3
+
+
 
 
 # Clean up intermediate files

@@ -672,7 +672,7 @@ result_complex$dynamics$SB
 # result_complex$dynamics$Ftotal
 result_complex$dynamics$SPR
 result_complex$dynamics$recN
-
+result_complex$dynamics$multifleet$Ftotal_by_fleet
 
 
 #Plot simulationr esults:
@@ -712,17 +712,6 @@ plot_SB(result_complex, areas=1)
 plot_SB(result_complex, areas=2)
 plot_SB(result_complex, areas=c(1,2))
 
-# plot_VB(result_complex)
-# plot_VB(result_complex, areas=1)
-# plot_VB(result_complex, areas=2)
-
-# plot_Ftotal(result_complex)
-# plot_Ftotal(result_complex, areas=1)
-# plot_Ftotal(result_complex, areas=2)
-
-#plot_Ftotal_multi(result_complex)
-# plot_Ftotal_multi(result_complex,areas=1)
-# plot_Ftotal_multi(result_complex,areas=2)
 
 plot_catchB(result_complex)
 plot_catchB(result_complex,areas=1)
@@ -732,9 +721,9 @@ plot_catchN(result_complex)
 plot_catchN(result_complex, areas=1)
 plot_catchN(result_complex, areas=2)
 
-# plot_discB(result_complex)
-# plot_discB(result_complex,areas=1)
-# plot_discB(result_complex,areas=2)
+plot_discB(result_complex)
+plot_discB(result_complex,areas=1)
+plot_discB(result_complex,areas=2)
 
 plot_discN(result_complex)
 plot_discN(result_complex,areas=1)
@@ -750,6 +739,12 @@ plot_catchN_multi(result_complex, areas=2)
 
 plot_SPR(result_complex)
 plot_recN(result_complex)
+
+result_complex$dynamics$multifleet$Ftotal_by_fleet
+
+plot_Ftotal_multi(result_complex,areas=c(1,2))
+plot_Ftotal_multi(result_complex,areas=1)
+plot_Ftotal_multi(result_complex,areas=2)
 
 
 #plot obs models (indices)
