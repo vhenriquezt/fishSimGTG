@@ -315,7 +315,17 @@ prepare_area_data <- function(dynamics, metric, areas, iterations, historical_en
 
 prepare_multifleet_data <- function(dynamics, metric, areas, iterations, historical_end) {
 
-  array_data <- dynamics$multifleet[[paste0(metric, "_by_fleet")]]
+  #array_data <- dynamics$multifleet[[paste0(metric, "_by_fleet")]]
+  #to handle the correct array name for multifleet
+  array_name <- paste0(metric, "_by_fleet")
+  array_data <- dynamics$multifleet[[array_name]]
+
+  #add a check
+  # check if array exists
+  if(is.null(array_data)) {
+    stop("multifleet array '", array_name, "' it was not found in dynamics$multifleet")
+  }
+
   years <- dim(array_data)[1]
   total_iterations <- dim(array_data)[2]
   nfleets <- dim(array_data)[4]
@@ -471,6 +481,21 @@ create_area_plot <- function(plot_data, metric, areas, show_median, show_quantil
                        size = 1.5)
   }
 
+  # fixing for zero values - extend y axis under zero to show the line of zero
+  # this fix the discB plot when discards are zero
+  y_range <- range(plot_data$value, na.rm = TRUE)
+  y_limits <- NULL
+
+  if(all(y_range == 0)) {
+    # All values are zero - create small range around zero
+    y_limits <- c(-0.01, 0.01)
+  } else if(y_range[1] == 0 && y_range[2] > 0) {
+    # Min is zero - extend below to show zero line
+    y_limits <- c(-y_range[2] * 0.05, y_range[2] * 1.05)
+  }
+
+
+
   #formatting
   p <- p +
     geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
@@ -484,6 +509,19 @@ create_area_plot <- function(plot_data, metric, areas, show_median, show_quantil
       plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
       legend.position = if(length(areas) > 1) "bottom" else "none"
     )
+
+
+  # y-limits and add zero reference line for discard metrics
+  if(!is.null(y_limits)) {
+    p <- p + coord_cartesian(ylim = y_limits)
+  }
+
+  if(metric %in% c("discB", "discN")) {
+    p <- p + geom_hline(yintercept = 0, linetype = "solid", color = "gray50", alpha = 0.7)
+  }
+
+
+
 
   #using facets for multiple areas (e.g., more than 3 areas)
   if(length(areas) > 3) {
