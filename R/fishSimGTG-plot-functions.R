@@ -21,6 +21,163 @@
 #' @return A ggplot object
 #' @export
 
+#' This is an internal helper function to ensure observation data is in matrix format
+#' @param simulation_result Output object from runProjection()
+#' @return simulation_result with observation data in matrix format
+#' @keywords internal
+
+ensure_matrix_format <- function(simulation_result) {
+  if(!is.null(simulation_result$HCR$decisionData) &&
+     is.null(simulation_result$observation_matrices)) {
+
+    obs_data <- simulation_result$HCR$decisionData
+    has_indices <- any(grepl("^IDX_(Survey_|CPUE_)", names(obs_data)))
+    has_catch <- any(grepl("^(true_catch|observed_catch|fleet_\\d+_(true_catch|observed_catch))$", names(obs_data)))
+    has_lc <- any(grepl("^LC_.*_count_bin_\\d+$", names(obs_data)))
+
+    if(has_indices || has_catch || has_lc) {
+      return(adapt_observation_data(simulation_result, verbose = FALSE))
+    }
+  }
+  return(simulation_result)
+}
+
+#Convert observation data from long vector format to matrix format
+adapt_observation_data <- function(simulation_result,
+                                   reshape_observations = TRUE,
+                                   keep_original = FALSE,
+                                   verbose = FALSE) {
+
+  if(is.null(simulation_result$HCR$decisionData)) {
+    if(verbose) cat("no observation data found in simulation result\n")
+    return(simulation_result)
+  }
+
+  obs_data <- simulation_result$HCR$decisionData
+
+  total_years <- unique(obs_data$years_total)[1]
+  total_iterations <- unique(obs_data$iterations_total)[1]
+  historical_end <- unique(obs_data$historical_end)[1]
+
+  if(is.na(total_years) || is.na(total_iterations)) {
+    if(verbose) cat("cannot determine simulation dimensions from observation data\n")
+    return(simulation_result)
+  }
+
+  if(verbose) {
+    cat("converting observation data to matrix format:\n")
+    cat("  Years:", total_years, "\n")
+    cat("  Iterations:", total_iterations, "\n")
+    cat("  Historical end:", historical_end, "\n")
+  }
+
+  obs_columns <- find_observation_columns(obs_data, verbose)
+
+  if(length(obs_columns) == 0) {
+    if(verbose) cat("no observation columns found to reshape\n")
+    return(simulation_result)
+  }
+
+  matrices <- list()
+
+  for(col_name in obs_columns) {
+    if(verbose) cat("  converting", col_name, "...")
+
+    matrix_result <- convert_vector_to_matrix(
+      obs_data, col_name, total_years, total_iterations, verbose
+    )
+
+    if(!is.null(matrix_result)) {
+      matrices[[col_name]] <- matrix_result
+      if(verbose) cat(" yes\n")
+    } else {
+      if(verbose) cat(" no (failed)\n")
+    }
+  }
+
+  if(length(matrices) > 0) {
+    if(reshape_observations) {
+      simulation_result$observation_matrices <- matrices
+
+      if(!keep_original) {
+        for(col_name in names(matrices)) {
+          if(!grepl("_(areas|indexYears|fleet_id|indextype|selectivity_|survey_timing|sample_size|total_catch)", col_name)) {
+            simulation_result$HCR$decisionData[[col_name]] <- NULL
+          }
+        }
+      }
+
+      if(verbose) {
+        cat("created", length(matrices), "observation matrices\n")
+        cat("access via: simulation_result$observation_matrices$[column_name]\n")
+      }
+    }
+  }
+
+  return(simulation_result)
+}
+
+find_observation_columns <- function(obs_data, verbose = FALSE) {
+  index_pattern <- "^IDX_(Survey_|CPUE_)"
+  catch_pattern <- "^(true_catch|observed_catch|fleet_\\d+_(true_catch|observed_catch))$"
+  lc_pattern <- "^LC_.*_count_bin_\\d+$"
+
+  index_cols <- grep(index_pattern, names(obs_data), value = TRUE)
+  catch_cols <- grep(catch_pattern, names(obs_data), value = TRUE)
+  lc_cols <- grep(lc_pattern, names(obs_data), value = TRUE)
+
+  exclude_pattern <- "_(areas|indexYears|fleet_id|indextype|selectivity_|survey_timing|sample_size|total_catch|cv_min|cv_max|obs_CV|R_t|n_areas|areas_included)$"
+
+  all_obs_cols <- c(index_cols, catch_cols, lc_cols)
+  all_obs_cols <- all_obs_cols[!grepl(exclude_pattern, all_obs_cols)]
+
+  if(verbose && length(all_obs_cols) > 0) {
+    cat("found observation columns to convert:\n")
+    cat("  Indices:", length(index_cols), "\n")
+    cat("  Catch:", length(catch_cols), "\n")
+    cat("  Length comp:", length(lc_cols), "\n")
+  }
+
+  return(all_obs_cols)
+}
+
+convert_vector_to_matrix <- function(obs_data, col_name, total_years, total_iterations, verbose = FALSE) {
+  obs_vector <- obs_data[[col_name]]
+
+  if(is.null(obs_vector)) {
+    if(verbose) cat("column", col_name, "not found\n")
+    return(NULL)
+  }
+
+  valid_data <- obs_data[!is.na(obs_vector), ]
+
+  if(nrow(valid_data) == 0) {
+    if(verbose) cat("no valid data for", col_name, "\n")
+    return(NULL)
+  }
+
+  obs_matrix <- matrix(NA, nrow = total_years, ncol = total_iterations)
+
+  for(i in 1:nrow(valid_data)) {
+    year_idx <- valid_data$j[i]
+    iter_idx <- valid_data$k[i]
+    value <- valid_data[[col_name]][i]
+
+    if(year_idx >= 1 && year_idx <= total_years &&
+       iter_idx >= 1 && iter_idx <= total_iterations &&
+       !is.na(value)) {
+      obs_matrix[year_idx, iter_idx] <- value
+    }
+  }
+
+  rownames(obs_matrix) <- paste0("Year_", 1:total_years)
+  colnames(obs_matrix) <- paste0("Iter_", 1:total_iterations)
+
+  return(obs_matrix)
+}
+
+
+
 plot_population_metric <- function(simulation_result,
                                    metric,
                                    areas = "all",
@@ -158,7 +315,17 @@ prepare_area_data <- function(dynamics, metric, areas, iterations, historical_en
 
 prepare_multifleet_data <- function(dynamics, metric, areas, iterations, historical_end) {
 
-  array_data <- dynamics$multifleet[[paste0(metric, "_by_fleet")]]
+  #array_data <- dynamics$multifleet[[paste0(metric, "_by_fleet")]]
+  #to handle the correct array name for multifleet
+  array_name <- paste0(metric, "_by_fleet")
+  array_data <- dynamics$multifleet[[array_name]]
+
+  #add a check
+  # check if array exists
+  if(is.null(array_data)) {
+    stop("multifleet array '", array_name, "' it was not found in dynamics$multifleet")
+  }
+
   years <- dim(array_data)[1]
   total_iterations <- dim(array_data)[2]
   nfleets <- dim(array_data)[4]
@@ -314,6 +481,21 @@ create_area_plot <- function(plot_data, metric, areas, show_median, show_quantil
                        size = 1.5)
   }
 
+  # fixing for zero values - extend y axis under zero to show the line of zero
+  # this fix the discB plot when discards are zero
+  y_range <- range(plot_data$value, na.rm = TRUE)
+  y_limits <- NULL
+
+  if(all(y_range == 0)) {
+    # All values are zero - create small range around zero
+    y_limits <- c(-0.01, 0.01)
+  } else if(y_range[1] == 0 && y_range[2] > 0) {
+    # Min is zero - extend below to show zero line
+    y_limits <- c(-y_range[2] * 0.05, y_range[2] * 1.05)
+  }
+
+
+
   #formatting
   p <- p +
     geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
@@ -327,6 +509,19 @@ create_area_plot <- function(plot_data, metric, areas, show_median, show_quantil
       plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
       legend.position = if(length(areas) > 1) "bottom" else "none"
     )
+
+
+  # y-limits and add zero reference line for discard metrics
+  if(!is.null(y_limits)) {
+    p <- p + coord_cartesian(ylim = y_limits)
+  }
+
+  if(metric %in% c("discB", "discN")) {
+    p <- p + geom_hline(yintercept = 0, linetype = "solid", color = "gray50", alpha = 0.7)
+  }
+
+
+
 
   #using facets for multiple areas (e.g., more than 3 areas)
   if(length(areas) > 3) {

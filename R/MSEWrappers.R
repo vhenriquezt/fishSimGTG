@@ -1020,11 +1020,31 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       stop(paste("fleet_selectivity_hist_list must contain", nfleets, "Fishery objects"))
     }
 
+    #Vania edit (sept 24, 2025): sapply try to access [[x]] even when StrategyObj=NULL and the projsel list  does not exist.
     #Check for Projection sel
-    if(is(StrategyObj, "Strategy") &&
-       length(MultifleetObj@fleet_selectivity_proj_list) != nfleets) {
-      stop(paste("fleet_selectivity_proj_list must contain", nfleets, "Fishery objects"))
+    # if(is(StrategyObj, "Strategy") &&
+    #    isTRUE(sapply(1:TimeAreaObj@areas, function(x){length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets}))) {
+    #   stop(paste("fleet_selectivity_proj_list must contain", nfleets, "Fishery objects"))
+    # }
+
+    #check if strategy exist (only validate proj stuuf if we are doing projections)
+    if(is(StrategyObj, "Strategy")) {
+      if(length(MultifleetObj@fleet_selectivity_proj_list) < TimeAreaObj@areas) {
+        stop(paste("fleet_selectivity_proj_list must contain selectivity objects for", TimeAreaObj@areas, "areas"))
+      }
+     # check each area's number of fleets
+      proj_sel_missing <- sapply(1:TimeAreaObj@areas, function(x){
+        length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets
+      })
+
+      if(any(proj_sel_missing)) {
+        stop(paste("fleet_selectivity_proj_list must contain", nfleets, "Fishery objects"))
+      }
     }
+
+
+
+
 
     cat("Multifleet mode enabled with", nfleets, "fleets\n")
     cat("Fleet proportions:", paste(round(MultifleetObj@fleet_proportions, 3), collapse = ", "), "\n")
@@ -1191,14 +1211,44 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       }
     }
 
+    #Vania edit (sept 24, 2025): I changed the validation code here, because this part generates and error
+    #when I set historical fishing to zero in the multifleet mode.
+    #what I tried is this new section perform a single strategy check and only enters the fleet loop when necessary
+    #the new structure should ensure that sapply() only works when the startegy exists
+    #what was happening was the code ran the fleet loop even when StrategyObj was NULL,
+    #and the check_projection_stuff part tried to access empty projection lists, causing the subscript out of bounds error.
     #changed
-    for(f in 1:nfleets) {
-      if(is(StrategyObj, "Strategy") &&
-         is.null(MultifleetObj@fleet_selectivity_proj_list[[f]])) {
-        proceedMSE<-FALSE
-        print(paste("Fleet", f, "projection selectivity object is missing"))
+    # for(f in 1:nfleets) {
+    #   if(is(StrategyObj, "Strategy") &&
+    #      isTRUE(sapply(1:TimeAreaObj@areas, function(x){is.null(MultifleetObj@fleet_selectivity_proj_list[[x]][[f]])}))) {
+    #     proceedMSE<-FALSE
+    #     print(paste("Fleet", f, "projection selectivity object is missing"))
+    #   }
+    # }
+
+    #Do we have a strategy that need projections? If no, skip all
+    if(is(StrategyObj, "Strategy")) {  #strategy check outside fleet loop
+      for(f in 1:nfleets) {            #fleet loop inside strategy check
+        if(length(MultifleetObj@fleet_selectivity_proj_list) >= TimeAreaObj@areas) {
+          #check each fleet in each area
+          #this should prevent checking projection when no projections exist (in the case of the zero-fishing)
+          #prevent trying
+          proj_missing <- sapply(1:TimeAreaObj@areas, function(x){
+            length(MultifleetObj@fleet_selectivity_proj_list[[x]]) < f ||
+              is.null(MultifleetObj@fleet_selectivity_proj_list[[x]][[f]])
+          })
+          if(any(proj_missing)) {
+            proceedMSE<-FALSE
+            print(paste("Fleet", f, "projection selectivity object is missing"))
+          }
+        } else {
+          proceedMSE<-FALSE
+          print(paste("Fleet", f, "projection selectivity list structure incomplete"))
+        }
       }
     }
+
+
 
     # validate allocation type
     if(!MultifleetObj@allocation_type %in% c("effort", "catch")) {
@@ -1326,20 +1376,51 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
           #Bill edit:
           #1 Should this object be: MultifleetObj@fleet_selectivity_proj_list[[x]][[f]]
           #2 Noting that we should not require Projection objects, modified input to address subscript errors
+
+          #Vania edit (sept 24, 2025):
+          # selPro <- lapply(1:TimeAreaObj@areas, function(area){
+          #   lapply(1:nfleets, function(f) {
+          #     tryCatch(
+          #       {
+          #         selWrapper(lh, TimeAreaObj,
+          #                    FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[x]][[f]],
+          #                    doPlot = FALSE)
+          #       },
+          #       error = function(e) {
+          #        NULL
+          #       }
+          #     )
+          #   })
+          # })
+
           selPro <- lapply(1:TimeAreaObj@areas, function(area){
             lapply(1:nfleets, function(f) {
               tryCatch(
                 {
-                  selWrapper(lh, TimeAreaObj,
-                             FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[x]][[f]],
-                             doPlot = FALSE)
+                  #check if projection selectivity exists
+                  if(is(StrategyObj, "Strategy") &&
+                     length(MultifleetObj@fleet_selectivity_proj_list) >= area &&
+                     length(MultifleetObj@fleet_selectivity_proj_list[[area]]) >= f) {
+                    # use it if it exists
+                    selWrapper(lh, TimeAreaObj,
+                               FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[area]][[f]],
+                               doPlot = FALSE)
+                    # use historical if it doesnt exists (maybe dont need that)
+                  } else {
+                    selWrapper(lh, TimeAreaObj,
+                               FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]],
+                               doPlot = FALSE)
+                  }
                 },
                 error = function(e) {
-                 NULL
+                  NULL
                 }
               )
             })
           })
+
+
+
           if(is.null(lh)) {
             proceedMSE<-FALSE
             print(paste("Life history cannot be created. Check inputs. Stopped at interation", k))
@@ -1371,14 +1452,38 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
                        doPlot = FALSE)
           })
         })
+
+        #Vania edit (sept 24, 2025): I think I should use [[area]][[f]] (it was missing area level)
+        # it seeems it was always trying to access to fleet_selectivity_proj_list even when it does not exist
+        # selPro <- lapply(1:TimeAreaObj@areas, function(area){
+        #   lapply(1:nfleets, function(f) {
+        #     # Use fleet-specific projection selectivity
+        #     selWrapper(lh, TimeAreaObj,
+        #                FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[f]],
+        #                doPlot = FALSE)
+        #   })
+        # })
+
         selPro <- lapply(1:TimeAreaObj@areas, function(area){
           lapply(1:nfleets, function(f) {
-            # Use fleet-specific projection selectivity
-            selWrapper(lh, TimeAreaObj,
-                       FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[f]],
-                       doPlot = FALSE)
+            #check if projection sel is available (do we have startegy and proj sel exist for area/fleet?)
+            if(is(StrategyObj, "Strategy") &&
+               length(MultifleetObj@fleet_selectivity_proj_list) >= area &&
+               length(MultifleetObj@fleet_selectivity_proj_list[[area]]) >= f) {
+              #change the prj sel list [[area]][[f]]
+              selWrapper(lh, TimeAreaObj,
+                         FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[area]][[f]],
+                         doPlot = FALSE)
+            } else {
+              #fall back to historical sel if proj sel does not exist
+              selWrapper(lh, TimeAreaObj,
+                         FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]],
+                         doPlot = FALSE)
+            }
           })
         })
+
+
         if(is.null(lh)) {
           proceedMSE<-FALSE
           print("Life history cannot be created. Check inputs.")

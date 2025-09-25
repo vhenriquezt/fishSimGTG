@@ -9,11 +9,11 @@
 # 4. Mixed observation errors
 # 5. Realistic survey timing variations
 
-# rm(list=ls())
-# devtools::load_all()
-# library(ggplot2)
-# library(dplyr)
-# library(tidyr)
+ rm(list=ls())
+ devtools::load_all()
+ library(ggplot2)
+ library(dplyr)
+ library(tidyr)
 
 # ============================================================================
 # SHARED SETUP FOR ALL TESTS
@@ -50,7 +50,7 @@ ta@title <- "Validation Test"
 ta@gtg <- 13
 ta@areas <- 2
 ta@recArea <- c(0.99, 0.01)
-ta@iterations <- 10
+ta@iterations <- 3
 ta@historicalYears <- 12
 ta@historicalBio <- 0.5
 ta@historicalBioType <- "relB"
@@ -211,8 +211,26 @@ multifleet_complex@nfleets <- 3
 multifleet_complex@fleet_proportions <- c(0.5, 0.3, 0.2)  # Fleet 1 is the dominant
 multifleet_complex@allocation_type <- "catch"
 multifleet_complex@fleet_selectivity_hist_list <- list(fleet1_sel_hist, fleet2_sel_hist, fleet3_sel_hist)
-multifleet_complex@fleet_selectivity_proj_list <- list(fleet1_sel_proj, fleet2_sel_proj, fleet3_sel_proj)
+#multifleet_complex@fleet_selectivity_proj_list <- list(fleet1_sel_proj, fleet2_sel_proj, fleet3_sel_proj)
 
+# New structure: For 2 areas, 2 fleets (ask bill)
+ multifleet_complex@fleet_selectivity_proj_list <- list(
+  # Area 1
+  list(fleet1_sel_proj, fleet2_sel_proj, fleet3_sel_proj),
+  # Area 2
+  list(fleet1_sel_proj, fleet2_sel_proj, fleet3_sel_proj)
+ )
+
+#multifleet_complex@fleet_selectivity_proj_list <- list(fleet1_sel_proj, fleet2_sel_proj, fleet3_sel_proj)
+
+
+
+
+#adding the array of fleet historical eefort
+multifleet_complex@fleet_historicalEffort <- array(dim = c(ta@historicalYears, ta@areas, 3))
+multifleet_complex@fleet_historicalEffort[,,1] <- ta@historicalEffort
+multifleet_complex@fleet_historicalEffort[,,2] <- ta@historicalEffort
+multifleet_complex@fleet_historicalEffort[,,3] <- ta@historicalEffort
 
 # ============================================================================
 # MANAGEMENT STRATEGIES - MULTI FLEET WITH OBS MODELS
@@ -251,18 +269,30 @@ complexMP <- function(phase, dataObject) {
   if(phase == 2) return(list())
   if(phase == 3) {
 
-    year <- rep(j, areas)
-    iteration <- rep(k, areas)
-    area <- 1:areas
-    fleet <- rep(0, areas)
+    Flocal <- data.frame()
+    #creating one row per area-fleet combination
+    for(m in 1:areas) {
+      for(f in 1:nfleets) {
+        #row contain: [year, iteration, area, fleet, F_value]
+        Flocal <- rbind(Flocal, c(j, k, m, f, 0.05))  # Conservative F = 0.05
+      }
+    }
 
-    # Different F levels by area to create spatial complexity
-    Flocal <- c(0.12, 0.08)  # Higher F in Area 1
 
-    return(list(year=year, iteration=iteration, area=area,
-                fleet=fleet, Flocal=Flocal))
+
+    #results in 4 rows: (1,1), (1,2), (2,1), (2,2) for 2 areas × 2 fleets
+    #                   (A1,F1) (A1,F2)
+
+    return(list(
+      year = Flocal[,1],           # [j, j, j, j]
+      iteration = Flocal[,2],      # [k, k, k, k]
+      area = Flocal[,3],           # [1, 1, 2, 2]
+      fleet = Flocal[,4],          # [1, 2, 1, 2]
+      Flocal = Flocal[,5]          # [0.05, 0.05, 0.05, 0.05]
+    ))
   }
 }
+
 
 strategy_complex <- new("Strategy")
 strategy_complex@title <- "Complex Spatial-Temporal Strategy"
@@ -638,107 +668,11 @@ if(!is.null(result_complex$dynamics$multifleet)) {
 
 #outputs
 result_complex$dynamics$SB
-result_complex$dynamics$VB
-result_complex$dynamics$Ftotal
+# result_complex$dynamics$VB
+# result_complex$dynamics$Ftotal
 result_complex$dynamics$SPR
 result_complex$dynamics$recN
-
-#obs indices
-result_complex$HCR$decisionData$IDX_Survey_1
-result_complex$HCR$decisionData$IDX_Survey_1_indexYears
-result_complex$HCR$decisionData$IDX_Survey_1_areas
-result_complex$HCR$decisionData$IDX_Survey_2
-result_complex$HCR$decisionData$IDX_Survey_2_indexYears
-result_complex$HCR$decisionData$IDX_Survey_2_areas
-result_complex$HCR$decisionData$IDX_Survey_3
-result_complex$HCR$decisionData$IDX_Survey_3_indexYears
-result_complex$HCR$decisionData$IDX_Survey_3_areas
-result_complex$HCR$decisionData$IDX_Survey_4
-result_complex$HCR$decisionData$IDX_Survey_4_indexYears
-result_complex$HCR$decisionData$IDX_Survey_4_areas
-result_complex$HCR$decisionData$IDX_CPUE_5_Fleet_1
-result_complex$HCR$decisionData$IDX_CPUE_5_Fleet_1_indexYears
-result_complex$HCR$decisionData$IDX_CPUE_5_Fleet_1_areas
-result_complex$HCR$decisionData$IDX_CPUE_6_Fleet_1
-result_complex$HCR$decisionData$IDX_CPUE_6_Fleet_1_indexYears
-result_complex$HCR$decisionData$IDX_CPUE_6_Fleet_1_areas
-result_complex$HCR$decisionData$IDX_CPUE_7_Fleet_2
-result_complex$HCR$decisionData$IDX_CPUE_7_Fleet_2_indexYears
-result_complex$HCR$decisionData$IDX_CPUE_7_Fleet_2_areas
-result_complex$HCR$decisionData$IDX_CPUE_8_Fleet_3
-result_complex$HCR$decisionData$IDX_CPUE_8_Fleet_3_indexYears
-result_complex$HCR$decisionData$IDX_CPUE_8_Fleet_3_areas
-result_complex$HCR$decisionData$IDX_CPUE_9_Fleet_3
-result_complex$HCR$decisionData$IDX_CPUE_9_Fleet_3_indexYears
-result_complex$HCR$decisionData$IDX_CPUE_9_Fleet_3_areas
-
-#obs catch
-result_complex$HCR$decisionData$fleet_1_true_catch
-result_complex$HCR$decisionData$fleet_1_observed_catch
-result_complex$HCR$decisionData$fleet_1_n_areas
-result_complex$HCR$decisionData$fleet_1_areas_included
-result_complex$HCR$decisionData$fleet_1_true_catch_area_1
-result_complex$HCR$decisionData$fleet_1_observed_catch_area_1
-
-result_complex$HCR$decisionData$fleet_2_true_catch
-result_complex$HCR$decisionData$fleet_2_observed_catch
-result_complex$HCR$decisionData$fleet_2_n_areas
-result_complex$HCR$decisionData$fleet_2_areas_included
-result_complex$HCR$decisionData$fleet_2_true_catch_area_1
-result_complex$HCR$decisionData$fleet_2_observed_catch_area_1
-result_complex$HCR$decisionData$fleet_2_true_catch_area_2
-result_complex$HCR$decisionData$fleet_2_observed_catch_area_2
-
-result_complex$HCR$decisionData$fleet_3_true_catch
-result_complex$HCR$decisionData$fleet_3_observed_catch
-result_complex$HCR$decisionData$fleet_3_n_areas
-result_complex$HCR$decisionData$fleet_3_areas_included
-result_complex$HCR$decisionData$fleet_3_true_catch_area_1
-result_complex$HCR$decisionData$fleet_3_observed_catch_area_1
-result_complex$HCR$decisionData$fleet_3_true_catch_area_2
-result_complex$HCR$decisionData$fleet_3_observed_catch_area_2
-
-result_complex$HCR$decisionData$LC_Fishery_1_Fleet_1_indextype
-result_complex$HCR$decisionData$LC_Fishery_1_Fleet_1_areas
-result_complex$HCR$decisionData$LC_Fishery_1_Fleet_1_years
-
-result_complex$HCR$decisionData$LC_Fishery_2_Fleet_1_indextype
-result_complex$HCR$decisionData$LC_Fishery_2_Fleet_1_areas
-result_complex$HCR$decisionData$LC_Fishery_2_Fleet_1_years
-
-result_complex$HCR$decisionData$LC_Fishery_3_Fleet_2_indextype
-result_complex$HCR$decisionData$LC_Fishery_3_Fleet_2_areas
-result_complex$HCR$decisionData$LC_Fishery_3_Fleet_2_years
-
-result_complex$HCR$decisionData$LC_Fishery_4_Fleet_3_indextype
-result_complex$HCR$decisionData$LC_Fishery_4_Fleet_3_areas
-result_complex$HCR$decisionData$LC_Fishery_4_Fleet_3_years
-
-result_complex$HCR$decisionData$LC_Survey_5_indextype
-result_complex$HCR$decisionData$LC_Survey_5_areas
-result_complex$HCR$decisionData$LC_Survey_5_years
-
-result_complex$HCR$decisionData$LC_Survey_6_indextype
-result_complex$HCR$decisionData$LC_Survey_6_areas
-result_complex$HCR$decisionData$LC_Survey_6_years
-
-
-result_complex$HCR$decisionData$LC_Survey_7_indextype
-result_complex$HCR$decisionData$LC_Survey_7_areas
-result_complex$HCR$decisionData$LC_Survey_7_years
-
-
-result_complex$HCR$decisionData$LC_Survey_8_indextype
-result_complex$HCR$decisionData$LC_Survey_8_areas
-result_complex$HCR$decisionData$LC_Survey_8_years
-
-
 result_complex$dynamics$multifleet$Ftotal_by_fleet
-result_complex$dynamics$multifleet$catchB_by_fleet
-result_complex$dynamics$multifleet$target_catch_proportions
-result_complex$dynamics$multifleet$final_effort_proportions
-result_complex$dynamics$multifleet$actual_catch_proportions
-result_complex$dynamics$recN
 
 
 #Plot simulationr esults:
@@ -778,17 +712,6 @@ plot_SB(result_complex, areas=1)
 plot_SB(result_complex, areas=2)
 plot_SB(result_complex, areas=c(1,2))
 
-plot_VB(result_complex)
-plot_VB(result_complex, areas=1)
-plot_VB(result_complex, areas=2)
-
-plot_Ftotal(result_complex)
-plot_Ftotal(result_complex, areas=1)
-plot_Ftotal(result_complex, areas=2)
-
-plot_Ftotal_multi(result_complex)
-plot_Ftotal_multi(result_complex,areas=1)
-plot_Ftotal_multi(result_complex,areas=2)
 
 plot_catchB(result_complex)
 plot_catchB(result_complex,areas=1)
@@ -816,6 +739,12 @@ plot_catchN_multi(result_complex, areas=2)
 
 plot_SPR(result_complex)
 plot_recN(result_complex)
+
+result_complex$dynamics$multifleet$Ftotal_by_fleet
+
+plot_Ftotal_multi(result_complex,areas=c(1,2))
+plot_Ftotal_multi(result_complex,areas=1)
+plot_Ftotal_multi(result_complex,areas=2)
 
 
 #plot obs models (indices)

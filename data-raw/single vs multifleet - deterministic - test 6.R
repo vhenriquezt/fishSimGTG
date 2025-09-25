@@ -1,14 +1,9 @@
 # ============================================================================
-# TEST FILE 2: BASIC OBSERVATION MODELS COMPARISON
+# TEST: DETERMINISTIC
 # ============================================================================
-# Purpose: Test observation models in single fleet vs multifleet contexts
-# Tests:
-# 1. Single fleet with all observation types
-# 2. Multifleet (2 fleets) with comprehensive observation models
-# 3. Mixed temporal coverage (some indices annual, others periodic)
-# 4. Different spatial coverage (some indices single area, others multi-area)
-# 5. Length composition with multiple sampling programs
-# 6. Validation of selectivity independence between FI and FD
+
+#1. Test deterministic scenarios with comprehensive observation models
+#2. Test both single fleet and multifleet (2 fleets)
 
 rm(list=ls())
 devtools::load_all()
@@ -51,22 +46,20 @@ ta@title <- "Validation Test"
 ta@gtg <- 13
 ta@areas <- 2
 ta@recArea <- c(0.99, 0.01)
-ta@iterations <- 15
-ta@historicalYears <- 10
+ta@iterations <- 3
+ta@historicalYears <- 15
 ta@historicalBio <- 0.5
 ta@historicalBioType <- "relB"
 ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
 
 # Historical effort - declining trend
-ta@historicalEffort <- matrix(c(1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6,
-                                1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6),
-                              nrow = 10, ncol = 2, byrow = FALSE)
+ta@historicalEffort <- matrix(
+  c(seq(2.0, 1.0, length.out = 15),  #area 1: linear decline
+    seq(1.8, 0.8, length.out = 15)), #area 2: linear decline
+  nrow = 15, ncol = 2, byrow = FALSE)
 
 # Stochastic
-stochastic_obj <- new("Stochastic")
-stochastic_obj@historicalBio <- c(0.55, 0.65)
-stochastic_obj@Steep <- c(0.65, 0.75)
-
+stochastic_obj <- NULL
 
 # ============================================================================
 # DEFINE FISHERY SELECTIVITIES
@@ -105,7 +98,7 @@ proj_fishery_list <- list(proj_fishery_area1, proj_fishery_area2)
 survey1_sel_hist <- new("Fishery")
 survey1_sel_hist@title <- "Research Survey 1 Historical"
 survey1_sel_hist@vulType <- "logistic"
-survey1_sel_hist@vulParams <- c(7.5, 0.15)   # Small fish survey
+survey1_sel_hist@vulParams <- c(10.2, 0.1)
 survey1_sel_hist@retType <- "full"
 survey1_sel_hist@retMax <- 1
 survey1_sel_hist@Dmort <- 0
@@ -113,7 +106,7 @@ survey1_sel_hist@Dmort <- 0
 survey2_sel_hist <- new("Fishery")
 survey2_sel_hist@title <- "Research Survey 2 Historical"
 survey2_sel_hist@vulType <- "logistic"
-survey2_sel_hist@vulParams <- c(9.5, 0.18)
+survey2_sel_hist@vulParams <- c(10.2, 0.1)
 survey2_sel_hist@retType <- "full"
 survey2_sel_hist@retMax <- 1
 survey2_sel_hist@Dmort <- 0
@@ -121,7 +114,7 @@ survey2_sel_hist@Dmort <- 0
 survey1_sel_proj <- new("Fishery")
 survey1_sel_proj@title <- "Research Survey 1 Projection"
 survey1_sel_proj@vulType <- "logistic"
-survey1_sel_proj@vulParams <- c(7.8, 0.15)
+survey1_sel_proj@vulParams <- c(10.2, 0.1)
 survey1_sel_proj@retType <- "full"
 survey1_sel_proj@retMax <- 1
 survey1_sel_proj@Dmort <- 0
@@ -129,7 +122,7 @@ survey1_sel_proj@Dmort <- 0
 survey2_sel_proj <- new("Fishery")
 survey2_sel_proj@title <- "Research Survey 2 Projection"
 survey2_sel_proj@vulType <- "logistic"
-survey2_sel_proj@vulParams <- c(9.8, 0.18)
+survey2_sel_proj@vulParams <- c(10.2, 0.1)
 survey2_sel_proj@retType <- "full"
 survey2_sel_proj@retMax <- 1
 survey2_sel_proj@Dmort <- 0
@@ -150,23 +143,28 @@ test_seed <- 12345
 singleCompMP <- function(phase, dataObject) {
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
+  #phase 1 called once per year/iter combination
   if(phase == 1) {
     combined_data <- list()
 
+    #each observation model returns ONE ROW for this j,k combination
+    #the model calls phase 1 repeatedly and builds the complete dataset
     if(!is.null(IndexObj)) {
-      index_result <- calculate_single_Index(dataObject)
+      index_result <- calculate_single_Index(dataObject) #returns 1-row tibble
+      #add each column from the tibble to combined_data
       for(col_name in names(index_result)) {
         combined_data[[col_name]] <- index_result[[col_name]]
       }
     }
 
     if(!is.null(CatchObsObj)) {
-      catch_result <- calculate_single_CatchObs(dataObject)
+      catch_result <- calculate_single_CatchObs(dataObject) #returns 1-row tibble
+      # add catch observation columns
       for(col_name in names(catch_result)) {
         combined_data[[col_name]] <- catch_result[[col_name]]
       }
     }
-
+    #same
     if(!is.null(LengthCompObj)) {
       lc_result <- calculate_single_LengthComp(dataObject)
       for(col_name in names(lc_result)) {
@@ -174,11 +172,13 @@ singleCompMP <- function(phase, dataObject) {
       }
     }
 
-    return(combined_data)
+    return(combined_data) #returns single row of obsrvtation
   }
 
   if(phase == 2) return(list())
+  #phase 3 called once per year/iter
   if(phase == 3) {
+    #create vectors for each area
     year <- rep(j, areas)
     iteration <- rep(k, areas)
     area <- 1:areas
@@ -187,6 +187,8 @@ singleCompMP <- function(phase, dataObject) {
     return(list(year=year, iteration=iteration, area=area, Flocal=Flocal))
   }
 }
+
+#Single fleet Phase 3: Returns 2 F values (one per area)
 
 strategy_single_comp <- new("Strategy")
 strategy_single_comp@title <- "Single Fleet Comprehensive"
@@ -214,12 +216,12 @@ single_comprehensive_index@survey_design <- list(
     indextype = "FD",
     areas = c(1, 2),
     indexYears = 1:15,  # All years
-    q_hist_bounds = c(0.0001, 0.0002),
-    q_proj_bounds = c(0.00015, 0.00025),
-    hyperstability_hist_bounds = c(0.9, 1.1),
-    hyperstability_proj_bounds = c(0.9, 1.1),
-    obsError_CV_hist_bounds = c(0.15, 0.25),
-    obsError_CV_proj_bounds = c(0.15, 0.25)
+    q_hist_bounds = c(0.0002, 0.0002),
+    q_proj_bounds = c(0.0002, 0.0002),
+    hyperstability_hist_bounds = c(1.0, 1.0),
+    hyperstability_proj_bounds = c(1.0, 1.0),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # 2. FD CPUE - Area 1 only, biennial
@@ -227,12 +229,12 @@ single_comprehensive_index@survey_design <- list(
     indextype = "FD",
     areas = c(1),
     indexYears = seq(1, 15, 2),  # Every other year
-    q_hist_bounds = c(0.00015, 0.0003),
-    q_proj_bounds = c(0.0002, 0.0004),
-    hyperstability_hist_bounds = c(0.8, 1.2),
-    hyperstability_proj_bounds = c(0.8, 1.2),
-    obsError_CV_hist_bounds = c(0.20, 0.35),
-    obsError_CV_proj_bounds = c(0.20, 0.35)
+    q_hist_bounds = c(0.0003, 0.0003),
+    q_proj_bounds = c(0.0003, 0.0003),
+    hyperstability_hist_bounds = c(1.0, 1.0),
+    hyperstability_proj_bounds = c(1.0, 1.0),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # 3. FI Survey 1 - Both areas, every 3 years
@@ -243,12 +245,12 @@ single_comprehensive_index@survey_design <- list(
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.3,  # early in year
-    q_hist_bounds = c(0.0002, 0.0005),
-    q_proj_bounds = c(0.0003, 0.0006),
+    q_hist_bounds = c(0.0004, 0.0004),
+    q_proj_bounds = c(0.0004, 0.0004),
     hyperstability_hist_bounds = c(1.0, 1.0),
     hyperstability_proj_bounds = c(1.0, 1.0),
-    obsError_CV_hist_bounds = c(0.10, 0.20),
-    obsError_CV_proj_bounds = c(0.10, 0.20)
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # 4. FI Survey 2 - Area 2 only
@@ -259,12 +261,12 @@ single_comprehensive_index@survey_design <- list(
     selectivity_hist_idx = 2,
     selectivity_proj_idx = 2,
     survey_timing = 0.7,  # Late in year
-    q_hist_bounds = c(0.00025, 0.0008),
-    q_proj_bounds = c(0.0004, 0.001),
-    hyperstability_hist_bounds = c(0.95, 1.05),
-    hyperstability_proj_bounds = c(0.95, 1.05),
-    obsError_CV_hist_bounds = c(0.15, 0.30),
-    obsError_CV_proj_bounds = c(0.15, 0.30)
+    q_hist_bounds = c(0.0004, 0.0004),
+    q_proj_bounds = c(0.0004, 0.0004),
+    hyperstability_hist_bounds = c(1, 1),
+    hyperstability_proj_bounds = c(1, 1),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   )
 )
 
@@ -291,16 +293,9 @@ single_comprehensive_catch@title <- "Single Fleet Comprehensive Catch"
 single_comprehensive_catch@areas <- c(1, 2)
 single_comprehensive_catch@catchYears <- 1:15
 # Variable reporting rates - improving over time
-single_comprehensive_catch@reporting_rates <- c(
-  seq(0.8, 1.0, length.out = 10),  # Historical improvement
-  rep(1.0, 5)  # Perfect in projection
-)
+single_comprehensive_catch@reporting_rates <- rep(1.0, 20)
 # Variable observation error - decreasing over time
-single_comprehensive_catch@obs_CVs <- matrix(
-  c(c(seq(0.3, 0.2, length.out = 10), rep(0.15, 5)),   # Lower bounds
-    c(seq(0.45, 0.3, length.out = 10), rep(0.25, 5))), # Upper bounds
-  ncol = 2
-)
+single_comprehensive_catch@obs_CVs <- matrix(rep(c(0, 0), each = 20), ncol = 2)
 
 # Comprehensive length composition for single fleet
 single_comprehensive_lcomp <- new("LCompObs")
@@ -321,7 +316,7 @@ single_comprehensive_lcomp@survey_design <- list(
     indextype = "FD",
     areas = c(1, 2),
     years = fishery_lc_years,
-    sample_sizes = seq(80, 200, length.out = length(fishery_lc_years))
+    sample_sizes = rep(500, length(fishery_lc_years))
   ),
 
   # 2. Survey 1 length composition
@@ -329,7 +324,7 @@ single_comprehensive_lcomp@survey_design <- list(
     indextype = "FI",
     areas = c(1, 2),
     years = survey1_lc_years,
-    sample_sizes = c(150, 180,100, 195, 200),
+    sample_sizes = c(500, 500,500, 500, 500),
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.3
@@ -340,7 +335,7 @@ single_comprehensive_lcomp@survey_design <- list(
     indextype = "FI",
     areas = c(2),
     years = survey2_lc_years,
-    sample_sizes = c(120, 140, 160, 180),
+    sample_sizes = c(500, 500, 500, 500),
     selectivity_hist_idx = 2,
     selectivity_proj_idx = 2,
     survey_timing = 0.7
@@ -356,7 +351,7 @@ result_single_comp <- runProjection(
   HistFisheryObj = hist_fishery,
   ProFisheryObj_list = proj_fishery_list,
   StrategyObj = strategy_single_comp,
-  StochasticObj = stochastic_obj,
+  StochasticObj = NULL,
   MultifleetObj = NULL,
   IndexObj = single_comprehensive_index,
   CatchObsObj = single_comprehensive_catch,
@@ -388,6 +383,72 @@ result_single_comp$dynamics$SPR
 
 # obs model outputs (data frame now)
 str(result_single_comp$HCR$decisionData)
+result_single_comp$HCR$decisionData$IDX_CPUE_1
+
+
+#plots
+# loading plot fucntion for toher plots
+
+# #obs: need to add units
+plot_SB(result_single_comp)
+plot_SB(result_single_comp, areas=1)
+plot_SB(result_single_comp, areas=2)
+plot_SB(result_single_comp, areas=c(1,2))
+
+plot_VB(result_single_comp)
+plot_VB(result_single_comp, areas=1)
+plot_VB(result_single_comp, areas=2)
+
+plot_Ftotal(result_single_comp)
+plot_Ftotal(result_single_comp, areas=1)
+plot_Ftotal(result_single_comp, areas=2)
+
+
+plot_catchB(result_single_comp)
+plot_catchB(result_single_comp,areas=1)
+plot_catchB(result_single_comp,areas=2)
+
+plot_catchN(result_single_comp)
+plot_catchN(result_single_comp, areas=1)
+plot_catchN(result_single_comp, areas=2)
+
+plot_discB(result_single_comp)
+plot_discB(result_single_comp,areas=1)
+plot_discB(result_single_comp,areas=2)
+
+plot_discN(result_single_comp)
+plot_discN(result_single_comp,areas=1)
+plot_discN(result_single_comp,areas=2)
+
+plot_catchB_multi(result_single_comp)
+plot_catchB_multi(result_single_comp, areas=1)
+plot_catchB_multi(result_single_comp, areas=2)
+
+plot_catchN_multi(result_single_comp,show_individual = TRUE)
+plot_catchN_multi(result_single_comp, areas=1)
+plot_catchN_multi(result_single_comp, areas=2)
+
+plot_SPR(result_single_comp)
+plot_recN(result_single_comp)
+
+
+# #plot obs models (indices)
+plot_survey_indices(result_single_comp)
+plot_cpue_indices(result_single_comp)
+
+plot_all_indices(result_single_comp)
+
+plot_catch_observations_both(result_single_comp,show_individual = FALSE)
+plot_catch_observations_both(result_single_comp,show_individual = TRUE)
+
+
+# plot LC obs models
+# NEW: Area-specific functions (median across iterations are dispayed)
+plot_fishery_length_comp(result_single_comp,show_individual = TRUE)
+
+plot_survey_length_comp(result_single_comp,show_individual = TRUE)
+plot_survey_length_comp(result_single_comp, areas=1,show_individual = TRUE)
+plot_survey_length_comp(result_single_comp, areas=2,show_individual = TRUE)
 
 
 
@@ -408,7 +469,7 @@ fleet1_sel_hist@Dmort <- 0
 fleet2_sel_hist <- new("Fishery")
 fleet2_sel_hist@title <- "Fleet 2"
 fleet2_sel_hist@vulType <- "logistic"
-fleet2_sel_hist@vulParams <- c(9, 0.1)  # Different selectivity
+fleet2_sel_hist@vulParams <- c(10.2, 0.1)
 fleet2_sel_hist@retType <- "full"
 fleet2_sel_hist@retMax <- 1
 fleet2_sel_hist@Dmort <- 0
@@ -416,7 +477,7 @@ fleet2_sel_hist@Dmort <- 0
 fleet3_sel_hist <- new("Fishery")
 fleet3_sel_hist@title <- "Fleet 3"
 fleet3_sel_hist@vulType <- "logistic"
-fleet3_sel_hist@vulParams <- c(11.2, 0.1)  # Different selectivity
+fleet3_sel_hist@vulParams <- c(10.2, 0.1)
 fleet3_sel_hist@retType <- "full"
 fleet3_sel_hist@retMax <- 1
 fleet3_sel_hist@Dmort <- 0
@@ -433,7 +494,7 @@ fleet1_sel_proj@Dmort <- 0
 fleet2_sel_proj <- new("Fishery")
 fleet2_sel_proj@title <- "Fleet 2"
 fleet2_sel_proj@vulType <- "logistic"
-fleet2_sel_proj@vulParams <- c(10, 0.1)  # Different selectivity
+fleet2_sel_proj@vulParams <- c(10.2, 0.1)
 fleet2_sel_proj@retType <- "full"
 fleet2_sel_proj@retMax <- 1
 fleet2_sel_proj@Dmort <- 0
@@ -441,7 +502,7 @@ fleet2_sel_proj@Dmort <- 0
 fleet3_sel_proj <- new("Fishery")
 fleet3_sel_proj@title <- "Fleet 3"
 fleet3_sel_proj@vulType <- "logistic"
-fleet3_sel_proj@vulParams <- c(11.2, 0.1)  # Different selectivity
+fleet3_sel_proj@vulParams <- c(10.2, 0.1)
 fleet3_sel_proj@retType <- "full"
 fleet3_sel_proj@retMax <- 1
 fleet3_sel_proj@Dmort <- 0
@@ -473,9 +534,10 @@ multiCompMP <- function(phase, dataObject) {
       }
       cat("================================\n")
     }
-
+    #if indexObj exist
     if(!is.null(IndexObj)) {
-      index_result <- calculate_single_Index(dataObject)
+      index_result <- calculate_single_Index(dataObject) #returns 1-row tibble
+      #add each column from the tibble to combined_data
       for(col_name in names(index_result)) {
         combined_data[[col_name]] <- index_result[[col_name]]
       }
@@ -504,40 +566,46 @@ multiCompMP <- function(phase, dataObject) {
   #Vania edit's to match Bill's edits
   if(phase == 3) {
 
-    # return vectors following Bill's multifleet structure
-    # create vectors for all area-fleet combinations
+    Flocal <- data.frame()
 
-    n_combinations <- areas * nfleets
-
-    #initialize vectors
-    year_vec <- numeric(n_combinations)
-    iteration_vec <- numeric(n_combinations)
-    area_vec <- numeric(n_combinations)
-    fleet_vec <- numeric(n_combinations)
-    Flocal_vec <- numeric(n_combinations)
-
-    index <- 1
-    for(area in 1:areas) {
-      for(fleet in 1:nfleets) {
-        year_vec[index] <- j
-        iteration_vec[index] <- k
-        area_vec[index] <- area
-        fleet_vec[index] <- fleet
-        Flocal_vec[index] <- 0.05  # Conservative F for testing
-        index <- index + 1
-
+    #creating one row per area-fleet combination
+    for(m in 1:areas) {
+      for(f in 1:nfleets) {
+        #row contain: [year, iteration, area, fleet, F_value]
+        Flocal <- rbind(Flocal, c(j, k, m, f, 0.05))  # Conservative F = 0.05
       }
     }
 
+    #results in 4 rows: (1,1), (1,2), (2,1), (2,2) for 2 areas × 2 fleets
+    #                   (A1,F1) (A1,F2)
+
     return(list(
-      year = year_vec,
-      iteration = iteration_vec,
-      area = area_vec,
-      fleet = fleet_vec,
-      Flocal = Flocal_vec
+      year = Flocal[,1],           # [j, j, j, j]
+      iteration = Flocal[,2],      # [k, k, k, k]
+      area = Flocal[,3],           # [1, 1, 2, 2]
+      fleet = Flocal[,4],          # [1, 2, 1, 2]
+      Flocal = Flocal[,5]          # [0.05, 0.05, 0.05, 0.05]
     ))
   }
 }
+
+#Multi Fleet Phase 3: Returns 4 F values (one per area-fleet combination)
+
+# For a simulation with 15 years × 6 iterations = 90
+# Phase 1 gets called 90 times
+# Each call returns one row of observation data
+# the model rbinds these together into decisionData
+
+#Now, each obs column becomes a vector of length 90
+#For example:
+#IDX_CPUE_1
+#Year 1, Iter 1: value_1
+#Year 1, Iter 2: value_2
+
+#This creates: [value_1, value_2, value_3, value_4, ...] - a long vector of length 90
+
+
+
 
 # Strategy objects
 strategy_multi_comp <- new("Strategy")
@@ -596,12 +664,12 @@ multi_comprehensive_index@survey_design <- list(
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.3,
-    q_hist_bounds = c(0.0002, 0.0005),
-    q_proj_bounds = c(0.0003, 0.0006),
+    q_hist_bounds = c(0.0002, 0.0002),
+    q_proj_bounds = c(0.0002, 0.0002),
     hyperstability_hist_bounds = c(1.0, 1.0),
     hyperstability_proj_bounds = c(1.0, 1.0),
-    obsError_CV_hist_bounds = c(0.10, 0.20),
-    obsError_CV_proj_bounds = c(0.10, 0.20)
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # 2. FI Survey 2 - Area 2 only
@@ -612,12 +680,12 @@ multi_comprehensive_index@survey_design <- list(
     selectivity_hist_idx = 2,
     selectivity_proj_idx = 2,
     survey_timing = 0.7,
-    q_hist_bounds = c(0.00025, 0.0008),
-    q_proj_bounds = c(0.0004, 0.001),
-    hyperstability_hist_bounds = c(0.95, 1.05),
-    hyperstability_proj_bounds = c(0.95, 1.05),
-    obsError_CV_hist_bounds = c(0.15, 0.30),
-    obsError_CV_proj_bounds = c(0.15, 0.30)
+    q_hist_bounds = c(0.0004, 0.0004),
+    q_proj_bounds = c(0.0004, 0.0004),
+    hyperstability_hist_bounds = c(1, 1),
+    hyperstability_proj_bounds = c(1, 1),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # Fishery dependent indices (FD) with fleet ID
@@ -627,12 +695,12 @@ multi_comprehensive_index@survey_design <- list(
     fleet_id = 1,
     areas = c(1),
     indexYears = 1:15,
-    q_hist_bounds = c(0.0001, 0.0003),
-    q_proj_bounds = c(0.00015, 0.0004),
-    hyperstability_hist_bounds = c(0.9, 1.1),
-    hyperstability_proj_bounds = c(0.9, 1.1),
-    obsError_CV_hist_bounds = c(0.15, 0.25),
-    obsError_CV_proj_bounds = c(0.15, 0.25)
+    q_hist_bounds = c(0.0003, 0.0003),
+    q_proj_bounds = c(0.0003, 0.0003),
+    hyperstability_hist_bounds = c(1, 1),
+    hyperstability_proj_bounds = c(1, 1),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # 4. Fleet 1 CPUE - Area 2 only
@@ -641,12 +709,12 @@ multi_comprehensive_index@survey_design <- list(
     fleet_id = 1,
     areas = c(2),
     indexYears = seq(2, 15, 2),
-    q_hist_bounds = c(0.00015, 0.0004),
-    q_proj_bounds = c(0.0002, 0.0005),
-    hyperstability_hist_bounds = c(0.8, 1.2),
-    hyperstability_proj_bounds = c(0.8, 1.2),
-    obsError_CV_hist_bounds = c(0.20, 0.35),
-    obsError_CV_proj_bounds = c(0.20, 0.35)
+    q_hist_bounds = c(0.0004, 0.0004),
+    q_proj_bounds = c(0.0004, 0.0004),
+    hyperstability_hist_bounds = c(1, 1),
+    hyperstability_proj_bounds = c(1, 1),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # 5. Fleet 2 CPUE - Both areas, annual
@@ -655,12 +723,12 @@ multi_comprehensive_index@survey_design <- list(
     fleet_id = 2,
     areas = c(1),
     indexYears = 1:15,
-    q_hist_bounds = c(0.0002, 0.0006),
-    q_proj_bounds = c(0.0003, 0.0008),
-    hyperstability_hist_bounds = c(0.7, 1.3),
-    hyperstability_proj_bounds = c(0.7, 1.3),
-    obsError_CV_hist_bounds = c(0.25, 0.40),
-    obsError_CV_proj_bounds = c(0.25, 0.40)
+    q_hist_bounds = c(0.0006, 0.0006),
+    q_proj_bounds = c(0.0006, 0.0006),
+    hyperstability_hist_bounds = c(1, 1),
+    hyperstability_proj_bounds = c(1, 1),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   ),
 
   # 6. Fleet 2 CPUE - Area 2 only, triennial
@@ -669,12 +737,12 @@ multi_comprehensive_index@survey_design <- list(
     fleet_id = 2,
     areas = c(2),
     indexYears = seq(1, 15, 2),
-    q_hist_bounds = c(0.00025, 0.0007),
-    q_proj_bounds = c(0.0004, 0.0009),
-    hyperstability_hist_bounds = c(0.6, 1.4),
-    hyperstability_proj_bounds = c(0.6, 1.4),
-    obsError_CV_hist_bounds = c(0.30, 0.45),
-    obsError_CV_proj_bounds = c(0.30, 0.45)
+    q_hist_bounds = c(0.0009, 0.0009),
+    q_proj_bounds = c(0.0009, 0.0009),
+    hyperstability_hist_bounds = c(1, 1),
+    hyperstability_proj_bounds = c(1, 1),
+    obsError_CV_hist_bounds = c(0, 0),
+    obsError_CV_proj_bounds = c(0, 0)
   )
 )
 
@@ -688,26 +756,19 @@ multi_comprehensive_catch@fleet_configs <- list(
   list(
     fleet_id = 1,
     areas = c(1, 2),
-    catchYears = 1:15,
-    reporting_rates = c(seq(0.9, 1.0, length.out = 10), rep(1.0, 5)),
-    obs_CVs = matrix(
-      c(c(seq(0.15, 0.10, length.out = 10), rep(0.08, 5)),
-        c(seq(0.25, 0.20, length.out = 10), rep(0.15, 5))),
-      ncol = 2
-    )
+    catchYears = 1:20,
+    reporting_rates = rep(1.0, 20),
+
+    obs_CVs = matrix(rep(c(0, 0), each = 20), ncol = 2)
   ),
 
   # Fleet 2 configuration
   list(
     fleet_id = 2,
     areas = c(1, 2),
-    catchYears = seq(1, 15, 1),
-    reporting_rates = c(seq(0.7, 0.9, length.out = 10), rep(0.95, 5)),
-    obs_CVs = matrix(
-      c(c(seq(0.25, 0.20, length.out = 10), rep(0.18, 5)),
-        c(seq(0.40, 0.35, length.out = 10), rep(0.30, 5))),
-      ncol = 2
-    )
+    catchYears = seq(1, 20, 1),
+    reporting_rates = rep(1.0, 20),
+    obs_CVs = matrix(rep(c(0, 0), each = 20), ncol = 2)
   )
 )
 
@@ -726,7 +787,7 @@ multi_comprehensive_lcomp@survey_design <- list(
     fleet_id = 1,
     areas = c(1),
     years = seq(1, 15, 2),
-    sample_sizes = seq(100, 250, length.out = 8)
+    sample_sizes = rep(500, length = 8)
   ),
 
   # 2. Fleet 2 fishery length composition
@@ -735,7 +796,7 @@ multi_comprehensive_lcomp@survey_design <- list(
     fleet_id = 2,
     areas = c(2),
     years = seq(1, 15, 1),
-    sample_sizes = seq(80, 180, length.out = 15)
+    sample_sizes = rep(500, length = 15)
   ),
 
   # 3. Survey 1 length composition - Area 1 only
@@ -743,7 +804,7 @@ multi_comprehensive_lcomp@survey_design <- list(
     indextype = "FI",
     areas = c(1,2),
     years = seq(1,15,3),
-    sample_sizes = c(300,250,300,300,300),
+    sample_sizes = c(500,500,500,500,500),
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.3
@@ -754,7 +815,7 @@ multi_comprehensive_lcomp@survey_design <- list(
     indextype = "FI",
     areas = c(2),
     years = c(4, 8, 12, 15),
-    sample_sizes = c(150, 180, 200, 220),
+    sample_sizes = c(500, 500, 500, 500),
     selectivity_hist_idx = 2,
     selectivity_proj_idx = 2,
     survey_timing = 0.7
@@ -769,7 +830,7 @@ result_multi_comp <- runProjection(
   LifeHistoryObj = lh_obj,
   TimeAreaObj = ta,
   StrategyObj = strategy_multi_comp,
-  StochasticObj = stochastic_obj,
+  StochasticObj = NULL,
   MultifleetObj = multifleet_2fleet,
   IndexObj = multi_comprehensive_index,
   CatchObsObj = multi_comprehensive_catch,
@@ -778,8 +839,8 @@ result_multi_comp <- runProjection(
   fileName = "test2_multi_comprehensive",
   seed = test_seed,
   doPlot = FALSE,
-  doDiagnostic = FALSE,
-  customToCluster = "multiCompMP"
+  doDiagnostic = FALSE
+  #customToCluster = "multiCompMP"
 )
 cat("Multifleet (2 fleeets) comprehensive simulation completed\n")
 
@@ -795,6 +856,7 @@ result_multi_comp$dynamics$SPR
 
 # obs model outputs (new structure data frame)
 result_multi_comp$HCR$decisionData
+result_multi_comp$HCR$decisionData$IDX_Survey_1
 
 
 # # Clean up intermediate files
@@ -804,4 +866,104 @@ result_multi_comp$HCR$decisionData
 # file.remove("test3_multifleet_2_fleets.rds")
 # file.remove("test4_multifleet_2_fleets.rds")
 # file.remove("test5_multifleet_3_fleets.rds")
+
+
+#obs: need to add units
+plot_SB(result_multi_comp)
+plot_SB(result_multi_comp, areas=1)
+plot_SB(result_multi_comp, areas=2)
+plot_SB(result_multi_comp, areas=c(1,2))
+
+
+plot_catchB(result_multi_comp)
+plot_catchB(result_multi_comp,areas=1)
+plot_catchB(result_multi_comp,areas=2)
+
+plot_catchN(result_multi_comp)
+plot_catchN(result_multi_comp, areas=1)
+plot_catchN(result_multi_comp, areas=2)
+
+# plot_discB(result_multi_comp)
+# plot_discB(result_multi_comp,areas=1)
+# plot_discB(result_multi_comp,areas=2)
+
+plot_discN(result_multi_comp)
+plot_discN(result_multi_comp,areas=1)
+plot_discN(result_multi_comp,areas=2)
+
+plot_catchB_multi(result_multi_comp)
+plot_catchB_multi(result_multi_comp, areas=1)
+plot_catchB_multi(result_multi_comp, areas=2)
+
+plot_catchN_multi(result_multi_comp,show_individual = TRUE)
+plot_catchN_multi(result_multi_comp, areas=1)
+plot_catchN_multi(result_multi_comp, areas=2)
+
+plot_SPR(result_multi_comp)
+plot_recN(result_multi_comp)
+
+
+#plot obs models (indices)
+plot_survey_indices(result_multi_comp)
+plot_cpue_indices(result_multi_comp)
+
+plot_all_indices(result_multi_comp)
+
+#plot individual indices
+plot_indices(result_multi_comp,
+             index_pattern = "IDX_CPUE.*Fleet_1",
+             show_individual = TRUE,
+             title = "Fleet 1 CPUE Only")
+
+plot_indices(result_multi_comp,
+             index_pattern = "IDX_CPUE.*Fleet_2",
+             show_individual = TRUE,
+             title = "Fleet 2 CPUE Only")
+
+
+
+
+
+plot_catch_observations_both(result_multi_comp,show_individual = TRUE)
+plot_catch_observations_multifleet(result_multi_comp,show_individual = TRUE)
+
+
+# plot LC obs models
+# NEW: Area-specific functions (median across iterations are dispayed)
+plot_fishery_length_comp(result_multi_comp,show_individual = TRUE)
+plot_fishery_length_comp(result_multi_comp, areas=1,show_individual = TRUE)
+plot_fishery_length_comp(result_multi_comp, areas=2,show_individual = TRUE)
+
+plot_survey_length_comp(result_multi_comp,show_individual = TRUE)
+plot_survey_length_comp(result_multi_comp, areas=1,show_individual = TRUE)
+plot_survey_length_comp(result_multi_comp, areas=2,show_individual = TRUE)
+
+
+
+# NEW: Custom filtering for fleets and areas
+plot_length_composition_by_area(result_multi_comp,
+                                program_pattern = "LC_Fishery",
+                                area_filter = c(1),    # Specific areas
+                                fleet_filter = c(1),
+                                show_individual = TRUE)   # Specific fleets
+
+
+
+plot_length_composition_by_area(result_multi_comp,
+                                program_pattern = "LC_Fishery",
+                                area_filter = c(1,2),    # Specific areas
+                                fleet_filter = c(2),
+                                show_individual = TRUE)   # Specific fleets
+
+
+plot_length_composition_by_area(result_multi_comp,
+                                program_pattern = "LC_Survey",
+                                area_filter = c(1,2),    # Specific areas
+                                fleet_filter = c(2),
+                                show_individual = TRUE)   # Specific fleets
+
+
+
+
+
 
