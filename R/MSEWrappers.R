@@ -1026,10 +1026,15 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     # Error: subscript out of bounds in MultifleetObj@fleet_selectivity_proj_list[[f]]
 
     #Check for Projection sel
-    # if(is(StrategyObj, "Strategy") &&
-    #    isTRUE(sapply(1:TimeAreaObj@areas, function(x){length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets}))) {
-    #   stop(paste("fleet_selectivity_proj_list must contain", nfleets, "Fishery objects"))
-    # }
+     if(is(StrategyObj, "Strategy") &&
+        isTRUE(sapply(1:TimeAreaObj@areas, function(x){length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets}))) {
+       stop(paste("fleet_selectivity_proj_list must contain", nfleets, "Fishery objects"))
+    }
+
+    print("is")
+    print(is(StrategyObj, "Strategy"))
+
+
 
     #check if strategy exist (only validate proj stuuf if we are doing projections)
     #prevent checking projection when no projections exist (zero-fishing)
@@ -1226,13 +1231,13 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     #what was happening was the code ran the fleet loop even when StrategyObj was NULL,
     #and the check_projection_stuff part tried to access empty projection lists, causing the subscript out of bounds error.
     #changed
-    # for(f in 1:nfleets) {
-    #   if(is(StrategyObj, "Strategy") &&
-    #      isTRUE(sapply(1:TimeAreaObj@areas, function(x){is.null(MultifleetObj@fleet_selectivity_proj_list[[x]][[f]])}))) {
-    #     proceedMSE<-FALSE
-    #     print(paste("Fleet", f, "projection selectivity object is missing"))
-    #   }
-    # }
+    for(f in 1:nfleets) {
+       if(is(StrategyObj, "Strategy") &&
+          isTRUE(sapply(1:TimeAreaObj@areas, function(x){is.null(MultifleetObj@fleet_selectivity_proj_list[[x]][[f]])}))) {
+         proceedMSE<-FALSE
+         print(paste("Fleet", f, "projection selectivity object is missing"))
+       }
+     }
 
     #Do we have a strategy that need projections? If no, skip all
     #the if(is(StrategyObj, "Strategy")) is what prevents the proj checking
