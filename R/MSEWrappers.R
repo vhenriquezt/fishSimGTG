@@ -1021,6 +1021,10 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     }
 
     #Vania edit (sept 24, 2025): sapply try to access [[x]] even when StrategyObj=NULL and the projsel list  does not exist.
+    #Testing historical fynamics with F=0
+    # I found this persistient issue
+    # Error: subscript out of bounds in MultifleetObj@fleet_selectivity_proj_list[[f]]
+
     #Check for Projection sel
     # if(is(StrategyObj, "Strategy") &&
     #    isTRUE(sapply(1:TimeAreaObj@areas, function(x){length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets}))) {
@@ -1028,13 +1032,17 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     # }
 
     #check if strategy exist (only validate proj stuuf if we are doing projections)
+    #prevent checking projection when no projections exist (zero-fishing)
+    # in the older code sapply works even when StrategyObj is NULL
     if(is(StrategyObj, "Strategy")) {
       if(length(MultifleetObj@fleet_selectivity_proj_list) < TimeAreaObj@areas) {
         stop(paste("fleet_selectivity_proj_list must contain selectivity objects for", TimeAreaObj@areas, "areas"))
       }
      # check each area's number of fleets
+     # do we have all the fleet for each area, are the fleet object defined
+     # this should return TRUE for areas that have the wrong number of fleets
       proj_sel_missing <- sapply(1:TimeAreaObj@areas, function(x){
-        length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets
+        length(MultifleetObj@fleet_selectivity_proj_list[[x]]) != nfleets  #check the nfleet for each area
       })
 
       if(any(proj_sel_missing)) {
@@ -1227,15 +1235,16 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
     # }
 
     #Do we have a strategy that need projections? If no, skip all
+    #the if(is(StrategyObj, "Strategy")) is what prevents the proj checking
     if(is(StrategyObj, "Strategy")) {  #strategy check outside fleet loop
       for(f in 1:nfleets) {            #fleet loop inside strategy check
+        #is the projection list long enough to hold all areas
         if(length(MultifleetObj@fleet_selectivity_proj_list) >= TimeAreaObj@areas) {
           #check each fleet in each area
-          #this should prevent checking projection when no projections exist (in the case of the zero-fishing)
-          #prevent trying
+          # check for eacharea if f is missing
           proj_missing <- sapply(1:TimeAreaObj@areas, function(x){
-            length(MultifleetObj@fleet_selectivity_proj_list[[x]]) < f ||
-              is.null(MultifleetObj@fleet_selectivity_proj_list[[x]][[f]])
+            length(MultifleetObj@fleet_selectivity_proj_list[[x]]) < f ||  # are n fleets correct
+              is.null(MultifleetObj@fleet_selectivity_proj_list[[x]][[f]]) #Is fleet f in area x empty?
           })
           if(any(proj_missing)) {
             proceedMSE<-FALSE
@@ -1377,7 +1386,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
           #1 Should this object be: MultifleetObj@fleet_selectivity_proj_list[[x]][[f]]
           #2 Noting that we should not require Projection objects, modified input to address subscript errors
 
-          #Vania edit (sept 24, 2025):
+          #Vania edit (sept 24, 2025): using undefined variable x instead or area
           # selPro <- lapply(1:TimeAreaObj@areas, function(area){
           #   lapply(1:nfleets, function(f) {
           #     tryCatch(
@@ -1397,11 +1406,14 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
             lapply(1:nfleets, function(f) {
               tryCatch(
                 {
-                  #check if projection selectivity exists
+                  #check if strategy
                   if(is(StrategyObj, "Strategy") &&
+                     # enough areas in the proj
                      length(MultifleetObj@fleet_selectivity_proj_list) >= area &&
+                     #does the area has all the fleets
                      length(MultifleetObj@fleet_selectivity_proj_list[[area]]) >= f) {
-                    # use it if it exists
+                    # if all check ar ok use  proj sel
+                    # also use area instead of undefined x
                     selWrapper(lh, TimeAreaObj,
                                FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[area]][[f]],
                                doPlot = FALSE)
@@ -1453,7 +1465,8 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
           })
         })
 
-        #Vania edit (sept 24, 2025): I think I should use [[area]][[f]] (it was missing area level)
+        #Vania edit (sept 24, 2025):
+        # I think I should use [[area]][[f]] (it was missing area level)
         # it seeems it was always trying to access to fleet_selectivity_proj_list even when it does not exist
         # selPro <- lapply(1:TimeAreaObj@areas, function(area){
         #   lapply(1:nfleets, function(f) {
@@ -1470,7 +1483,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
             if(is(StrategyObj, "Strategy") &&
                length(MultifleetObj@fleet_selectivity_proj_list) >= area &&
                length(MultifleetObj@fleet_selectivity_proj_list[[area]]) >= f) {
-              #change the prj sel list [[area]][[f]]
+              #change the prj sel list [[area]][[f]] instead of [[f]]
               selWrapper(lh, TimeAreaObj,
                          FisheryObj = MultifleetObj@fleet_selectivity_proj_list[[area]][[f]],
                          doPlot = FALSE)
