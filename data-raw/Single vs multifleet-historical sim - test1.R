@@ -60,7 +60,6 @@ ta@historicalEffort <- matrix(c(1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6
                                 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6),
                               nrow = 10, ncol = 2, byrow = FALSE)
 
-
 # Stochastic - minimal variation for clear comparison
 stochastic_obj <- new("Stochastic")
 stochastic_obj@historicalBio <- c(0.55, 0.65)
