@@ -232,3 +232,260 @@ solveFfromTAC <- function(dataObject){
   return(list(year=rep(j,areas), iteration=rep(k,areas), area=1:areas, Flocal=Flocal))
 }
 
+#' Function to convert Total Allowable Catch (TAC) targets into F rates for multiple fleets using Newton-Raphson iteration, adapted from OpenMSE and https://api.admb-project.org/baranov_8cpp_source.html code for fishSimGTG
+#'
+#' @param j Current simulation year
+#' @param k Current iteration
+#' @param TAC_targets Vector of TAC targets [fleet1_TAC, fleet2_TAC, ...]. NA = effort-managed
+#' @param N List of abundance arrays by GTG: N[[gtg]][age, year, area]
+#' @param lh Life history object from LHwrapper
+#' @param selGroup Selectivity object: selGroup[[area]][[fleet]] (multifleet) or selGroup[[area]] (single fleet)
+#' @param M_rate Natural mortality rate (scalar)
+#' @param effort_F_by_fleet Vector of F values for effort-managed fleets (length = nfleets)
+#' @param is_multifleet Logical indicating multifleet mode
+#' @param areas Number of areas
+#' @param nfleets Number of fleets (1 for single fleet)
+#' @param TAC_type Character: "keep" (retained catch) or "removals" (total removals)
+#' @param control List with algorithm settings (maxiterF, tolF)
+#' @return Vector of F values [fleet1_F, fleet2_F, ...] or single value for single fleet
+#' @export
+
+solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
+                                     effort_F_by_fleet, is_multifleet, areas, nfleets,
+                                     TAC_type = "keep", control = NULL) {
+
+  #control parameters
+  maxiterF <- 300 #same as openMSE
+  tolF <- 1e-4    #same as openMSE
+  tiny <- 1e-15   #same as openMSE (if catch is super tiny, do not need to iterate (same as openMSE))
+
+  #some validation
+  # if control NULL - all the rest skipped
+  if(!is.null(control)) {
+    if (!is.null(control$maxiterF) && is.numeric(control$maxiterF)) {
+      maxiterF <- as.integer(control$maxiterF)
+    }
+    if (!is.null(control$tolF) && is.numeric(control$tolF)) {
+      tolF <- control$tolF
+    }
+  }
+
+  if (length(TAC_targets) != nfleets) {
+    stop("TAC_targets length must equal nfleets")
+  }
+
+  if (!TAC_type %in% c("keep", "removals")) {
+    stop("TAC_type must be 'keep' or 'removals'")
+  }
+
+  ct <- TAC_targets  # TAC targets for current iteration
+
+
+  #calculating initial guesses - matching GTG structure
+  ft <- sapply(1:nfleets, function(f) {
+    if(is.na(ct[f])) return(0)  # effort-managed fleet (as openMSE)
+
+    #calculate total vulnerable biomass
+    total_vuln_biomass <- 0
+
+    for (gtg in 1:lh$gtg) {
+      for (age in 1:lh$ageClasses) {
+        for (area in 1:areas) {
+          #access selectivity correctly based on fleet structure
+          if (is_multifleet) {
+            selectivity <- selGroup[[area]][[f]]$vul[[gtg]][age]
+          } else {
+            selectivity <- selGroup[[area]]$vul[[gtg]][age]
+          }
+
+          total_vuln_biomass <- total_vuln_biomass +
+            N[[gtg]][age, j, area] * lh$W[[gtg]][age] * selectivity
+        }
+      }
+    }
+
+    if (total_vuln_biomass < tiny) return(tiny)
+    return(ct[f] / total_vuln_biomass)
+  })
+
+
+  #if NA ct or ct too tiny or ft too tiny - early termination check
+  if (all(ct[!is.na(ct)] <= tiny) || all(ft <= tiny)) {
+    return(if (!is_multifleet && nfleets == 1) tiny else rep(tiny, nfleets))
+  }
+
+  #initialize variables
+  pct <- numeric(nfleets)  # Predicted catches
+  dct <- numeric(nfleets)  # Derivatives
+
+  #Newton-Rapson iteration
+  converged <- FALSE
+  iteration_count <- 0
+
+
+
+  # #initializing arrays: [age, area, fleet]
+  # Fmat <- Fmat_ret <- predC <- array(NA, c(lh$ageClasses, areas, nfleets))
+  # dct <- pct <- numeric(nfleets)  # Derivatives and predicted catches
+
+  #====================here we start NR calculations=======================#
+
+
+  for(iter in 1:maxiterF) {
+    iteration_count <- iter
+
+    #reset predicted catches and derivatives
+    pct[] <- 0
+    dct[] <- 0
+
+
+    #calculate predicted catches and derivatives using fishSimGTG approach
+    for (gtg in 1:lh$gtg) {
+      for (age in 1:lh$ageClasses) {
+        for (area in 1:areas) {
+
+          #calculate GTG-specific total Z
+          # Z = M + sum_across_fleets(F_fleet * selectivity_fleet)
+          total_F_mortality <- 0
+          for (ff in 1:nfleets) {
+            if (is.na(ct[ff])) {
+              #effort-managed fleet: use predetermined F
+              fleet_F <- effort_F_by_fleet[ff]
+            } else {
+              #TAC-managed fleet: use current F guess
+              fleet_F <- ft[ff]
+            }
+
+            #access removal selectivity
+            if (is_multifleet) {
+              removal_sel <- selGroup[[area]][[ff]]$removal[[gtg]][age]
+            } else {
+              removal_sel <- selGroup[[area]]$removal[[gtg]][age]
+            }
+
+            total_F_mortality <- total_F_mortality + fleet_F * removal_sel
+          }
+
+          Z_gtg <- M_rate + total_F_mortality
+          Z_gtg <- max(Z_gtg, tiny)  #avoid division by zero
+
+          #calculate biomass for this GTG-age-area combination
+          biomass_gtg <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
+
+          if (biomass_gtg < tiny) next  #skip if no biomass
+
+          #calculate fleet-specific catches and derivatives
+          for (f in 1:nfleets) {
+            if (is.na(ct[f])) next  #skip effort-managed fleets
+
+            #get appropriate selectivity based on TAC type
+            #TAC Types:
+            #"keep" = landed catch
+            #"removals" = total mortality (including dead discards)
+
+            #keep Selectivity: matches selGroup[[m]]$keep[[l]] for retained catch
+            if (TAC_type == "keep") {
+              if (is_multifleet) {
+                sel_f <- selGroup[[area]][[f]]$keep[[gtg]][age]
+              } else {
+                sel_f <- selGroup[[area]]$keep[[gtg]][age]
+              }
+            } else {  # removals
+              #removal Selectivity: matches selGroup[[m]]$removal[[l]] for total removals
+              if (is_multifleet) {
+                sel_f <- selGroup[[area]][[f]]$removal[[gtg]][age]
+              } else {
+                sel_f <- selGroup[[area]]$removal[[gtg]][age]
+              }
+            }
+
+            # Baranov catch equation for this GTG (following fishSimGTG structure)
+            # C = F*sel/Z * (1-exp(-Z)) * N * W
+            catch_component <- ft[f] * sel_f / Z_gtg * (1 - exp(-Z_gtg)) * biomass_gtg
+
+            if (is.finite(catch_component)) {
+              #add to fleet totals
+              pct[f] <- pct[f] + catch_component
+
+              # Calculate derivative component
+              # d(C)/d(F) = sel/Z * (1-exp(-Z)) * biomass - F*sel/Z^2 * (1-exp(-Z)) * biomass + F*sel/Z * exp(-Z) * sel * biomass
+              exp_neg_Z <- exp(-Z_gtg)
+              one_minus_exp <- 1 - exp_neg_Z
+
+              #the three derivative terms - see my excel
+              term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
+              term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * sel_f
+              term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z * sel_f * biomass_gtg
+
+              derivative_component <- term1 - term2 + term3
+
+              if (is.finite(derivative_component)) {
+                #add to fleet totals
+                dct[f] <- dct[f] + derivative_component
+              }
+            }
+          }#fleet
+        }#areas
+      }#age classess
+    }#gtg
+
+    #check convergence and update -  check if derivatives are too small
+    if (all(dct[!is.na(ct)] < 1e-15)) {
+      converged <- TRUE
+      break
+    }
+
+    #Newton-Raphson update with damping factor
+    # updates ALL fleets at once (also see my excel for single fleet - sam eequation excep by 0.8)
+    # 0.8 used to stabilize convergence (take 0.8 of the derivate to update F)
+    # the 0.8 amplifies the Newton correction.
+    # this can make convergence faster if normal steps are too small
+    # the 0.8 should help to each iteration to “jump” more strongly toward the solution
+    # but the risk is it could maybe pass the solution
+    # in the end it is supposed to reduce the N iterations in newton
+    error <- pct - ct
+    ft <- ft - error / (0.8 * dct)
+
+    #ensure F values remain positive
+    ft <- pmax(ft, tiny)
+
+    #check convergence
+    relative_error <- abs(error / pmax(ct, tiny))
+    if (all(relative_error[!is.na(ct)] < tolF)) {
+      converged <- TRUE
+      break
+    }
+
+
+    #check for very high F values and prevent them - maybe find another approach for this - or not sure if we need this, explore the outputs
+    if (any(ft > 10)) {
+      warning("F values became very large during iteration. Capping at 5.")
+      ft <- pmin(ft, 5)
+    }
+  }
+
+  #convergence diagnostics and warnings
+  if (!converged) {
+    warning(paste("Newton-Raphson did not converge after", maxiterF, "iterations."))
+  }
+
+  final_error <- abs(pct - ct) / pmax(ct, tiny)
+  if (any(final_error[!is.na(ct)] > 0.1)) {
+    warning(paste("Large differences between predicted and target catches.",
+                  "Final errors (%):", paste(round(final_error * 100, 1), collapse = ", ")))
+  }
+
+
+  #add convergence information as attributes
+  attr(ft, "converged") <- converged
+  attr(ft, "iterations") <- iteration_count
+  attr(ft, "final_error") <- final_error[!is.na(ct)]
+  attr(ft, "predicted_catch") <- pct[!is.na(ct)]
+  attr(ft, "target_catch") <- ct[!is.na(ct)]
+
+  if (!is_multifleet && nfleets == 1) {
+    return(ft[1])
+  } else {
+    return(ft)
+  }
+}

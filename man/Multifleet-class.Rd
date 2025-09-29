@@ -16,6 +16,8 @@
 \item{fleet_selectivity_hist_list}{List of Fishery objects (length = nfleets)}
 
 \item{fleet_selectivity_proj_list}{List of Fishery objects (length = nfleets)}
+
+\item{fleet_historicalEffort}{Array of dim(historical years, areas, fleets)}
 }
 \description{
 An S4 object that holds multifleet configuration for historical and projection periods

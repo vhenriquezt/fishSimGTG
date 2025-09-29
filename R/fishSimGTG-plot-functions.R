@@ -1,27 +1,4 @@
-#' Plot population dynamics metrics
-#'
-#' Creates time series plots for various population dynamics metrics from fishSimGTG simulation results.
-#' Supports both single-fleet and multifleet simulations with flexible visualization options.
-#'
-#' @param simulation_result Output object from \code{runProjection()}
-#' @param metric Character. The metric to plot. One of: "SB", "VB", "RB", "catchB", "catchN", "Ftotal", "discB", "discN", "recN", "SPR"
-#' @param areas Character "all" or numeric vector specifying which areas to plot. Default is "all"
-#' @param iterations Character "all" or numeric vector specifying which simulation iterations to include. Default is "all"
-#' @param show_median Logical. Whether to show median line across iterations. Default is TRUE
-#' @param show_quantiles Logical. Whether to show 25th-75th percentile ribbon. Default is TRUE
-#' @param show_individual Logical. Whether to show individual iteration lines. Default is FALSE
-#' @param show_fleets Logical. Whether to show fleet-specific data in multifleet mode. Default is FALSE
-#' @param color_palette Character vector of colors. If NULL, uses default colors
-#' @param title Character. Custom plot title. If NULL, generates automatic title
-#' @param save_plot Logical. Whether to save plot to file. Default is FALSE
-#' @param filename Character. Filename for saved plot. If NULL, generates automatic filename
-#' @param width Numeric. Plot width in inches for saved plot. Default is 12
-#' @param height Numeric. Plot height in inches for saved plot. Default is 8
-#'
-#' @return A ggplot object
-#' @export
-
-#' This is an internal helper function to ensure observation data is in matrix format
+#' Internal helper function to ensure observation data is in matrix format
 #' @param simulation_result Output object from runProjection()
 #' @return simulation_result with observation data in matrix format
 #' @keywords internal
@@ -176,7 +153,28 @@ convert_vector_to_matrix <- function(obs_data, col_name, total_years, total_iter
   return(obs_matrix)
 }
 
-
+#' Plot population dynamics metrics
+#'
+#' Creates time series plots for various population dynamics metrics from fishSimGTG simulation results.
+#' Supports both single-fleet and multifleet simulations with flexible visualization options.
+#'
+#' @param simulation_result Output object from \code{runProjection()}
+#' @param metric Character. The metric to plot. One of: "SB", "VB", "RB", "catchB", "catchN", "Ftotal", "discB", "discN", "recN", "SPR"
+#' @param areas Character "all" or numeric vector specifying which areas to plot. Default is "all"
+#' @param iterations Character "all" or numeric vector specifying which simulation iterations to include. Default is "all"
+#' @param show_median Logical. Whether to show median line across iterations. Default is TRUE
+#' @param show_quantiles Logical. Whether to show 25th-75th percentile ribbon. Default is TRUE
+#' @param show_individual Logical. Whether to show individual iteration lines. Default is FALSE
+#' @param show_fleets Logical. Whether to show fleet-specific data in multifleet mode. Default is FALSE
+#' @param color_palette Character vector of colors. If NULL, uses default colors
+#' @param title Character. Custom plot title. If NULL, generates automatic title
+#' @param save_plot Logical. Whether to save plot to file. Default is FALSE
+#' @param filename Character. Filename for saved plot. If NULL, generates automatic filename
+#' @param width Numeric. Plot width in inches for saved plot. Default is 12
+#' @param height Numeric. Plot height in inches for saved plot. Default is 8
+#'
+#' @return A ggplot object
+#' @export
 
 plot_population_metric <- function(simulation_result,
                                    metric,
