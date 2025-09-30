@@ -278,6 +278,13 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     stop("TAC_type must be 'keep' or 'removals'")
   }
 
+  cat("SOLVER DEBUG: areas =", areas, "nfleets =", nfleets, "\n")
+  cat("SOLVER DEBUG: TAC_targets =", TAC_targets, "\n")
+  cat("SOLVER DEBUG: Sample N (GTG 1, Age 10, Area 1) =", N[[1]][10, j, 1], "\n")
+  cat("SOLVER DEBUG: Sample selectivity (GTG 1, Age 10) =",
+      if(is_multifleet) selGroup[[1]][[1]]$keep[[1]][10] else selGroup[[1]]$keep[[1]][10], "\n")
+
+
   ct <- TAC_targets  # TAC targets for current iteration
 
 
@@ -298,6 +305,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
             selectivity <- selGroup[[area]]$vul[[gtg]][age]
           }
 
+          #add this GTG-age-area combination to total
           total_vuln_biomass <- total_vuln_biomass +
             N[[gtg]][age, j, area] * lh$W[[gtg]][age] * selectivity
         }
@@ -305,8 +313,20 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     }
 
     if (total_vuln_biomass < tiny) return(tiny)
-    return(ct[f] / total_vuln_biomass)
+
+    # cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
+    #             f, ct[f], total_vuln_biomass, initial_F))
+
+    # Calculate and debug in one step
+    # Initial guess: F ≈ TAC / VulnerableBiomass
+    guess <- ct[f] / total_vuln_biomass
+    cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
+                f, ct[f], total_vuln_biomass, guess))
+
+    return(guess)
   })
+
+  ft_initial <- ft  #store initial guess before Newton-Raphson iterations for diagnostics
 
 
   #if NA ct or ct too tiny or ft too tiny - early termination check
@@ -337,6 +357,12 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     #reset predicted catches and derivatives
     pct[] <- 0
     dct[] <- 0
+
+
+    #debug block
+    if(iter == 1 || iter %% 50 == 0) {
+      cat(sprintf("  NR Iter %d: ft[1]=%.6f\n", iter, ft[1]))
+    }
 
 
     #calculate predicted catches and derivatives using fishSimGTG approach
@@ -446,6 +472,14 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     error <- pct - ct
     ft <- ft - error / (0.8 * dct)
 
+
+    # ========== DEBUG HERE ==========
+    if(iter == 1 || iter %% 50 == 0) {
+      cat(sprintf("  After update: ft[1]=%.6f, error=%.2f, dct=%.2f\n",
+                  ft[1], error[1], dct[1]))
+    }
+    # ==========================================
+
     #ensure F values remain positive
     ft <- pmax(ft, tiny)
 
@@ -453,6 +487,12 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     relative_error <- abs(error / pmax(ct, tiny))
     if (all(relative_error[!is.na(ct)] < tolF)) {
       converged <- TRUE
+
+      #debug
+      cat(sprintf("  CONVERGED at iter %d: F=%.6f, pct=%.2f, target=%.2f\n",
+                  iter, ft[1], pct[1], ct[1]))
+      #end debug
+
       break
     }
 
@@ -482,10 +522,20 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
   attr(ft, "final_error") <- final_error[!is.na(ct)]
   attr(ft, "predicted_catch") <- pct[!is.na(ct)]
   attr(ft, "target_catch") <- ct[!is.na(ct)]
+  attr(ft, "initial_guess") <- ft_initial[!is.na(ct)]
 
   if (!is_multifleet && nfleets == 1) {
-    return(ft[1])
+    # For single fleet, return the scalar F but preserve attributes
+    F_value <- ft[1]
+    attr(F_value, "converged") <- converged
+    attr(F_value, "iterations") <- iteration_count
+    attr(F_value, "final_error") <- final_error[!is.na(ct)]
+    attr(F_value, "predicted_catch") <- pct[!is.na(ct)]
+    attr(F_value, "target_catch") <- ct[!is.na(ct)]
+    attr(F_value, "initial_guess") <- ft_initial[1]
+    return(F_value)
   } else {
     return(ft)
   }
+
 }
