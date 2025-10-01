@@ -10,6 +10,8 @@ plot_catch_observations_both(simulation_result, ...)
 \item{simulation_result}{Output object from \code{runProjection()} containing catch observation data}
 
 \item{...}{Additional arguments passed to \code{plot_catch_observations()}}
+
+\item{areas}{Character "all" or numeric vector of areas. Default is "all"}
 }
 \value{
 A ggplot object showing catch time series

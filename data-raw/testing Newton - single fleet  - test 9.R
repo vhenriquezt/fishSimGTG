@@ -1,4 +1,5 @@
-#testing Newton - single fleet (WIP)
+#testing Newton - single fleet
+#validation
 
 
 rm(list=ls())
@@ -50,9 +51,12 @@ ta@historicalBioType <- "relB"
 ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
 
 # Historical effort - declining trend
-ta@historicalEffort <- matrix(c(3.5, 3.4, 3.3, 3.2, 3.1, 3.0, 2.9, 1.8, 1.7, 1.6,
-                                2.5, 2.4, 2.3, 2.2, 2.1, 2.0, 1.9, 0.8, 0.7, 0.6),
+ta@historicalEffort <- matrix(c(1.5, 3.4, 3.3, 3.8, 3.1, 3.0, 2.9, 1.8, 1.7, 1.6,
+                                1.2, 2.4, 2.3, 2.9, 2.1, 2.0, 1.9, 0.8, 0.7, 0.6),
                               nrow = 10, ncol = 2, byrow = FALSE)
+
+plot(ta@historicalEffort[,1])
+plot(ta@historicalEffort[,2])
 
 # Stochastic
 stochastic_obj <- new("Stochastic")
@@ -187,20 +191,11 @@ singleCompMP <- function(phase, dataObject) {
   # e.g., if j=12, start_year=9
   start_year <- max(2, j - n_years_avg) #ensures we never go before year 2 (prevent to going year 1 or earlier)
 
-
-  # I understand this in this way:
-  #- Example timeline for j=12 (first projection year):
-  #- Historical years: 1-10
-  #- j=11 is year 10 (last historical year, already completed)
-  #- j=12 is year 11 (first projection year, currently being calculated)
-  #- start_year = 12 - 3 = 9, so we average catches from years 9, 10, 11
-  #- But j=12 has not happened yet, so we use years 9, 10 only
-
   #calculate TAC for each area
   TAC_by_area <- numeric(areas) #empty vector to store TAC by area
 
   #define area-specific multipliers
-  area_multipliers <- c(0.8, 1.2)  # Area 1: reduce 20%, Area 2: increase 20%
+  area_multipliers <- c(0.8, 1.6)  # Area 1: reduce 20%, Area 2: increase 20%
 
   #diagonstic
   cat(sprintf("\n=== PHASE 2 DEBUG: Year %d, Iteration %d ===\n", j-1, k))
@@ -219,7 +214,7 @@ singleCompMP <- function(phase, dataObject) {
 
     # Why j < j (not j <= j)?
     # year j=12 is currently being calculated
-    # we do not have catch observations for year 12 yet (they happen in Phase 1 of next year!)
+    # we do not have catch observations for year 12 yet (they happen in Phase 1 of next year)
     #So we can only use years 9, 10, 11
 
 
@@ -281,7 +276,7 @@ singleCompMP <- function(phase, dataObject) {
         temp_array <- array(0, dim = c(dim(N[[gtg_idx]])[1],
                                        dim(N[[gtg_idx]])[2],
                                        1))                   #note: only 1 area!
-        #cpy data from area m into position 1
+        #ocpy data from area m into position 1
         temp_array[, , 1] <- N[[gtg_idx]][, , m]
         # If m=1: copy area 1 data
         # If m=2: copy area 2 data
@@ -622,17 +617,11 @@ cat("Single fleet comprehensive simulation with obs models completed\n")
 result_single_comp <- readProjection(getwd(), "test1_single_with_tac")
 
 # Population outputs
-
 result_single_comp$dynamics$SB
-
 result_single_comp$dynamics$VB
-
 result_single_comp$dynamics$Ftotal
 result_single_comp$dynamics$catchB
-
-
 result_single_comp$dynamics$recN
-
 result_single_comp$dynamics$SPR
 
 result_single_comp$HCR$decisionData$observed_catch_area_1
@@ -642,7 +631,6 @@ result_single_comp$HCR$decisionAnnual$TAC
 result_single_comp$HCR$decisionAnnual
 
 result_single_comp$dynamics$Ftotal
-
 result_single_comp$HCR$decisionLocal
 
 
@@ -666,7 +654,6 @@ result_single_comp$HCR$decisionData$IDX_CPUE_1
 
 
 #plots
-# loading plot fucntion for toher plots
 
 # #obs: need to add units
 plot_SB(result_single_comp)
@@ -730,6 +717,87 @@ plot_survey_length_comp(result_single_comp, areas=1,show_individual = TRUE)
 plot_survey_length_comp(result_single_comp, areas=2,show_individual = TRUE)
 
 
+#===========================================================================================#
+#========================== Exploring NR outputs and performance ===========================#
+#===========================================================================================#
+
+#check SB
+#Area 1 (TAC reduced by 20%): SB should increase
+plot_SB(result_single_comp,areas=1)
+#Area 2 (TAC increased by 60%): SB should decline
+plot_SB(result_single_comp,areas=2)
+
+#check F
+plot_Ftotal(result_single_comp)
+
+#cacth
+plot_catchB_multi(result_single_comp,areas=1)
+plot_catchB_multi(result_single_comp,areas=2)
+
+#TAC
+plot_TAC_by_area(result_single_comp, areas = 1)
+plot_TAC_by_area(result_single_comp, areas = 2)
+plot_TAC(result_single_comp, areas = "all")  # All areas in one plot
+
+# Total catch across all areas (original behavior)
+plot_catch_observations_both(result_single_comp)
+
+# Area 1 only
+plot_catch_observations_both(result_single_comp, areas = 1)
+# Area 2 only
+plot_catch_observations_both(result_single_comp, areas = 2)
+
+# Both areas with faceting
+plot_catch_observations_both(result_single_comp, areas = c(1, 2))
+
+#combined catch obs:
+plot_catch_observations_both(result_single_comp,show_individual = TRUE)
+
+
+#calculate relative error
+nr_diag$relative_error <- abs(nr_diag$predicted_catch - nr_diag$target_catch) / nr_diag$target_catch
+ggplot(nr_diag, aes(x = target_catch, y = predicted_catch, color = factor(area))) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  labs(title = "Target vs Predicted Catch - should be on 1:1 line")
+
+
+#check for extreme values
+extreme_F <- nr_diag[nr_diag$final_F > 2 | nr_diag$final_F < 0.001, ]
+if(nrow(extreme_F) > 0) {
+  cat("WARNING: Extreme F values detected\n")
+  print(extreme_F)
+}
+
+#realized catch vs target TAC
+catchB <- result_single_comp$dynamics$catchB
+TAC_decisions <- result_single_comp$HCR$decisionAnnual
+
+
+#compare for each year/iteration/area
+proj_start <- 12
+for(yr in proj_start:(proj_start+2)) {
+  for(iter in 1:3) {
+    for(area in 1:2) {
+      TAC <- TAC_decisions$TAC[TAC_decisions$year == yr &
+                                 TAC_decisions$iteration == iter &
+                                 TAC_decisions$area == area]
+      realized <- catchB[yr, iter, area]
+
+      error <- abs(realized - TAC) / TAC * 100
+
+      cat(sprintf("Yr %d, Iter %d, Area %d: TAC=%.2f, Realized=%.2f, Error=%.1f%%\n",
+                  yr-1, iter, area, TAC, realized, error))
+
+      if(error > 5) {
+        cat("  WARNING: Error >5%\n")
+      }
+    }
+  }
+}
+
+
+
 #=============================================================================#
 #===================      EFFORT BASED STRATEGy ==============================#
 #=============================================================================#
@@ -782,9 +850,10 @@ ta@historicalBioType <- "relB"
 ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
 
 # Historical effort - declining trend
-ta@historicalEffort <- matrix(c(3.5, 3.4, 3.3, 3.2, 3.1, 3.0, 2.9, 1.8, 1.7, 1.6,
-                                2.5, 2.4, 2.3, 2.2, 2.1, 2.0, 1.9, 0.8, 0.7, 0.6),
+ta@historicalEffort <- matrix(c(1.5, 3.4, 3.3, 3.8, 3.1, 3.0, 2.9, 1.8, 1.7, 1.6,
+                                1.2, 2.4, 2.3, 2.9, 2.1, 2.0, 1.9, 0.8, 0.7, 0.6),
                               nrow = 10, ncol = 2, byrow = FALSE)
+
 
 # Stochastic
 stochastic_obj <- new("Stochastic")
@@ -1230,3 +1299,4 @@ plot_fishery_length_comp(result_single_comp_effort,show_individual = TRUE)
 plot_survey_length_comp(result_single_comp_effort,show_individual = TRUE)
 plot_survey_length_comp(result_single_comp_effort, areas=1,show_individual = TRUE)
 plot_survey_length_comp(result_single_comp_effort, areas=2,show_individual = TRUE)
+

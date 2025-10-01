@@ -1,3 +1,34 @@
+#' Extract units from simulation result
+#' @param simulation_result Output from runProjection
+#' @return List of units for different metrics
+#' @keywords internal
+
+get_metric_units <- function(simulation_result) {
+  lh <- simulation_result$LifeHistoryObj
+
+  # Extract units from life history object
+  length_units <- if(length(lh@L_units) > 0) lh@L_units else "cm"
+  weight_units <- if(length(lh@Walpha_units) > 0) lh@Walpha_units else "g"
+
+  # Define units for each metric
+  units <- list(
+    SB = weight_units,
+    VB = weight_units,
+    RB = weight_units,
+    catchB = weight_units,
+    catchN = "numbers",
+    Ftotal = "year^-1",
+    discB = weight_units,
+    discN = "numbers",
+    recN = "numbers",
+    SPR = "proportion",
+    TAC = weight_units
+  )
+
+  return(units)
+}
+
+
 #' Internal helper function to ensure observation data is in matrix format
 #' @param simulation_result Output object from runProjection()
 #' @return simulation_result with observation data in matrix format
@@ -211,7 +242,7 @@ plot_population_metric <- function(simulation_result,
     #population-level metrics (no areas)
     plot_data <- prepare_population_data(dynamics, metric, iterations, historical_end)
     p <- create_population_plot(plot_data, metric, show_median, show_quantiles,
-                                show_individual, color_palette, title, historical_end)
+                                show_individual, color_palette, title, historical_end, simulation_result)
   } else {
     #area-specific
     array_data <- dynamics[[metric]]
@@ -230,11 +261,11 @@ plot_population_metric <- function(simulation_result,
     if(show_fleets && is_multifleet && metric %in% c("Ftotal", "catchB", "catchN", "discB", "discN")) {
       plot_data <- prepare_multifleet_data(dynamics, metric, areas, iterations, historical_end)
       p <- create_multifleet_plot(plot_data, metric, areas, show_median, show_quantiles,
-                                  show_individual, color_palette, title, historical_end)
+                                  show_individual, color_palette, title, historical_end, simulation_result)
     } else {
       plot_data <- prepare_area_data(dynamics, metric, areas, iterations, historical_end)
       p <- create_area_plot(plot_data, metric, areas, show_median, show_quantiles,
-                            show_individual, color_palette, title, historical_end)
+                            show_individual, color_palette, title, historical_end,simulation_result)
     }
   }
   #save plot
@@ -358,7 +389,7 @@ prepare_multifleet_data <- function(dynamics, metric, areas, iterations, histori
 
 
 create_population_plot <- function(plot_data, metric, show_median, show_quantiles,
-                                   show_individual, color_palette, title, historical_end) {
+                                   show_individual, color_palette, title, historical_end, simulation_result = NULL) {
 
   #calculate median and quantiles
   summary_data <- plot_data %>%
@@ -408,7 +439,7 @@ create_population_plot <- function(plot_data, metric, show_median, show_quantile
   p <- p +
     geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
     scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
-    labs(title = title, x = "Year", y = get_metric_ylabel(metric)) +
+    labs(title = title, x = "Year", y = get_metric_ylabel(metric, simulation_result)) +
     theme_minimal() +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
@@ -425,7 +456,7 @@ create_population_plot <- function(plot_data, metric, show_median, show_quantile
 
 
 create_area_plot <- function(plot_data, metric, areas, show_median, show_quantiles,
-                             show_individual, color_palette, title, historical_end) {
+                             show_individual, color_palette, title, historical_end, simulation_result = NULL) {
 
   #summary statistics
   summary_data <- plot_data %>%
@@ -500,7 +531,8 @@ create_area_plot <- function(plot_data, metric, areas, show_median, show_quantil
     scale_color_manual(values = colors) +
     scale_fill_manual(values = colors) +
     scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
-    labs(title = title, x = "Year", y = get_metric_ylabel(metric), color = "Area", fill = "Area") +
+    labs(title = title, x = "Year", y = get_metric_ylabel(metric, simulation_result),
+         color = "Area", fill = "Area")  +
     theme_minimal() +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
@@ -532,7 +564,7 @@ create_area_plot <- function(plot_data, metric, areas, show_median, show_quantil
 
 
 create_multifleet_plot <- function(plot_data, metric, areas, show_median, show_quantiles,
-                                   show_individual, color_palette, title, historical_end) {
+                                   show_individual, color_palette, title, historical_end,simulation_result = NULL) {
 
 
 #statistical summary (speratate stats for each area-fleet-period combination)
@@ -583,7 +615,8 @@ p <- p +
   scale_x_continuous(breaks = function(x) pretty(x, n = 6)) +
   #facet_wrap:creates separate panels for each area
   facet_wrap(~ area, scales = "free_y") +
-  labs(title = title, x = "Year", y = get_metric_ylabel(metric), color = "Fleet", fill = "Fleet") +
+  labs(title = title, x = "Year", y = get_metric_ylabel(metric, simulation_result),
+       color = "Fleet", fill = "Fleet") +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
@@ -615,8 +648,8 @@ get_metric_label <- function(metric) {
 
 
 
-get_metric_ylabel <- function(metric) {
-  labels <- list(
+get_metric_ylabel <- function(metric, simulation_result = NULL) {
+  base_labels <- list(
     "SB" = "Spawning Biomass",
     "VB" = "Vulnerable Biomass",
     "RB" = "Retained Biomass",
@@ -626,9 +659,21 @@ get_metric_ylabel <- function(metric) {
     "discB" = "Discard Biomass",
     "discN" = "Discard Numbers",
     "recN" = "Recruitment (Numbers)",
-    "SPR" = "SPR"
+    "SPR" = "SPR",
+    "TAC" = "TAC"
   )
-  return(labels[[metric]])
+  base_label <- base_labels[[metric]]
+
+  #add units
+  if(!is.null(simulation_result)) {
+    units <- get_metric_units(simulation_result)
+    unit <- units[[metric]]
+
+    if(!is.null(unit) && unit != "proportion") {
+      base_label <- paste0(base_label, " (", unit, ")")
+    }
+  }
+  return(base_label)
 }
 
 
@@ -962,6 +1007,7 @@ create_index_plot_with_gaps <- function(plot_data, show_median, show_quantiles, 
 
 plot_catch_observations <- function(simulation_result,
                                     catch_type = "both",
+                                    areas = "all",
                                     fleet_specific = TRUE,
                                     show_median = TRUE,
                                     show_quantiles = TRUE,
@@ -977,16 +1023,25 @@ plot_catch_observations <- function(simulation_result,
   }
 
   historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+  total_areas <- unique(obs_data$total_areas)[1]
+
+  #area filter
+  if(length(areas) == 1 && areas == "all") {
+    areas_to_plot <- 1:total_areas
+  } else {
+    areas_to_plot <- areas
+  }
+
 
   #detect if multifleet
   has_multifleet <- any(grepl("fleet_\\d+_", names(obs_data)))
 
   if(has_multifleet && fleet_specific) {
-    plot_data <- prepare_multifleet_catch_data(obs_data, catch_type, historical_end)
+    plot_data <- prepare_multifleet_catch_data(obs_data, catch_type, historical_end, areas_to_plot)
     p <- create_multifleet_catch_plot(plot_data, catch_type, show_median, show_quantiles,
                                       show_individual, point_size, title, historical_end)
   } else {
-    plot_data <- prepare_single_catch_data(obs_data, catch_type, historical_end)
+    plot_data <- prepare_single_catch_data(obs_data, catch_type, historical_end,areas_to_plot)
     p <- create_single_catch_plot(plot_data, catch_type, show_median, show_quantiles,
                                   show_individual, point_size, title, historical_end)
   }
@@ -994,6 +1049,7 @@ plot_catch_observations <- function(simulation_result,
   if(save_plot) {
     if(is.null(filename)) {
       mode <- if(has_multifleet && fleet_specific) "multifleet" else "single"
+      area_suffix <- paste0("areas_", paste(areas_to_plot, collapse = "_"))
       filename <- paste0("catch_observations_", mode, "_", catch_type, ".jpeg")
     }
     ggsave(filename, p, width = 12, height = 8, dpi = 300)
@@ -1091,9 +1147,12 @@ prepare_multifleet_catch_data <- function(obs_data, catch_type, historical_end) 
 }
 
 
-prepare_single_catch_data <- function(obs_data, catch_type, historical_end) {
+prepare_single_catch_data <- function(obs_data, catch_type, historical_end, areas_to_plot) {
 
   plot_data <- data.frame()
+
+  #if no area filtering, use total catch columns
+  if(is.null(areas_to_plot)) {
 
   if(catch_type %in% c("true", "both") && "true_catch" %in% names(obs_data)) {
     true_data <- obs_data %>%
@@ -1125,6 +1184,49 @@ prepare_single_catch_data <- function(obs_data, catch_type, historical_end) {
       select(user_year, iteration, value, catch_type, panel, period)
 
     plot_data <- rbind(plot_data, obs_data_sub)
+  }
+
+  } else {
+    # area-specific catch
+    for(area in areas_to_plot) {
+      if(catch_type %in% c("true", "both")) {
+        true_col <- paste0("true_catch_area_", area)
+        if(true_col %in% names(obs_data)) {
+          true_data <- obs_data %>%
+            filter(!is.na(!!sym(true_col))) %>%
+            mutate(
+              user_year = j - 1,
+              iteration = k,
+              value = !!sym(true_col),
+              catch_type = "True Catch",
+              panel = paste("Area", area),
+              period = ifelse(j <= historical_end, "Historical", "Projection")
+            ) %>%
+            select(user_year, iteration, value, catch_type, panel, period)
+
+          plot_data <- rbind(plot_data, true_data)
+        }
+      }
+
+      if(catch_type %in% c("observed", "both")) {
+        obs_col <- paste0("observed_catch_area_", area)
+        if(obs_col %in% names(obs_data)) {
+          obs_data_sub <- obs_data %>%
+            filter(!is.na(!!sym(obs_col))) %>%
+            mutate(
+              user_year = j - 1,
+              iteration = k,
+              value = !!sym(obs_col),
+              catch_type = "Observed Catch",
+              panel = paste("Area", area),
+              period = ifelse(j <= historical_end, "Historical", "Projection")
+            ) %>%
+            select(user_year, iteration, value, catch_type, panel, period)
+
+          plot_data <- rbind(plot_data, obs_data_sub)
+        }
+      }
+    }
   }
 
   return(plot_data)
@@ -1210,7 +1312,7 @@ create_single_catch_plot <- function(plot_data, catch_type, show_median, show_qu
 
   #calculate stats
   summary_data <- plot_data %>%
-    group_by(user_year, catch_type, period) %>%
+    group_by(user_year,panel, catch_type, period) %>%   #panel contains area info
     summarise(
       median_value = median(value, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
@@ -1250,6 +1352,9 @@ create_single_catch_plot <- function(plot_data, catch_type, show_median, show_qu
                         size = point_size)
   }
 
+  #check if multiple panels (areas)
+  has_multiple_panels <- length(unique(plot_data$panel)) > 1
+
   #formatting
   p <- p +
     geom_vline(xintercept = historical_end - 1, linetype = "dashed", color = "red", alpha = 0.7) +
@@ -1267,6 +1372,11 @@ create_single_catch_plot <- function(plot_data, catch_type, show_median, show_qu
       legend.position = "bottom",
       plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
     )
+
+  #add faceting if multiple areas
+  if(has_multiple_panels) {
+    p <- p + facet_wrap(~ panel, scales = "free_y")
+  }
 
   return(p)
 }
@@ -1646,6 +1756,7 @@ plot_all_indices <- function(simulation_result, ...) {
 #' Shows both true and observed values on the same plot.
 #'
 #' @param simulation_result Output object from \code{runProjection()} containing catch observation data
+#' @param areas Character "all" or numeric vector of areas. Default is "all"
 #' @param ... Additional arguments passed to \code{plot_catch_observations()}
 #' @return A ggplot object showing catch time series
 #' @export
@@ -1745,5 +1856,153 @@ plot_survey_length_comp <- function(result, areas = "all", ...) {
                                   area_filter = areas, ...)
 }
 
+#' Plot TAC (Total Allowable Catch) by area
+#'
+#' @param simulation_result Output from runProjection
+#' @param areas Character "all" or numeric vector
+#' @param show_fleets Logical. Show fleet breakdown in multifleet
+#' @param ... Additional plotting arguments
+#' @export
+plot_TAC <- function(simulation_result,
+                     areas = "all",
+                     show_fleets = FALSE,
+                     show_median = TRUE,
+                     show_quantiles = TRUE,
+                     show_individual = FALSE,
+                     title = NULL,
+                     save_plot = FALSE,
+                     filename = NULL) {
 
+  tac_data <- simulation_result$HCR$decisionAnnual
+
+  if(is.null(tac_data) || !"TAC" %in% names(tac_data)) {
+    stop("no TAC data found in simulation result")
+  }
+
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+  units <- get_metric_units(simulation_result)
+
+  # Get total areas
+  total_areas <- max(tac_data$area)
+
+  # Handle areas
+  if(length(areas) == 1 && areas == "all") {
+    areas <- 1:total_areas
+  }
+
+  # Filter areas
+  tac_data <- tac_data[tac_data$area %in% areas, ]
+
+  # Check for fleet column
+  has_fleets <- "fleet" %in% names(tac_data)
+
+  if(has_fleets && show_fleets) {
+    p <- create_TAC_plot_multifleet(tac_data, areas, show_median, show_quantiles,
+                                    show_individual, title, historical_end, units)
+  } else {
+    p <- create_TAC_plot_single(tac_data, areas, show_median, show_quantiles,
+                                show_individual, title, historical_end, units)
+  }
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      area_suffix <- paste0("areas_", paste(areas, collapse = "_"))
+      filename <- paste0("TAC_", area_suffix, ".jpeg")
+    }
+    ggsave(filename, p, width = 12, height = 8, dpi = 300)
+  }
+
+  return(p)
+}
+
+create_TAC_plot_single <- function(tac_data, areas, show_median, show_quantiles,
+                                   show_individual, title, historical_end, units) {
+
+  # Prepare data
+  plot_data <- tac_data %>%
+    mutate(
+      user_year = year - 1,
+      area_label = paste("Area", area),
+      period = ifelse(year <= historical_end, "Historical", "Projection")
+    )
+
+  # Summary statistics
+  summary_data <- plot_data %>%
+    group_by(user_year, area, area_label, period) %>%
+    summarise(
+      median_TAC = median(TAC, na.rm = TRUE),
+      q25 = quantile(TAC, 0.25, na.rm = TRUE),
+      q75 = quantile(TAC, 0.75, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  colors <- c("steelblue", "darkgreen", "orange", "purple")[1:length(areas)]
+
+  p <- ggplot()
+
+  if(show_individual) {
+    p <- p + geom_line(data = plot_data,
+                       aes(x = user_year, y = TAC, color = area_label,
+                           group = interaction(area, iteration)),
+                       alpha = 0.4, size = 0.5)
+  }
+
+  if(show_quantiles) {
+    p <- p + geom_ribbon(data = summary_data,
+                         aes(x = user_year, ymin = q25, ymax = q75, fill = area_label),
+                         alpha = 0.3)
+  }
+
+  if(show_median) {
+    p <- p + geom_line(data = summary_data,
+                       aes(x = user_year, y = median_TAC, color = area_label),
+                       size = 1.5)
+    p <- p + geom_point(data = summary_data,
+                        aes(x = user_year, y = median_TAC, color = area_label),
+                        size = 2)
+  }
+
+  p <- p +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+               color = "red", alpha = 0.7) +
+    scale_color_manual(values = colors) +
+    scale_fill_manual(values = colors) +
+    labs(
+      title = if(is.null(title)) "TAC by Area" else title,
+      x = "Year",
+      y = paste0("TAC (", units$TAC, ")"),
+      color = "Area",
+      fill = "Area"
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "bottom",
+      plot.title = element_text(hjust = 0.5, face = "bold")
+    )
+
+  # Facet if multiple areas
+  if(length(areas) > 1) {
+    p <- p + facet_wrap(~ area_label, scales = "free_y")
+  }
+
+  return(p)
+}
+
+#' Plot TAC by area (wrapper)
+#' @param result Simulation result
+#' @param areas Areas to plot
+#' @param ... Additional arguments
+#' @export
+plot_TAC_by_area <- function(result, areas = "all", ...) {
+  plot_TAC(result, areas = areas, show_fleets = FALSE, ...)
+}
+
+#' Plot TAC by fleet (wrapper)
+#' @param result Simulation result
+#' @param ... Additional arguments
+#' @export
+plot_TAC_by_fleet <- function(result, ...) {
+  plot_TAC(result, show_fleets = TRUE, ...)
+}
 

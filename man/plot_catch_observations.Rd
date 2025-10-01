@@ -7,6 +7,7 @@
 plot_catch_observations(
   simulation_result,
   catch_type = "both",
+  areas = "all",
   fleet_specific = TRUE,
   show_median = TRUE,
   show_quantiles = TRUE,
