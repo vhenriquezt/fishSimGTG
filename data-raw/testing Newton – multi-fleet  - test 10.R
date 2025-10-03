@@ -156,8 +156,9 @@ test_seed <- 12345
 # ============================================================================
 
 # Multifleet strategy
-# In phase 2, I am creating a 3 level hierarchical approach to
-# split a TAC among areas and fleets
+# TAC is allocated based on historical catch proportions, which naturally
+# accounts for area biomass differences (Area 1 with 99% recruitment will
+# have historically caught more
 
 #global storage for Newton-Raphson diagnostics
 nr_diagnostics_multifleet <<- data.frame()
@@ -202,8 +203,10 @@ multiCompMP_TAC <- function(phase, dataObject) {
     # e.g., if j=12, start_year=9
     start_year <- max(2, j - n_years_avg) #ensures we never go before year 2 (prevent to going year 1 or earlier)
 
-    #Step1: Calculate Total TAC value from average of recent catches
-    total_TAC <- 0
+    cat(sprintf("\n=== TAC ALLOCATION: Year %d, Iter %d ===\n", j-1, k))
+
+    #Step1: Calculate recent catch by fleet-area combination
+    recent_catch_matrix <- matrix(0, nrow = areas, ncol = nfleets)
 
     for(m in 1:areas) {
       for(f in 1:nfleets) {
@@ -217,84 +220,62 @@ multiCompMP_TAC <- function(phase, dataObject) {
       ]
 
       if(length(recent_catches) > 0 && !all(is.na(recent_catches))) {
-        avg_catch <- mean(recent_catches, na.rm = TRUE)
-        total_TAC <- total_TAC + avg_catch
+        recent_catch_matrix[m, f] <- mean(recent_catches, na.rm = TRUE)
       } else {
-        fallback <- 0.10 * RB_by_fleet[j, k, m, f]
-        total_TAC <- total_TAC + fallback
+        #fallback: use proportion of current retained biomass
+        recent_catch_matrix[m, f] <- 0.10 * RB_by_fleet[j, k, m, f]
       }
       }
     }
-    #calculate total TAC (sum of averages across all fleet-area combinations)
 
-    total_TAC <- 0
-
-    for(m in 1:areas) {
-      for(f in 1:nfleets) {
-        catch_col_name <- paste0("fleet_", f, "_observed_catch_area_", m)
-
-        recent_catches <- decisionData[[catch_col_name]][
-          which(decisionData$k == k &
-                  decisionData$j >= start_year &
-                  decisionData$j < j)
-        ]
-
-        if(length(recent_catches) > 0 && !all(is.na(recent_catches))) {
-          avg_catch <- mean(recent_catches, na.rm = TRUE)
-          total_TAC <- total_TAC + avg_catch
-        } else {
-          #fallback for this fleet-area: use 10% of retained biomass
-          fallback <- 0.10 * RB_by_fleet[j, k, m, f]
-          total_TAC <- total_TAC + fallback
-        }
-      }
-    }
-
-    #we  can apply a overall TAC multiplier if we need toS
-    overall_TAC_multiplier <- 1.0  # 1= no change, or 0.9= 10% reduction
-    total_TAC <- total_TAC * overall_TAC_multiplier
-
-    cat(sprintf("\n=== TAC ALLOCATION: Yr %d, Iter %d ===\n", j-1, k))
-    cat(sprintf("Total TAC (sum of 3-yr averages): %.2f\n", total_TAC))
+    cat("Recent 3-year average catches by fleet-area:\n")
+    print(recent_catch_matrix)
 
 
-    #Step2: Allocate TAC by area
+    #Step2: Calculate total TAC based on sum of recent catches
 
-    area_proportions <- c(0.4, 0.6)  # Area 1: 40%, Area 2: 60%
+    total_historical_catch <- sum(recent_catch_matrix)
 
-    if(abs(sum(area_proportions) - 1.0) > 1e-6) {
-      stop("Area proportions must sum to 1.0")
-    }
+    #apply overall management adjustment (e.g., 10% reduction for conservation)
+    overall_TAC_multiplier <- 0.9
+    total_TAC <- total_historical_catch * overall_TAC_multiplier
 
+    cat(sprintf("\nTotal historical catch: %.2f\n", total_historical_catch))
+    cat(sprintf("TAC multiplier: %.2f\n", overall_TAC_multiplier))
+    cat(sprintf("Total TAC: %.2f\n", total_TAC))
+
+
+
+    #Step3: allocate TAC by area based on historical proportions
+
+    area_proportions <- rowSums(recent_catch_matrix) / total_historical_catch
     TAC_by_area <- total_TAC * area_proportions
 
-    cat("area Allocations:\n")
+    cat("\nTAC allocation by area:\n")
     for(m in 1:areas) {
-      cat(sprintf("  area %d: %.2f (%.1f%%)\n",
+      cat(sprintf("  Area %d: %.2f (%.1f%% of total)\n",
                   m, TAC_by_area[m], area_proportions[m] * 100))
     }
 
-    #Step3: Allocate TAC by fleet
-
-    fleet_proportions_by_area <- matrix(c(
-      0.7, 0.3,  # Area 1: Fleet 1 = 70%, Fleet 2 = 30%
-      0.5, 0.5   # Area 2: Fleet 1 = 50%, Fleet 2 = 50%
-    ), nrow = areas, byrow = TRUE)
-
-    for(m in 1:areas) {
-      if(abs(sum(fleet_proportions_by_area[m, ]) - 1.0) > 1e-6) {
-        stop(sprintf("fleet proportions for area %d must sum to 1.0", m))
-      }
-    }
-
+    # STEP 4: allocate area TAC among fleets based on historical proportions
     TAC_decisions <- data.frame()
 
     for(m in 1:areas) {
-      cat(sprintf("\nArea %d breakdown (Total: %.2f):\n", m, TAC_by_area[m]))
+      #calculate fleet proportions within this area
+      area_total_catch <- sum(recent_catch_matrix[m, ])
+
+      if(area_total_catch > 0) {
+        fleet_props_in_area <- recent_catch_matrix[m, ] / area_total_catch
+      } else {
+        #fallback to biomass proportions if no catch history
+        fleet_biomass <- sapply(1:nfleets, function(f) RB_by_fleet[j, k, m, f])
+        fleet_props_in_area <- fleet_biomass / sum(fleet_biomass)
+      }
+
+      cat(sprintf("\nArea %d fleet allocation:\n", m))
 
       for(f in 1:nfleets) {
-        fleet_proportion <- fleet_proportions_by_area[m, f]
-        TAC_fleet_area <- TAC_by_area[m] * fleet_proportion
+        TAC_fleet_area <- TAC_by_area[m] * fleet_props_in_area[f]
 
         TAC_decisions <- rbind(TAC_decisions, data.frame(
           year = j,
@@ -303,12 +284,13 @@ multiCompMP_TAC <- function(phase, dataObject) {
           fleet = f,
           TAC = TAC_fleet_area,
           area_proportion = area_proportions[m],
-          fleet_proportion = fleet_proportion,
-          total_TAC = total_TAC
+          fleet_proportion_in_area = fleet_props_in_area[f],
+          total_TAC = total_TAC,
+          stringsAsFactors = FALSE
         ))
 
         cat(sprintf("  Fleet %d: %.2f (%.1f%% of area TAC)\n",
-                    f, TAC_fleet_area, fleet_proportion * 100))
+                    f, TAC_fleet_area, fleet_props_in_area[f] * 100))
       }
     }
 
@@ -318,10 +300,8 @@ multiCompMP_TAC <- function(phase, dataObject) {
   }
 
 
-  #Vania edit's to match Bill's edits
   if(phase == 3) {
 
-    # Extract TAC decisions for this year/iteration
     TAC_decisions <- decisionAnnual[decisionAnnual$year == j &
                                       decisionAnnual$iteration == k, ]
 
@@ -331,53 +311,37 @@ multiCompMP_TAC <- function(phase, dataObject) {
     # Process each area
     for(m in 1:areas) {
       # Get TACs for all fleets in this area
-      fleet_TACs <- TAC_decisions$TAC[TAC_decisions$area == m]
+      fleet_TACs_this_area <- TAC_decisions$TAC[TAC_decisions$area == m]
 
-      # Prepare area-specific data structures for the solver
-      # Critical: Create 1-area, multi-fleet structure
+      cat(sprintf("\n=== SOLVING Area %d ===\n", m))
+      cat("Fleet TACs:", paste(round(fleet_TACs_this_area, 2), collapse = ", "), "\n")
+
+      #prepare single-area, multi-fleet data structure
       N_temp <- lapply(1:lh$gtg, function(gtg_idx) {
         temp_array <- array(0, dim = c(dim(N[[gtg_idx]])[1],
                                        dim(N[[gtg_idx]])[2],
-                                       1))  # Only 1 area
-        temp_array[, , 1] <- N[[gtg_idx]][, , m]  # Copy area m data
+                                       1))  # 1 area only
+        temp_array[, , 1] <- N[[gtg_idx]][, , m]
         temp_array
       })
 
-      # Selectivity: Extract all fleets for this area
-      selGroup_temp <- list(selGroup[[m]])  # List with 1 area containing all fleet selectivities
+      #extract all fleet selectivities for this area
+      #selGroup[[m]] contains all fleets for area m
+      selGroup_temp <- list(selGroup[[m]])  # wrap in list for 1-area structure
 
-
-      #when solving for area 1:
-      # selGroup_temp <- list(selGroup[[1]])
-      # selGroup_temp[[1]][[1]] = Fleet 1 selectivity for area 1
-      # selGroup_temp[[1]][[2]] = Fleet 2 selectivity for area 1
-
-
-
-      # Check selectivity structure
-      cat(sprintf("\n=== SOLVING Area %d ===\n", m))
-      cat("Fleet TACs:", paste(round(fleet_TACs, 2), collapse = ", "), "\n")
-
+      #verify selectivity structure
       cat("\n--- SELECTIVITY VERIFICATION ---\n")
       for(f in 1:nfleets) {
-        cat(sprintf("Fleet %d selectivity check:\n", f))
-        cat(sprintf("  Original selGroup[[%d]][[%d]]$keep[[1]][10] = %.4f\n",
-                    m, f, selGroup[[m]][[f]]$keep[[1]][10]))
-        cat(sprintf("  Temp selGroup_temp[[1]][[%d]]$keep[[1]][10] = %.4f\n",
+        cat(sprintf("Fleet %d GTG 1 Age 10 keep selectivity: %.4f\n",
                     f, selGroup_temp[[1]][[f]]$keep[[1]][10]))
-        cat(sprintf("  Match? %s\n",
-                    ifelse(selGroup[[m]][[f]]$keep[[1]][10] == selGroup_temp[[1]][[f]]$keep[[1]][10],
-                           "YES", "NO")))
       }
       cat("--------------------------------\n\n")
-
-
 
       # Call Newton-Raphson solver for this area
       F_vector <- solveTAC_to_F_fishSimGTG(
         j = j,
         k = k,
-        TAC_targets = fleet_TACs,  # Vector of TACs, one per fleet
+        TAC_targets = fleet_TACs_this_area,  # Vector: [fleet1_TAC, fleet2_TAC]
         N = N_temp,
         lh = lh,
         selGroup = selGroup_temp,
@@ -407,7 +371,7 @@ multiCompMP_TAC <- function(phase, dataObject) {
           iteration = k,
           area = m,
           fleet = f,
-          TAC = fleet_TACs[f],
+          TAC = fleet_TACs_this_area[f],
           initial_F_guess = ifelse(is.null(attr(F_vector, "initial_guess")),
                                    NA_real_, as.numeric(attr(F_vector, "initial_guess"))[f]),
           final_F = F_vector[f],
@@ -419,7 +383,7 @@ multiCompMP_TAC <- function(phase, dataObject) {
                             NA_real_, as.numeric(attr(F_vector, "final_error"))[f]),
           predicted_catch = ifelse(is.null(attr(F_vector, "predicted_catch")),
                                    NA_real_, as.numeric(attr(F_vector, "predicted_catch"))[f]),
-          target_catch = fleet_TACs[f],
+          target_catch = fleet_TACs_this_area[f],
           stringsAsFactors = FALSE
         ))
       }
@@ -428,6 +392,8 @@ multiCompMP_TAC <- function(phase, dataObject) {
     return(F_results)
   }
 }
+
+
 
 
 # Strategy objects
@@ -677,6 +643,7 @@ cat("Multifleet (2 fleeets) comprehensive simulation completed\n")
 result_multi_comp  <- readProjection(getwd(), "test_multiCompMP_TAC")
 
 # Population outputs
+result_multi_comp$dynamics$multifleet$actual_catch_proportions
 
 result_multi_comp$dynamics$SB
 result_multi_comp$dynamics$recN
@@ -697,7 +664,7 @@ result_multi_comp$HCR$decisionAnnual$TAC
 result_multi_comp$HCR$decisionAnnual
 
 result_multi_comp$HCR$decisionLocal
-
+result_multi_comp$HCR$decisionAnnual
 
 
 #checkeando convergencia de Newton Raphson
@@ -714,7 +681,7 @@ if(nrow(failures) > 0) {
   cat("All solver calls converged successfully!\n")
 }
 View(nr_diag)
-
+all(nr_diagnostics_multifleet$converged)
 
 #obs: need to add units
 plot_SB(result_multi_comp)
@@ -828,12 +795,9 @@ plot_length_composition_by_area(result_multi_comp,
 #===========================================================================================#
 
 #check SB
-#Area 1 (TAC reduced by xxx): SB should xxx
 plot_SB(result_multi_comp,areas=1)
-#Area 2 (TAC increased by xxx): SB should xxx
 plot_SB(result_multi_comp,areas=2)
 
-#problem with F area 2
 plot_Ftotal_multi(result_multi_comp,areas=c(1,2))
 plot_Ftotal_multi(result_multi_comp,areas=c(1))
 plot_Ftotal_multi(result_multi_comp,areas=c(2))
@@ -843,9 +807,17 @@ plot_catchB_multi(result_multi_comp,areas=1)
 plot_catchB_multi(result_multi_comp,areas=2)
 
 #TAC (add fleet)
-plot_TAC(result_multi_comp, areas = 1, show_fleets = TRUE)
+plot_TAC_by_area(result_multi_comp, areas = 1)
 plot_TAC_by_area(result_multi_comp, areas = 2)
-plot_TAC(result_multi_comp, areas = "all")  # All areas in one plot
+plot_TAC_by_area(result_multi_comp, areas = 1)
+
+
+plot_TAC(result_multi_comp, areas = "all",show_fleets = TRUE)  # All areas in one plot
+plot_TAC_by_fleet(result_multi_comp)
+plot_TAC(result_multi_comp, areas = c(1,2), show_fleets = TRUE)
+
+
+result_multi_comp$HCR$decisionAnnual
 
 
 #add fleet problem with these plots (problem: unused argument (areas_to_plot)
@@ -886,23 +858,33 @@ TAC_decisions <- result_multi_comp$HCR$decisionAnnual
 
 #compare for each year/iteration/area
 proj_start <- 12
+nfleets <- 2
 for(yr in proj_start:(proj_start+2)) {
   for(iter in 1:3) {
     for(area in 1:2) {
-      TAC <- TAC_decisions$TAC[TAC_decisions$year == yr &
-                                 TAC_decisions$iteration == iter &
-                                 TAC_decisions$area == area]
-      realized <- catchB[yr, iter, area]
+      cat(sprintf("\nYr %d, Iter %d, Area %d:\n", yr-1, iter, area))
 
-      error <- abs(realized - TAC) / TAC * 100
+      for(fleet in 1:nfleets) {
+        # Fleet-specific TAC
+        TAC_fleet <- TAC_decisions$TAC[TAC_decisions$year == yr &
+                                         TAC_decisions$iteration == iter &
+                                         TAC_decisions$area == area &
+                                         TAC_decisions$fleet == fleet]
 
-      cat(sprintf("Yr %d, Iter %d, Area %d: TAC=%.2f, Realized=%.2f, Error=%.1f%%\n",
-                  yr-1, iter, area, TAC, realized, error))
+        # Fleet-specific realized catch
+        realized_fleet <- result_multi_comp$dynamics$multifleet$catchB_by_fleet[yr, iter, area, fleet]
 
-      if(error > 5) {
-        cat("  WARNING: Error >5%\n")
+        error <- abs(realized_fleet - TAC_fleet) / TAC_fleet * 100
+
+        cat(sprintf("  Fleet %d: TAC=%.2f, Realized=%.2f, Error=%.1f%%\n",
+                    fleet, TAC_fleet, realized_fleet, error))
+
+        if(error > 5) {
+          cat("    WARNING: Error >5%\n")
+        }
       }
     }
   }
 }
+
 

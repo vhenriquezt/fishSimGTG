@@ -1060,7 +1060,7 @@ plot_catch_observations <- function(simulation_result,
 }
 
 
-prepare_multifleet_catch_data <- function(obs_data, catch_type, historical_end) {
+prepare_multifleet_catch_data <- function(obs_data, catch_type, historical_end,areas_to_plot = NULL) {
 
   #find fleet catch columns
   if(catch_type %in% c("true", "both")) {
@@ -1988,6 +1988,105 @@ create_TAC_plot_single <- function(tac_data, areas, show_median, show_quantiles,
 
   return(p)
 }
+
+# multifleet TAC helper (area × fleet)
+create_TAC_plot_multifleet <- function(tac_data, areas, show_median, show_quantiles,
+                                       show_individual, title, historical_end, units) {
+  # expected cols in tac_data: year, area, fleet, TAC, (optional) iteration
+
+  # prep
+  plot_data <- tac_data %>%
+    dplyr::mutate(
+      user_year   = .data$year - 1,
+      area_label  = paste("Area", .data$area),
+      fleet_label = paste("Fleet", .data$fleet),
+      period      = ifelse(.data$year <= historical_end, "Historical", "Projection")
+    )
+
+  has_iteration <- "iteration" %in% names(plot_data)
+
+  # summaries per area × fleet × year
+  summary_data <- plot_data %>%
+    dplyr::group_by(.data$user_year, .data$area_label, .data$fleet_label, .data$period) %>%
+    dplyr::summarise(
+      median_TAC = stats::median(.data$TAC, na.rm = TRUE),
+      q25        = stats::quantile(.data$TAC, 0.25, na.rm = TRUE),
+      q75        = stats::quantile(.data$TAC, 0.75, na.rm = TRUE),
+      .groups    = "drop"
+    )
+
+  # color palette per fleet present in filtered data
+  fleets <- unique(summary_data$fleet_label)
+  cols <- grDevices::rainbow(length(fleets))
+  names(cols) <- fleets
+
+  p <- ggplot2::ggplot()
+
+  # individual iterations
+  if (show_individual) {
+    p <- p + ggplot2::geom_line(
+      data = plot_data,
+      ggplot2::aes(
+        x = .data$user_year, y = .data$TAC, color = .data$fleet_label,
+        group = if (has_iteration) interaction(.data$fleet_label, .data$iteration) else .data$fleet_label
+      ),
+      alpha = 0.35, linewidth = 0.4
+    )
+  }
+
+  # quantile ribbons by fleet
+  if (show_quantiles) {
+    p <- p + ggplot2::geom_ribbon(
+      data = summary_data,
+      ggplot2::aes(x = .data$user_year, ymin = .data$q25, ymax = .data$q75, fill = .data$fleet_label),
+      alpha = 0.25
+    )
+  }
+
+  # medians
+  if (show_median) {
+    p <- p +
+      ggplot2::geom_line(
+        data = summary_data,
+        ggplot2::aes(x = .data$user_year, y = .data$median_TAC, color = .data$fleet_label),
+        linewidth = 1.2
+      ) +
+      ggplot2::geom_point(
+        data = summary_data,
+        ggplot2::aes(x = .data$user_year, y = .data$median_TAC, color = .data$fleet_label),
+        size = 1.8
+      )
+  }
+
+  y_lab <- if (!is.null(units$TAC)) paste0("TAC (", units$TAC, ")") else "TAC"
+
+  p <- p +
+    ggplot2::geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                        color = "red", alpha = 0.7) +
+    ggplot2::scale_color_manual(values = cols) +
+    ggplot2::scale_fill_manual(values = cols) +
+    ggplot2::labs(
+      title = if (is.null(title)) "TAC by Area and Fleet" else title,
+      x = "Year", y = y_lab, color = "Fleet", fill = "Fleet"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      axis.text.x  = ggplot2::element_text(angle = 45, hjust = 1),
+      legend.position = "bottom",
+      plot.title   = ggplot2::element_text(hjust = 0.5, face = "bold")
+    )
+
+  # facet by area
+  if (length(areas) > 1) {
+    p <- p + ggplot2::facet_wrap(~ area_label, scales = "free_y")
+  }
+
+  p
+}
+
+
+
+
 
 #' Plot TAC by area (wrapper)
 #' @param result Simulation result
