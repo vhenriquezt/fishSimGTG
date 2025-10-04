@@ -290,7 +290,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
   #calculating initial guesses - matching GTG structure
   ft <- sapply(1:nfleets, function(f) {
-    if(is.na(ct[f])) return(0)  # effort-managed fleet (as openMSE)
+    if(is.na(ct[f])) return(effort_F_by_fleet[f])  #changed - use predetermined F to work when effort based
 
     #calculate total vulnerable biomass
     total_vuln_biomass <- 0
@@ -455,8 +455,13 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       }#age classess
     }#gtg
 
+    #added: to work when effort based - identify TAC-managed fleets
+    tac_managed <- !is.na(ct)
+
+
     #check convergence and update -  check if derivatives are too small
-    if (all(dct[!is.na(ct)] < 1e-15)) {
+    #if (all(dct[!is.na(ct)] < 1e-15)) {   #changed to work when effort based
+    if (all(dct[tac_managed] < 1e-15)) {
       converged <- TRUE
       break
     }
@@ -470,7 +475,19 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     # but the risk is it could maybe pass the solution
     # in the end it is supposed to reduce the N iterations in newton
     error <- pct - ct
-    ft <- ft - error / (0.8 * dct)
+    #ft <- ft - error / (0.8 * dct)
+
+
+    #changed: only update TAC-managed fleets
+    for(f in 1:nfleets) {
+      if(tac_managed[f]) {  # Only if TAC-managed
+        ft[f] <- ft[f] - error[f] / (0.8 * dct[f])
+      }
+      #effort-managed fleets: ft[f] stays unchanged
+    }
+
+
+
 
 
     # ========== DEBUG HERE ==========
@@ -484,8 +501,17 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     ft <- pmax(ft, tiny)
 
     #check convergence
+    # relative_error <- abs(error / pmax(ct, tiny))
+    # if (all(relative_error[!is.na(ct)] < tolF)) {
+
+    #changed:
+    #check convergence
     relative_error <- abs(error / pmax(ct, tiny))
-    if (all(relative_error[!is.na(ct)] < tolF)) {
+    relative_error[!tac_managed] <- 0  # Zero out for effort fleets
+
+    if (all(relative_error[tac_managed] < tolF)) {
+
+
       converged <- TRUE
 
       #debug
@@ -498,9 +524,16 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
 
     #check for very high F values and prevent them - maybe find another approach for this - or not sure if we need this, explore the outputs
-    if (any(ft > 10)) {
+    # if (any(ft > 10)) {
+    #   warning("F values became very large during iteration. Capping at 5.")
+    #   ft <- pmin(ft, 5)
+    # }
+
+    #changed:
+    # check for very high F values and prevent them - only for TAC-managed
+    if (any(ft[tac_managed] > 10)) {
       warning("F values became very large during iteration. Capping at 5.")
-      ft <- pmin(ft, 5)
+      ft[tac_managed] <- pmin(ft[tac_managed], 5)
     }
   }
 
