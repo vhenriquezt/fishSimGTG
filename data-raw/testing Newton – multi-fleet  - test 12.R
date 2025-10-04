@@ -1,5 +1,7 @@
-#testing Newton - multi- fleet (2 fleets - TAC based strategy)
-#validation
+#testing Newton - multi- fleet (TAC based strategy)
+#creating an fishery scenario where area 2 has very little N and catch
+#and TAC zero in the projection
+
 
 
 rm(list=ls())
@@ -51,7 +53,7 @@ ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
 
 # Historical effort - declining trend
 ta@historicalEffort <- matrix(c(1.5, 3.4, 3.3, 3.8, 3.1, 3.0, 2.9, 1.8, 1.7, 1.6,
-                                1.2, 2.4, 2.3, 2.9, 2.1, 2.0, 1.9, 0.8, 0.7, 0.6),
+                                0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1),
                               nrow = 10, ncol = 2, byrow = FALSE)
 
 # Stochastic
@@ -205,110 +207,112 @@ multiCompMP_TAC <- function(phase, dataObject) {
 
     cat(sprintf("\n=== TAC ALLOCATION: Year %d, Iter %d ===\n", j-1, k))
 
+    TAC_decisions <- data.frame()
+    total_TAC <- 0  # it will be calculated for Area 1
+
     #Step1: Calculate recent catch by fleet-area combination
     recent_catch_matrix <- matrix(0, nrow = areas, ncol = nfleets)
 
     for(m in 1:areas) {
+      if(m==2){
+        #skip Area 2 - set zero TAC for both fleets (no fishing)
+        for(f in 1:nfleets) {
+          TAC_decisions <- rbind(TAC_decisions, data.frame(
+            year = j,
+            iteration = k,
+            area = m,
+            fleet = f,
+            TAC = 0,
+            area_proportion = 0,
+            fleet_proportion_in_area = 0,
+            total_TAC = total_TAC,  # from Area 1 (it will be 0 if Area 1 not processed yet)
+            stringsAsFactors = FALSE
+          ))
+        }
+
+        cat(sprintf("\nArea %d: CLOSED - Zero TAC for all fleets\n", m))
+        next  # skip to next area (to skip the rest of the loop)
+      }
+      # ====== END OF AREA 2 CHECK ======
+      # Area 1:
+
       for(f in 1:nfleets) {
         catch_col_name <- paste0("fleet_", f, "_observed_catch_area_", m)
 
-      #extract recent observed catches (from decision data) for this area and fleet
-      recent_catches <- decisionData[[catch_col_name]][
-        which(decisionData$k == k &
-                decisionData$j >= start_year &        #Years 9, 10, ...
-                decisionData$j < j) #excludes current year (cannot use data because data have not been collected yet!)
-      ]
-      #calculate mean catch for this fleet-area combo
-      if(length(recent_catches) > 0 && !all(is.na(recent_catches))) {
-        recent_catch_matrix[m, f] <- mean(recent_catches, na.rm = TRUE)
-      } else {
-        #fallback: use proportion of current retained biomass if no catch history
-        recent_catch_matrix[m, f] <- 0.10 * RB_by_fleet[j, k, m, f]
-      }
+        #extract recent observed catches (from decision data) for this area and fleet
+        recent_catches <- decisionData[[catch_col_name]][
+          which(decisionData$k == k &
+                  decisionData$j >= start_year &        #Years 9, 10, ...
+                  decisionData$j < j) #excludes current year (cannot use data because data have not been collected yet!)
+        ]
+        #calculate mean catch for this fleet-area combo
+        if(length(recent_catches) > 0 && !all(is.na(recent_catches))) {
+          recent_catch_matrix[m, f] <- mean(recent_catches, na.rm = TRUE)
+        } else {
+          #fallback: use proportion of current retained biomass if no catch history
+          recent_catch_matrix[m, f] <- 0.10 * RB_by_fleet[j, k, m, f]
+        }
       }
     }
 
     cat("Recent 3-year average catches by fleet-area:\n")
     print(recent_catch_matrix)
     #example:
-      #      Fleet1  Fleet2
-      # Area1  45.2   30.1
-      # Area2   8.5    5.7
+    #      Fleet1  Fleet2
+    # Area1  45.2   30.1
+    # Area2   8.5    5.7
 
 
-    #Step2: Calculate total TAC based on sum of recent catches
+    #Step2: Calculate total TAC for area 1 based on sum of recent catches
 
-    total_historical_catch <- sum(recent_catch_matrix)
+    total_historical_catch <- sum(recent_catch_matrix[1, ])  # Area 1 only
 
     #apply overall management adjustment (e.g., 10% reduction for conservation)
     overall_TAC_multiplier <- 0.9
     total_TAC <- total_historical_catch * overall_TAC_multiplier
 
-    cat(sprintf("\nTotal historical catch: %.2f\n", total_historical_catch))
-    cat(sprintf("TAC multiplier: %.2f\n", overall_TAC_multiplier))
+    cat(sprintf("\nTotal historical catch (Area 1 only): %.2f\n", total_historical_catch))
     cat(sprintf("Total TAC: %.2f\n", total_TAC))
 
 
 
-    #Step3: allocate TAC by area based on historical proportions
-    #this precserve the historical catch  distribution
+    #Step3: Allocate TAC to Area 1 fleets
+    area_total_catch <- sum(recent_catch_matrix[1, ])
 
-    #two-stage allocation: Area first (spatial), then fleet within area (user groups)
-
-    area_proportions <- rowSums(recent_catch_matrix) / total_historical_catch
-    TAC_by_area <- total_TAC * area_proportions
-
-    cat("\nTAC allocation by area:\n")
-    for(m in 1:areas) {
-      cat(sprintf("  Area %d: %.2f (%.1f%% of total)\n",
-                  m, TAC_by_area[m], area_proportions[m] * 100))
+    if(area_total_catch > 0) {
+      fleet_props_in_area <- recent_catch_matrix[1, ] / area_total_catch
+    } else {
+      fleet_biomass <- sapply(1:nfleets, function(f) RB_by_fleet[j, k, 1, f])
+      fleet_props_in_area <- fleet_biomass / sum(fleet_biomass)
     }
 
-    #   example:
-    #   Area 1: 67.8 (75.3% of total)
-    #   Area 2: 12.8 (14.2% of total)
+    cat("\nArea 1 fleet allocation:\n")
+    for(f in 1:nfleets) {
+      TAC_fleet_area <- total_TAC * fleet_props_in_area[f]
 
-    # STEP 4: allocate area TAC among fleets based on historical proportions
-    TAC_decisions <- data.frame() #initialize decision storage
+      TAC_decisions <- rbind(TAC_decisions, data.frame(
+        year = j,
+        iteration = k,
+        area = 1,
+        fleet = f,
+        TAC = TAC_fleet_area,
+        area_proportion = 1.0,  # All TAC goes to Area 1
+        fleet_proportion_in_area = fleet_props_in_area[f],
+        total_TAC = total_TAC,
+        stringsAsFactors = FALSE
+      ))
 
-    for(m in 1:areas) {
-      #calculate fleet proportions within this area
-      area_total_catch <- sum(recent_catch_matrix[m, ])
+      cat(sprintf("  Fleet %d: %.2f (%.1f%% of area TAC)\n",
+                  f, TAC_fleet_area, fleet_props_in_area[f] * 100))
+    }
 
-      if(area_total_catch > 0) {
-        #use historical catch proportions
-        fleet_props_in_area <- recent_catch_matrix[m, ] / area_total_catch
-      } else {
-        #fallback to biomass proportions if no catch history
-        fleet_biomass <- sapply(1:nfleets, function(f) RB_by_fleet[j, k, m, f])
-        fleet_props_in_area <- fleet_biomass / sum(fleet_biomass)
-      }
-
-      cat(sprintf("\nArea %d fleet allocation:\n", m))
-
-      #allocate TAC to each fleet in this area
-      for(f in 1:nfleets) {
-        TAC_fleet_area <- TAC_by_area[m] * fleet_props_in_area[f]
-
-        TAC_decisions <- rbind(TAC_decisions, data.frame(
-          year = j,
-          iteration = k,
-          area = m,
-          fleet = f,
-          TAC = TAC_fleet_area,
-          area_proportion = area_proportions[m],
-          fleet_proportion_in_area = fleet_props_in_area[f],
-          total_TAC = total_TAC,
-          stringsAsFactors = FALSE
-        ))
-
-        cat(sprintf("  Fleet %d: %.2f (%.1f%% of area TAC)\n",
-                    f, TAC_fleet_area, fleet_props_in_area[f] * 100))
-      }
+    # Update Area 2 rows with correct total_TAC
+    area2_rows <- which(TAC_decisions$area == 2)
+    if(length(area2_rows) > 0) {
+      TAC_decisions$total_TAC[area2_rows] <- total_TAC
     }
 
     cat("=====================================\n\n")
-
     return(TAC_decisions)
   }
 
@@ -324,6 +328,28 @@ multiCompMP_TAC <- function(phase, dataObject) {
 
     #process each area independently because Newton-Raphson needs area-specific N and selectivity data
     for(m in 1:areas) {
+
+    #if area 2
+      if(m == 2) {
+        # Area 2: Set F = 0 for all fleets (no fishing)
+        for(f in 1:nfleets) {
+          F_results <- rbind(F_results, data.frame(
+            year = j,
+            iteration = k,
+            area = m,
+            fleet = f,
+            Flocal = 0,  # zero fishing mortality
+            stringsAsFactors = FALSE
+          ))
+        }
+        cat(sprintf("Area %d: F set to zero for all fleets\n", m))
+        next  #skip to next area (skip to the rest of the loop)
+      }
+      # ====== END OF AREA 2 CHECK ======
+
+
+      #area 1:
+
       #get TACs for all fleets in this area
       fleet_TACs_this_area <- TAC_decisions$TAC[TAC_decisions$area == m]
       # Example for Area 1: [40.7, 27.1] (Fleet 1, Fleet 2)
@@ -447,8 +473,15 @@ multifleet_2fleet@fleet_selectivity_proj_list <- list(
 
 #adding the array of fleet historical eefort
 multifleet_2fleet@fleet_historicalEffort <- array(dim = c(ta@historicalYears, ta@areas, 2))
-multifleet_2fleet@fleet_historicalEffort[,,1] <- ta@historicalEffort
-multifleet_2fleet@fleet_historicalEffort[,,2] <- ta@historicalEffort
+multifleet_2fleet@fleet_historicalEffort[,,1] <- matrix(
+  c(ta@historicalEffort[,1],  # Fleet 1 Area 1
+    rep(0, 10)),nrow = 10, ncol = 2)# Fleet 1 Area 2 - zero
+
+
+multifleet_2fleet@fleet_historicalEffort[,,2] <-  matrix(
+  c(ta@historicalEffort[,1],  # Fleet 2 Area 1
+    rep(0, 10)),nrow = 10, ncol = 2) # Fleet 2 Area 2 - zero
+
 
 
 # ============================================================================
@@ -653,7 +686,7 @@ result_multi_comp <- runProjection(
   CatchObsObj = multi_comprehensive_catch,
   LengthCompObj = multi_comprehensive_lcomp,
   wd = getwd(),
-  fileName = "test_multiCompMP_TAC",
+  fileName = "test_multiCompMP_TAC_only_1area_fishing",
   seed = test_seed,
   doPlot = FALSE,
   doDiagnostic = FALSE,
@@ -661,7 +694,7 @@ result_multi_comp <- runProjection(
 )
 cat("Multifleet (2 fleeets) comprehensive simulation completed\n")
 
-result_multi_comp  <- readProjection(getwd(), "test_multiCompMP_TAC")
+result_multi_comp  <- readProjection(getwd(), "test_multiCompMP_TAC_only_1area_fishing")
 
 # Population outputs
 result_multi_comp$dynamics$multifleet$actual_catch_proportions
@@ -772,7 +805,7 @@ plot_catch_observations_both(result_multi_comp, areas = c(1, 2))
 # NEW: Area-specific functions (median across iterations are dispayed)
 plot_fishery_length_comp(result_multi_comp,show_individual = TRUE)
 plot_fishery_length_comp(result_multi_comp, areas=1,show_individual = TRUE)
-plot_fishery_length_comp(result_multi_comp, areas=2,show_individual = TRUE)
+#plot_fishery_length_comp(result_multi_comp, areas=2,show_individual = TRUE)
 
 plot_survey_length_comp(result_multi_comp,show_individual = TRUE)
 plot_survey_length_comp(result_multi_comp, areas=1,show_individual = TRUE)
@@ -789,11 +822,11 @@ plot_length_composition_by_area(result_multi_comp,
 
 
 
-plot_length_composition_by_area(result_multi_comp,
-                                program_pattern = "LC_Fishery",
-                                area_filter = c(1,2),    # Specific areas
-                                fleet_filter = c(2),
-                                show_individual = TRUE)   # Specific fleets
+# plot_length_composition_by_area(result_multi_comp,
+#                                 program_pattern = "LC_Fishery",
+#                                 area_filter = c(1,2),    # Specific areas
+#                                 fleet_filter = c(2),
+#                                 show_individual = TRUE)   # Specific fleets
 
 
 plot_length_composition_by_area(result_multi_comp,
@@ -870,61 +903,4 @@ catchB <- result_multi_comp$dynamics$catchB
 TAC_decisions <- result_multi_comp$HCR$decisionAnnual
 
 
-#compare for each year/iteration/area
-proj_start <- 12
-nfleets <- 2
-for(yr in proj_start:(proj_start+2)) {
-  for(iter in 1:3) {
-    for(area in 1:2) {
-      cat(sprintf("\nYr %d, Iter %d, Area %d:\n", yr-1, iter, area))
 
-      for(fleet in 1:nfleets) {
-        # Fleet-specific TAC
-        TAC_fleet <- TAC_decisions$TAC[TAC_decisions$year == yr &
-                                         TAC_decisions$iteration == iter &
-                                         TAC_decisions$area == area &
-                                         TAC_decisions$fleet == fleet]
-
-        # Fleet-specific realized catch
-        realized_fleet <- result_multi_comp$dynamics$multifleet$catchB_by_fleet[yr, iter, area, fleet]
-
-        error <- abs(realized_fleet - TAC_fleet) / TAC_fleet * 100
-
-        cat(sprintf("  Fleet %d: TAC=%.2f, Realized=%.2f, Error=%.1f%%\n",
-                    fleet, TAC_fleet, realized_fleet, error))
-
-        if(error > 5) {
-          cat("    WARNING: Error >5%\n")
-        }
-      }
-    }
-  }
-}
-
-#simple selectivity check - compare fleet selectivities directly
-lh <- LHwrapper(result_multi_comp$LifeHistoryObj, result_multi_comp$TimeAreaObj)
-
-#check multiple ages on the selectivity curve
-test_ages <- c(1,2,3,4,5,6,7,8,9,10,11, 12, 13,14, 15)
-
-for(age in test_ages) {
-  cat(sprintf("\nAge %d:\n", age))
-
-  fleet1_sel <- selWrapper(lh, result_multi_comp$TimeAreaObj,
-                           FisheryObj = result_multi_comp$MultifleetObj@fleet_selectivity_proj_list[[1]][[1]],
-                           doPlot = FALSE)
-
-  fleet2_sel <- selWrapper(lh, result_multi_comp$TimeAreaObj,
-                           FisheryObj = result_multi_comp$MultifleetObj@fleet_selectivity_proj_list[[1]][[2]],
-                           doPlot = FALSE)
-
-  f1_keep <- fleet1_sel$keep[[1]][age]
-  f2_keep <- fleet2_sel$keep[[1]][age]
-
-  cat(sprintf("  Fleet 1 (L50=8):  %.4f\n", f1_keep))
-  cat(sprintf("  Fleet 2 (L50=12): %.4f\n", f2_keep))
-  cat(sprintf("  Different? %s\n", abs(f1_keep - f2_keep) > 0.001))
-
-
-
-}

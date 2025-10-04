@@ -1,5 +1,11 @@
-#testing Newton - multi- fleet (2 fleets - TAC based strategy)
-#validation
+#Testing Newton - new configuration (TAC and Effor based)
+#Historical Period (Years 1-10):
+# - Both fleets are effort-based (using fleet_historicalEffort array)
+# - Equilibrium calculation uses effort allocation
+
+#Projection Period (Years 11-15):
+# -Fleet 1: TAC-based on 3-year average catch
+# -Fleet 2: Effort-based on 3-year average effort
 
 
 rm(list=ls())
@@ -51,7 +57,7 @@ ta@move <- matrix(c(1, 0, 0, 1), nrow = 2, ncol = 2, byrow = FALSE)
 
 # Historical effort - declining trend
 ta@historicalEffort <- matrix(c(1.5, 3.4, 3.3, 3.8, 3.1, 3.0, 2.9, 1.8, 1.7, 1.6,
-                                1.2, 2.4, 2.3, 2.9, 2.1, 2.0, 1.9, 0.8, 0.7, 0.6),
+                                1.2, 1.4, 0.3, 1.9, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6),
                               nrow = 10, ncol = 2, byrow = FALSE)
 
 # Stochastic
@@ -161,9 +167,9 @@ test_seed <- 12345
 # have historically caught more
 
 #global storage for Newton-Raphson diagnostics
-nr_diagnostics_multifleet <<- data.frame()
+ nr_diagnostics_multifleet <<- data.frame()
 
-multiCompMP_TAC <- function(phase, dataObject) {
+multiMixedMP_V2 <- function(phase, dataObject) {
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])
 
   if(phase == 1) {
@@ -196,6 +202,9 @@ multiCompMP_TAC <- function(phase, dataObject) {
     return(combined_data)
   }
 
+
+  #modifying phase 2
+
   if(phase == 2) {
     #calculate the last year of the historical period
     yrHist <- TimeAreaObj@historicalYears + 1  # the end of historical period, e.g., 11
@@ -203,137 +212,121 @@ multiCompMP_TAC <- function(phase, dataObject) {
     # e.g., if j=12, start_year=9
     start_year <- max(2, j - n_years_avg) #ensures we never go before year 2 (prevent to going year 1 or earlier)
 
-    cat(sprintf("\n=== TAC ALLOCATION: Year %d, Iter %d ===\n", j-1, k))
 
-    #Step1: Calculate recent catch by fleet-area combination
-    recent_catch_matrix <- matrix(0, nrow = areas, ncol = nfleets)
+    decisions <- data.frame()
+
+    #Fleet 1: TAC based
+    cat("\n--- Fleet 1: TAC (3-year avg catch) ---\n")
 
     for(m in 1:areas) {
-      for(f in 1:nfleets) {
-        catch_col_name <- paste0("fleet_", f, "_observed_catch_area_", m)
+      catch_col_name <- paste0("fleet_1_observed_catch_area_", m)
 
-      #extract recent observed catches (from decision data) for this area and fleet
+      #extract recent catches for Fleet 1 in this area
       recent_catches <- decisionData[[catch_col_name]][
         which(decisionData$k == k &
-                decisionData$j >= start_year &        #Years 9, 10, ...
-                decisionData$j < j) #excludes current year (cannot use data because data have not been collected yet!)
+                decisionData$j >= start_year &
+                decisionData$j < j)
       ]
-      #calculate mean catch for this fleet-area combo
+
       if(length(recent_catches) > 0 && !all(is.na(recent_catches))) {
-        recent_catch_matrix[m, f] <- mean(recent_catches, na.rm = TRUE)
+        avg_catch <- mean(recent_catches, na.rm = TRUE)
       } else {
-        #fallback: use proportion of current retained biomass if no catch history
-        recent_catch_matrix[m, f] <- 0.10 * RB_by_fleet[j, k, m, f]
+        #fallback
+        avg_catch <- 0.10 * RB_by_fleet[j, k, m, 1]
       }
-      }
+
+      #apply management multiplier (e.g., status quo = 1.0)
+      TAC_multiplier <- 1.0
+      fleet1_TAC <- avg_catch * TAC_multiplier
+
+      cat(sprintf("  Area %d: Avg catch=%.2f, TAC=%.2f\n", m, avg_catch, fleet1_TAC))
+
+      decisions <- rbind(decisions, data.frame(
+        year = j,
+        iteration = k,
+        area = m,
+        fleet = 1,
+        management_type = "TAC",
+        TAC = fleet1_TAC,
+        effort_multiplier = NA_real_,
+        avg_F_baseline = NA_real_,
+        stringsAsFactors = FALSE
+      ))
     }
 
-    cat("Recent 3-year average catches by fleet-area:\n")
-    print(recent_catch_matrix)
-    #example:
-      #      Fleet1  Fleet2
-      # Area1  45.2   30.1
-      # Area2   8.5    5.7
+     #Fleet 2: Effort based
 
-
-    #Step2: Calculate total TAC based on sum of recent catches
-
-    total_historical_catch <- sum(recent_catch_matrix)
-
-    #apply overall management adjustment (e.g., 10% reduction for conservation)
-    overall_TAC_multiplier <- 0.9
-    total_TAC <- total_historical_catch * overall_TAC_multiplier
-
-    cat(sprintf("\nTotal historical catch: %.2f\n", total_historical_catch))
-    cat(sprintf("TAC multiplier: %.2f\n", overall_TAC_multiplier))
-    cat(sprintf("Total TAC: %.2f\n", total_TAC))
-
-
-
-    #Step3: allocate TAC by area based on historical proportions
-    #this precserve the historical catch  distribution
-
-    #two-stage allocation: Area first (spatial), then fleet within area (user groups)
-
-    area_proportions <- rowSums(recent_catch_matrix) / total_historical_catch
-    TAC_by_area <- total_TAC * area_proportions
-
-    cat("\nTAC allocation by area:\n")
-    for(m in 1:areas) {
-      cat(sprintf("  Area %d: %.2f (%.1f%% of total)\n",
-                  m, TAC_by_area[m], area_proportions[m] * 100))
-    }
-
-    #   example:
-    #   Area 1: 67.8 (75.3% of total)
-    #   Area 2: 12.8 (14.2% of total)
-
-    # STEP 4: allocate area TAC among fleets based on historical proportions
-    TAC_decisions <- data.frame() #initialize decision storage
+    cat("\n--- Fleet 2: Effort (3-year avg F) ---\n")
 
     for(m in 1:areas) {
-      #calculate fleet proportions within this area
-      area_total_catch <- sum(recent_catch_matrix[m, ])
+      #calculate 3-year average F for Fleet 2 in this area
+      recent_F_values <- Ftotal_by_fleet[start_year:(j-1), k, m, 2]
 
-      if(area_total_catch > 0) {
-        #use historical catch proportions
-        fleet_props_in_area <- recent_catch_matrix[m, ] / area_total_catch
+      if(length(recent_F_values) > 0 && !all(is.na(recent_F_values))) {
+        avg_F <- mean(recent_F_values, na.rm = TRUE)
       } else {
-        #fallback to biomass proportions if no catch history
-        fleet_biomass <- sapply(1:nfleets, function(f) RB_by_fleet[j, k, m, f])
-        fleet_props_in_area <- fleet_biomass / sum(fleet_biomass)
+        #fallback to last historical year
+        avg_F <- Ftotal_by_fleet[yrHist, k, m, 2]
       }
 
-      cat(sprintf("\nArea %d fleet allocation:\n", m))
+      #apply effort multiplier (e.g., reduce 20% in area 1, increase 20% in area 2)
+      effort_multipliers <- c(0.8, 1.2)
+      effort_mult <- effort_multipliers[m]
 
-      #allocate TAC to each fleet in this area
-      for(f in 1:nfleets) {
-        TAC_fleet_area <- TAC_by_area[m] * fleet_props_in_area[f]
+      cat(sprintf("  Area %d: Avg F=%.4f, Multiplier=%.2f\n", m, avg_F, effort_mult))
 
-        TAC_decisions <- rbind(TAC_decisions, data.frame(
-          year = j,
-          iteration = k,
-          area = m,
-          fleet = f,
-          TAC = TAC_fleet_area,
-          area_proportion = area_proportions[m],
-          fleet_proportion_in_area = fleet_props_in_area[f],
-          total_TAC = total_TAC,
-          stringsAsFactors = FALSE
-        ))
-
-        cat(sprintf("  Fleet %d: %.2f (%.1f%% of area TAC)\n",
-                    f, TAC_fleet_area, fleet_props_in_area[f] * 100))
-      }
+      decisions <- rbind(decisions, data.frame(
+        year = j,
+        iteration = k,
+        area = m,
+        fleet = 2,
+        management_type = "effort",
+        TAC = NA_real_,
+        effort_multiplier = effort_mult,
+        avg_F_baseline = avg_F,  # Store for use in Phase 3
+        stringsAsFactors = FALSE
+      ))
     }
 
     cat("=====================================\n\n")
 
-    return(TAC_decisions)
+    return(decisions)
   }
 
 
   if(phase == 3) {
 
-    #extract TAC decisions from Phase 2
-    TAC_decisions <- decisionAnnual[decisionAnnual$year == j &
+    decisions  <- decisionAnnual[decisionAnnual$year == j &
                                       decisionAnnual$iteration == k, ]
 
     #initialize result storage
     F_results <- data.frame()
+    yrHist <- TimeAreaObj@historicalYears + 1
 
-    #process each area independently because Newton-Raphson needs area-specific N and selectivity data
+    #process each area
     for(m in 1:areas) {
-      #get TACs for all fleets in this area
-      fleet_TACs_this_area <- TAC_decisions$TAC[TAC_decisions$area == m]
-      # Example for Area 1: [40.7, 27.1] (Fleet 1, Fleet 2)
 
       cat(sprintf("\n=== SOLVING Area %d ===\n", m))
-      cat("Fleet TACs:", paste(round(fleet_TACs_this_area, 2), collapse = ", "), "\n")
 
-      #prepare single-area, multi-fleet data structure
-      #create temporary single-area N structure
-      #solver expects N[[gtg]][age, year, area] where area dimension = 1
+      area_decisions <- decisions[decisions$area == m, ]
+
+
+      #calculate F for Fleet 2 (effort-based) using 3-year average
+
+      fleet2_decision <- area_decisions[area_decisions$fleet == 2, ]
+      avg_F_baseline <- fleet2_decision$avg_F_baseline
+      effort_mult <- fleet2_decision$effort_multiplier
+      fleet2_F <- avg_F_baseline * effort_mult
+
+
+      cat(sprintf("Fleet 2 (effort): Baseline F=%.6f, Mult=%.2f, New F=%.6f\n",
+                  avg_F_baseline, effort_mult, fleet2_F))
+
+      effort_F_values <- c(NA_real_, fleet2_F)  # Fleet 1 = NA, Fleet 2 = calculated
+
+
+
+      #prepare data for Newton-Raphson (Fleet 1 TAC)
 
       N_temp <- lapply(1:lh$gtg, function(gtg_idx) {
         temp_array <- array(0, dim = c(dim(N[[gtg_idx]])[1], ## ages
@@ -345,31 +338,28 @@ multiCompMP_TAC <- function(phase, dataObject) {
       })
 
       #extract all fleet selectivities for this area
-      #selGroup[[m]] contains all fleets for area m
-      #wrap in list because solver expects [[area]][[fleet]] structure
-      selGroup_temp <- list(selGroup[[m]])  # wrap in list for 1-area structure
+      selGroup_temp <- list(selGroup[[m]])
 
-      #verify selectivity structure
-      cat("\n--- SELECTIVITY VERIFICATION ---\n")
-      for(f in 1:nfleets) {
-        cat(sprintf("Fleet %d GTG 1 Age 10 keep selectivity: %.4f\n",
-                    f, selGroup_temp[[1]][[f]]$keep[[1]][10]))
-      }
-      cat("--------------------------------\n\n")
+      #TAC targets: Fleet 1 gets TAC, Fleet 2 gets NA
+      fleet1_TAC <- area_decisions$TAC[area_decisions$fleet == 1]
+      TAC_targets <- c(fleet1_TAC, NA_real_)
+
+      cat(sprintf("Fleet 1 (TAC): Target = %.2f\n", fleet1_TAC))
+
 
       # Call Newton-Raphson solver for this area
       F_vector <- solveTAC_to_F_fishSimGTG(
         j = j,
         k = k,
-        TAC_targets = fleet_TACs_this_area,  # Vector: [fleet1_TAC, fleet2_TAC]
-        N = N_temp,                          # abundance (area m only, in position 1)
+        TAC_targets = TAC_targets,
+        N = N_temp,
         lh = lh,
-        selGroup = selGroup_temp,            #selectivity (area m only, in position 1)
+        selGroup = selGroup_temp,
         M_rate = lh$LifeHistory@M,
-        effort_F_by_fleet = numeric(0),  # Not used in TAC mode
+        effort_F_by_fleet = effort_F_values,  # Fleet 2 F is pre-calculated
         is_multifleet = TRUE,
         areas = 1,  # Solver sees 1 area (the current m area)
-        nfleets = nfleets,
+        nfleets = 2,
         TAC_type = "keep",
         control = list(maxiterF = 300, tolF = 1e-4)
       )
@@ -377,38 +367,62 @@ multiCompMP_TAC <- function(phase, dataObject) {
       cat("Solved F values:", paste(round(F_vector, 6), collapse = ", "), "\n")
 
       # Store results for each fleet in this area
-      for(f in 1:nfleets) {
+      for(f in 1:2) {
         # add to F_results data frame
         F_results <- rbind(F_results, data.frame(
           year = j,
           iteration = k,
           area = m,
           fleet = f,
-          Flocal = F_vector[f]
-        ))
-        #store to track Newton-Raphson performance 9global varibale)
-        nr_diagnostics_multifleet <<- rbind(nr_diagnostics_multifleet, data.frame(
-          year = j,
-          iteration = k,
-          area = m,
-          fleet = f,
-          TAC = fleet_TACs_this_area[f],
-          initial_F_guess = ifelse(is.null(attr(F_vector, "initial_guess")),
-                                   NA_real_, as.numeric(attr(F_vector, "initial_guess"))[f]),
-          final_F = F_vector[f],
-          converged = ifelse(is.null(attr(F_vector, "converged")),
-                             FALSE, attr(F_vector, "converged")),
-          nr_iterations = ifelse(is.null(attr(F_vector, "iterations")),
-                                 NA_integer_, as.integer(attr(F_vector, "iterations"))),
-          nr_error = ifelse(is.null(attr(F_vector, "final_error")),
-                            NA_real_, as.numeric(attr(F_vector, "final_error"))[f]),
-          predicted_catch = ifelse(is.null(attr(F_vector, "predicted_catch")),
-                                   NA_real_, as.numeric(attr(F_vector, "predicted_catch"))[f]),
-          target_catch = fleet_TACs_this_area[f],
+          Flocal = F_vector[f],
           stringsAsFactors = FALSE
+
         ))
-      }
-    }
+
+
+        # Store diagnostics - conditional on fleet type
+        if(f == 1) {  # Only Fleet 1 (TAC-managed)
+          nr_diagnostics_multifleet <<- rbind(nr_diagnostics_multifleet, data.frame(
+            year = j,
+            iteration = k,
+            area = m,
+            fleet = f,
+            management_type = "TAC",
+            TAC = TAC_targets[f],  #Use TAC_targets
+            initial_F_guess = ifelse(is.null(attr(F_vector, "initial_guess")),
+                                     NA_real_, as.numeric(attr(F_vector, "initial_guess"))[f]),
+            final_F = F_vector[f],
+            converged = ifelse(is.null(attr(F_vector, "converged")),
+                               FALSE, attr(F_vector, "converged")),
+            nr_iterations = ifelse(is.null(attr(F_vector, "iterations")),
+                                   NA_integer_, as.integer(attr(F_vector, "iterations"))),
+            nr_error = ifelse(is.null(attr(F_vector, "final_error")),
+                              NA_real_, as.numeric(attr(F_vector, "final_error"))[f]),
+            predicted_catch = ifelse(is.null(attr(F_vector, "predicted_catch")),
+                                     NA_real_, as.numeric(attr(F_vector, "predicted_catch"))[f]),
+            target_catch = TAC_targets[f],  #Use TAC_targets
+            stringsAsFactors = FALSE
+          ))
+        } else {  # Fleet 2 (effort-managed)
+          nr_diagnostics_multifleet <<- rbind(nr_diagnostics_multifleet, data.frame(
+            year = j,
+            iteration = k,
+            area = m,
+            fleet = f,
+            management_type = "effort",
+            TAC = NA_real_,
+            initial_F_guess = NA_real_,
+            final_F = F_vector[f],
+            converged = TRUE,  #no convergence needed for effort
+            nr_iterations = 0,
+            nr_error = NA_real_,
+            predicted_catch = NA_real_,
+            target_catch = NA_real_,
+            stringsAsFactors = FALSE
+          ))
+        }
+      } #fleet
+    }# close area loop
 
     return(F_results)
   }
@@ -417,11 +431,12 @@ multiCompMP_TAC <- function(phase, dataObject) {
 
 
 
+
 # Strategy objects
 strategy_multi_comp <- new("Strategy")
 strategy_multi_comp@title <- "Multifleet Comprehensive"
 strategy_multi_comp@projectionYears <- 5
-strategy_multi_comp@projectionName <- "multiCompMP_TAC"
+strategy_multi_comp@projectionName <- "multiMixedMP_V2"
 strategy_multi_comp@projectionParams <- list()
 
 
@@ -432,7 +447,7 @@ strategy_multi_comp@projectionParams <- list()
 multifleet_2fleet <- new("Multifleet")
 multifleet_2fleet@nfleets <- 2
 multifleet_2fleet@fleet_proportions <- c(0.6, 0.4)
-multifleet_2fleet@allocation_type <- "catch"
+multifleet_2fleet@allocation_type <- "effort"
 multifleet_2fleet@fleet_selectivity_hist_list <- list(fleet1_sel_hist, fleet2_sel_hist)
 #multifleet_2fleet@fleet_selectivity_proj_list <- list(fleet1_sel_proj, fleet2_sel_proj)
 
@@ -653,15 +668,15 @@ result_multi_comp <- runProjection(
   CatchObsObj = multi_comprehensive_catch,
   LengthCompObj = multi_comprehensive_lcomp,
   wd = getwd(),
-  fileName = "test_multiCompMP_TAC",
+  fileName = "test_multiMixedMP_V2",
   seed = test_seed,
   doPlot = FALSE,
   doDiagnostic = FALSE,
-  customToCluster = "multiCompMP_TAC"
+  customToCluster = "multiMixedMP_V2"
 )
 cat("Multifleet (2 fleeets) comprehensive simulation completed\n")
 
-result_multi_comp  <- readProjection(getwd(), "test_multiCompMP_TAC")
+result_multi_comp  <- readProjection(getwd(), "test_multiMixedMP_V2")
 
 # Population outputs
 result_multi_comp$dynamics$multifleet$actual_catch_proportions
@@ -870,61 +885,4 @@ catchB <- result_multi_comp$dynamics$catchB
 TAC_decisions <- result_multi_comp$HCR$decisionAnnual
 
 
-#compare for each year/iteration/area
-proj_start <- 12
-nfleets <- 2
-for(yr in proj_start:(proj_start+2)) {
-  for(iter in 1:3) {
-    for(area in 1:2) {
-      cat(sprintf("\nYr %d, Iter %d, Area %d:\n", yr-1, iter, area))
 
-      for(fleet in 1:nfleets) {
-        # Fleet-specific TAC
-        TAC_fleet <- TAC_decisions$TAC[TAC_decisions$year == yr &
-                                         TAC_decisions$iteration == iter &
-                                         TAC_decisions$area == area &
-                                         TAC_decisions$fleet == fleet]
-
-        # Fleet-specific realized catch
-        realized_fleet <- result_multi_comp$dynamics$multifleet$catchB_by_fleet[yr, iter, area, fleet]
-
-        error <- abs(realized_fleet - TAC_fleet) / TAC_fleet * 100
-
-        cat(sprintf("  Fleet %d: TAC=%.2f, Realized=%.2f, Error=%.1f%%\n",
-                    fleet, TAC_fleet, realized_fleet, error))
-
-        if(error > 5) {
-          cat("    WARNING: Error >5%\n")
-        }
-      }
-    }
-  }
-}
-
-#simple selectivity check - compare fleet selectivities directly
-lh <- LHwrapper(result_multi_comp$LifeHistoryObj, result_multi_comp$TimeAreaObj)
-
-#check multiple ages on the selectivity curve
-test_ages <- c(1,2,3,4,5,6,7,8,9,10,11, 12, 13,14, 15)
-
-for(age in test_ages) {
-  cat(sprintf("\nAge %d:\n", age))
-
-  fleet1_sel <- selWrapper(lh, result_multi_comp$TimeAreaObj,
-                           FisheryObj = result_multi_comp$MultifleetObj@fleet_selectivity_proj_list[[1]][[1]],
-                           doPlot = FALSE)
-
-  fleet2_sel <- selWrapper(lh, result_multi_comp$TimeAreaObj,
-                           FisheryObj = result_multi_comp$MultifleetObj@fleet_selectivity_proj_list[[1]][[2]],
-                           doPlot = FALSE)
-
-  f1_keep <- fleet1_sel$keep[[1]][age]
-  f2_keep <- fleet2_sel$keep[[1]][age]
-
-  cat(sprintf("  Fleet 1 (L50=8):  %.4f\n", f1_keep))
-  cat(sprintf("  Fleet 2 (L50=12): %.4f\n", f2_keep))
-  cat(sprintf("  Different? %s\n", abs(f1_keep - f2_keep) > 0.001))
-
-
-
-}
