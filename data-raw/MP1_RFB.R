@@ -1304,6 +1304,8 @@ result_multi_RFB <- runProjection(
 )
 cat("Multifleet (2 fleeets) comprehensive simulation completed\n")
 
+# all debugging code reviewed!! and passed!!
+
 result_multi_RFB  <- readProjection(getwd(), "test_multi_RFB_TAC")
 
 
@@ -1368,8 +1370,8 @@ plot_discB(result_multi_RFB,areas=1)
 plot_discB(result_multi_RFB,areas=2)
 
 plot_discN(result_multi_RFB)
-plot_discN(result_multi_comp,areas=1)
-plot_discN(result_multi_comp,areas=2)
+plot_discN(result_multi_RFB,areas=1)
+plot_discN(result_multi_RFB,areas=2)
 
 plot_catchB_multi(result_multi_RFB)
 plot_catchB_multi(result_multi_RFB, areas=1)
@@ -1463,9 +1465,9 @@ plot_catchB_multi(result_multi_RFB,areas=1)
 plot_catchB_multi(result_multi_RFB,areas=2)
 
 #TAC (add fleet)
-plot_TAC_by_area(result_multi_RFB, areas = 1)
-plot_TAC_by_area(result_multi_RFB, areas = 2)
-plot_TAC_by_area(result_multi_RFB, areas = 1)
+# plot_TAC_by_area(result_multi_RFB, areas = 1)
+# plot_TAC_by_area(result_multi_RFB, areas = 2)
+# plot_TAC_by_area(result_multi_RFB, areas = c(1,2))
 
 
 plot_TAC(result_multi_RFB, areas = "all",show_fleets = TRUE)  # All areas in one plot
@@ -1476,8 +1478,7 @@ plot_TAC(result_multi_RFB, areas = c(1,2), show_fleets = TRUE)
 result_multi_RFB$HCR$decisionAnnual
 
 
-#add fleet problem with these plots (problem: unused argument (areas_to_plot)
-# Total catch across all areas (original behavior)
+#fixed
 plot_catch_observations_both(result_multi_RFB)
 
 # Area 1 only
@@ -1492,7 +1493,7 @@ plot_catch_observations_both(result_multi_RFB, areas = c(1, 2))
 plot_catch_observations_both(result_multi_RFB,show_individual = TRUE)
 
 
-#calculate relative error (problem with area 2 -only)
+#calculate relative error (problem with area 2 -only)- fixed
 nr_diag$relative_error <- abs(nr_diag$predicted_catch - nr_diag$target_catch) / nr_diag$target_catch
 ggplot(nr_diag, aes(x = target_catch, y = predicted_catch, color = factor(area))) +
   geom_point() +
@@ -1568,6 +1569,7 @@ for(age in test_ages) {
   cat(sprintf("  Different? %s\n", abs(f1_keep - f2_keep) > 0.001))
 
 }
+
 
 
 
