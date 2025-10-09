@@ -377,40 +377,6 @@ singleCompMP <- function(phase, dataObject) {
 
 #Single fleet Phase 3: Returns 2 F values (one per area)
 
-#========================================================#
-#=========Note in this strategy this is the flow=========#
-#========================================================#
-# Year 12 (first projection year)
-# Phase 1:
-#   - Collect catch observations from year 11 (last historical year)
-#   - Store in decisionData
-# Phase 2:
-#   -Use catches from years 9, 10, 11
-#   -Calculate TAC for year 12: [80, 120]
-#   -Store in decisionAnnual
-# Phase 3:
-#   -Convert TAC[80, 120] → F[0.15, 0.22]
-#   -Store in decisionLocal
-#
-# Population dynamics (year end):
-#   -Apply F[0.15, 0.22] to population
-#   - Survival, death, recruitment, groeth all occurr
-#   - Realized catch in year 12 ≈ [80, 120]
-#
-# Year 13 (Second Projection Year):
-#   - Phase 1:Collect catch observations from year 12
-#   - Now we have observed catches: [~80, ~120]
-# Phase 2:
-#   - Use catches from years 10, 11, 12
-#   - recent_catches_area1 = [catch_yr10, catch_yr11, 80]
-#   - mean([..., 80]) * 0.8 =  new TAC for area 1
-#   - Calculate new TAC for year 13
-#   - Store in decisionAnnual
-# Phase 3:
-#   - Convert new TAC to  new F
-#   - Apply to population
-#
-# And continuing with year 14, 15, 16, ...
 
 
 # Each year:
