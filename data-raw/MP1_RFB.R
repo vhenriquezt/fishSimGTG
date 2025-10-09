@@ -1,5 +1,5 @@
 #MP1: RFB (Reference Fishing Biommass) rule (ICES)
-# adding some reformulation to the Stragey - see below
+# adding some reformulation to the Strategy - see below
 
 
 rm(list=ls())
@@ -102,7 +102,7 @@ survey2_sel_proj@Dmort <- 0
 fleet1_sel_hist <- new("Fishery")
 fleet1_sel_hist@title <- "Fleet 1"
 fleet1_sel_hist@vulType <- "logistic"
-fleet1_sel_hist@vulParams <- c(10.2, 0.1)  # Same as base single fleet for 1-fleet test
+fleet1_sel_hist@vulParams <- c(11.2, 0.1)
 fleet1_sel_hist@retType <- "full"
 fleet1_sel_hist@retMax <- 1
 fleet1_sel_hist@Dmort <- 0
@@ -110,7 +110,7 @@ fleet1_sel_hist@Dmort <- 0
 fleet2_sel_hist <- new("Fishery")
 fleet2_sel_hist@title <- "Fleet 2"
 fleet2_sel_hist@vulType <- "logistic"
-fleet2_sel_hist@vulParams <- c(9, 0.1)  # Different selectivity
+fleet2_sel_hist@vulParams <- c(8.2, 0.1)
 fleet2_sel_hist@retType <- "full"
 fleet2_sel_hist@retMax <- 1
 fleet2_sel_hist@Dmort <- 0
@@ -120,7 +120,7 @@ fleet2_sel_hist@Dmort <- 0
 fleet1_sel_proj <- new("Fishery")
 fleet1_sel_proj@title <- "Fleet 1"
 fleet1_sel_proj@vulType <- "logistic"
-fleet1_sel_proj@vulParams <- c(8, 0.1)  # Same as base single fleet for 1-fleet test
+fleet1_sel_proj@vulParams <- c(8, 0.1)
 fleet1_sel_proj@retType <- "full"
 fleet1_sel_proj@retMax <- 1
 fleet1_sel_proj@Dmort <- 0
@@ -128,7 +128,7 @@ fleet1_sel_proj@Dmort <- 0
 fleet2_sel_proj <- new("Fishery")
 fleet2_sel_proj@title <- "Fleet 2"
 fleet2_sel_proj@vulType <- "logistic"
-fleet2_sel_proj@vulParams <- c(12, 0.1)  # Different selectivity
+fleet2_sel_proj@vulParams <- c(12, 0.1)
 fleet2_sel_proj@retType <- "full"
 fleet2_sel_proj@retMax <- 1
 fleet2_sel_proj@Dmort <- 0
@@ -142,23 +142,9 @@ test_seed <- 12345
 # ============================================================================
 
 # multifleet_rfb_MP: Multifleet strategy applying rfb rule
-# adding some modifications and flexibility to account for survey timing before a
-# a decision is made.
+# adding some modifications and flexibility
 
 # Bill needs to review this to see if this makes sense.
-
-# 1. It can happen that the survey (FI) from current real year is available (survey happened before TAC decision)
-# so the index ratio is based taking into account the current observed year.
-
-# 2. Survey (FI) from current real year is not available,
-# for example it may after the TAC is defined or the data are not ready when the TAC need to be defined.
-
-# 3. FD index: Always from previous year because the decision of TAC has not occurred yeat for current real year.
-# The fishery has not occurred yet because no TAC has been defined.
-# Catches and length comps MUST use previous year (fishery hasn't occurred yet)
-
-
-
 
 
 #global storage for Newton-Raphson diagnostics
@@ -166,28 +152,13 @@ nr_diagnostics_multifleet <<- data.frame()
 
 multifleet_rfb_MP  <- function(phase, dataObject) {
 
-  # Some Indices Configurations
+  # Some Configurations
   # - Which survey index should be used for biomass trend calculation?
   # - Example: "IDX_Survey_1" uses the first fishery-independent survey
 
   #survey index to use for biomass trend
   survey_index_name <- "IDX_Survey_1"   # it could be CPUE (IDX_CPUE_1) or another survey
 
-  #survey data availability
-  # -current:     use current real year survey if available
-  #               Use when: Survey occurs before TAC decision deadline
-  # -previous:    always use previous real year survey
-  #               Use when: Survey occurs late in year
-
-  #IMPORTANT:     This ONLY affects FI (fishery-independent) survey indices
-  #               FD (fishery-dependent) data ALWAYS uses previous year
-  #               because fishing has not occurred yet in current year
-
-
-  survey_data_timing <- "current"  # Options: "current" or "previous"
-
-
-  #Other configurations
   #How should TAC be split among fleets?
   #NULL = automatic (use historical catch proportions)
   #Vector = manual specification, e.g., c(0.65, 0.35) for 65%:35% split
@@ -265,6 +236,12 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
       stop("rfb rule requires LengthCompObj for mean length calculation")
     }
 
+    #validating the survey index specified in configuration exists
+    if(!survey_index_name %in% names(combined_data)) {
+      stop("Survey index '", survey_index_name, "' not found in collected observation data. ",
+           "Available indices: ", paste(grep("^IDX_", names(combined_data), value = TRUE), collapse = ", "), ". ",
+           "Check IndexObj@survey_design configuration.")
+    }
 
     return(combined_data)
   }
@@ -295,44 +272,18 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
     # Example: j=12 = real_year = 11 (first projection year)
 
 
-    #Step 1: Different data types have different availability
+    #Step 1: Data availability
 
-    # FI (Fishery-Independent) Survey Data:
-    #   - "current":  can use current year (j) if survey already occurred
-    #   - "previous": must use previous year (j-1) for complete annual data
+    # All observed data (FI and FD) uses previous year (j-1)
 
-    # FD (Fishery-Dependent) Data (catches, length compositions):
-    #   - always use previous year (j-1)
-    #   - because fishing hasn't occurred in current year yet (no TAC set)
-    #   - cannot have current year fishery data before setting current year TAC
+    obs_data_year  <- j - 1
 
-
-    # Determine maximum year index for FI survey data
-    if(survey_data_timing == "current") {
-      # assumes survey occurs before TAC decision in same real year
-      survey_max_year <- j
-      survey_timing_label <- "current (current year survey)"
-      cat(sprintf("Survey data timing: %s\n", survey_timing_label))
-      cat(sprintf("Using FI survey data through real year %d (j=%d)\n",
-                  real_year, j))
-
-    } else {  # "previous"
-      # Waits for complete annual data before using in MP
-      # Example: Use previous year data because real year survey is not available yet
-      survey_max_year <- j - 1
-      survey_timing_label <- "previous (previous year survey)"
-      cat(sprintf("Survey data timing: %s\n", survey_timing_label))
-      cat(sprintf("Using FI survey data through real year %d (j=%d)\n",
-                  real_year - 1, j - 1))
-    }
-
-    # FD data ALWAYS uses previous year (j-1)
-    # logical requirement
-    fd_data_year <- j - 1
-    cat(sprintf("Fishery-dependent data: ALWAYS previous year\n"))
-    cat(sprintf("Using FD data (catches, length comps) from real year %d (j=%d)\n",
-                real_year - 1, fd_data_year))
-    cat(sprintf("Fishing has not occurred yet in real year %d\n\n", real_year))
+    cat(sprintf("Data timing: ALL observation data from previous year\n"))
+    cat(sprintf("Using data through real year %d (j=%d)\n", real_year - 1, obs_data_year))
+    cat(sprintf("  - FI survey data: real year %d\n", real_year - 1))
+    cat(sprintf("  - FD catch data: real year %d\n", real_year - 1))
+    cat(sprintf("  - Length composition: real year %d\n", real_year - 1))
+    #cat(sprintf("Fishing has not occurred yet in real year %d\n\n", real_year))
 
 
     #Step 2: Determine previous TAC or use the last historical catch
@@ -389,6 +340,20 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
                     start_year-1, yrHist-1, start_year, yrHist))
          }
 
+      # Checking we successfully calculated a positive initial TAC
+      # applies for both TAC:manual override or TAC:automatic calculation
+      if(is.null(TAC_previous) || is.na(TAC_previous) || TAC_previous <= 0) {
+        stop("cannot calculate initial TAC: TAC_previous = ", TAC_previous, ". ",
+             if(!is.null(initial_TAC_override)) {
+               paste("Manual override value is invalid: ", initial_TAC_override)
+             } else {
+               paste("no historical catch data available. ",
+                     "check that CatchObsObj has data for years ", start_year-1, " to ", yrHist-1,
+                     " (j-index ", start_year, " to ", yrHist, ") for iteration ", k)
+             })
+      }
+
+
        } else {
          # subsequent years projection
          # use previous year's TAC (sum across all fleet-area combinations)
@@ -412,16 +377,25 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
     # r = Index A / Index B
     # r > 1: increasing trend, r < 1: decreasing trend
 
-    # data: FI survey (uses survey_max_year determined above)
-    # - If "current": includes current year survey (j)
-    # - If "previous": only previous year and earlier (j-1)
+    # data: uses obs_data_year (j-1) - previous year data only
 
     # extract survey values up to determined maximum year
     survey_data <- decisionData[decisionData$k == k &
-                                  decisionData$j <= survey_max_year,
+                                  decisionData$j <= obs_data_year,
                                 c("j", survey_index_name)]
     # remove NA values (years without survey observations)
     survey_data <- survey_data[!is.na(survey_data[[survey_index_name]]), ]
+
+    #validating enough survey observations for trend calculation
+    # RFB rule needs Index_A (last 2 obs) + Index_B (previous 3 obs) = 5 minimum
+    if(nrow(survey_data) < 5) {
+      stop("Insufficient survey data for RFB biomass trend calculation. ",
+           "need at least 5 observations, found ", nrow(survey_data), ". ",
+           "available survey years (j-index): ", paste(survey_data$j, collapse = ", "), ". ",
+           "check IndexObj@survey_design for '", survey_index_name, "' - ",
+           "ensure indexYears has sufficient coverage through year ", obs_data_year-1)
+    }
+
 
     # calculate Index A: mean of LAST 2 survey observations
     Index_A <- mean(tail(survey_data[[survey_index_name]], 2), na.rm = TRUE)
@@ -460,15 +434,14 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
     # f = L_mean / LF_M
     # f > 1: fishing larger fish, f < 1: fishing smaller fish
 
-    # Data source: FD length composition (ALWAYS uses fd_data_year = j-1)
-    # Fishing has not occurred in current year yet
+    # Data source: FD length composition (ALWAYS uses obs_data_year = j-1)
 
     # get most recent length composition data (from previous real year)
-    current_lc <- decisionData[decisionData$k == k & decisionData$j == fd_data_year, ]
+    current_lc <- decisionData[decisionData$k == k & decisionData$j == obs_data_year, ]
 
     cat(sprintf("\nLength indicator calculation (f):\n"))
     cat(sprintf("  Using length composition from real year %d (j=%d)\n",
-                fd_data_year - 1, fd_data_year))
+                obs_data_year  - 1, obs_data_year ))
 
     #find all length bin columns in the data (FD data)
     bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
@@ -476,7 +449,7 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
 
     if(length(bin_cols) == 0) {
       stop("No fishery-dependent length composition data available for year ",
-           fd_data_year - 1)
+           obs_data_year  - 1)
     }
 
 
@@ -506,7 +479,7 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
       #e.g.: bins [8.5, 9.5, 10.5], counts [10, 50, 30]
       #      L_mean = (8.5×10 + 9.5×50 + 10.5×30) / (10+50+30) = 9.72 cm
     } else {
-      stop("No length composition samples available for year ", fd_data_year - 1)
+      stop("No length composition samples available for year ", obs_data_year  - 1)
     }
 
     # calculate target length (LF_M) using selected method
@@ -678,7 +651,7 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
 
 
         #Determine averaging window
-        start_year <- max(2, j - n_years_for_proportions)#ensures we do not go before year 2
+        start_year <- max(2, obs_data_year - n_years_for_proportions + 1)#ensures we do not go before year 2
         fleet_catches <- numeric(nfleets)
 
         for(f in 1:nfleets) {
@@ -686,11 +659,11 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
             #col name
             catch_col <- paste0("fleet_", f, "_observed_catch_area_", m)
 
-            #extract catches in window (up to j-1, not including j)
+            #extract catches in window (up to obs_data_year)
             recent_catches <- decisionData[[catch_col]][
               which(decisionData$k == k &
                       decisionData$j >= start_year &
-                      decisionData$j < j)  # < j, not <= j
+                      decisionData$j <= obs_data_year)
             ]
 
             #add to fleet total
@@ -712,7 +685,7 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
         cat(sprintf("\nFleet allocation: AUTOMATIC (%d-year average)\n",
                     n_years_for_proportions))
         cat(sprintf("  Years averaged: real years %d to %d (j=%d to %d)\n",
-                    start_year-1, j-2, start_year, j-1))
+                    start_year-1, obs_data_year-1, start_year, obs_data_year))
         cat(sprintf("  Proportions: %s\n",
                     paste(sprintf("Fleet_%d=%.1f%%", 1:nfleets,
                                   fleet_proportions*100), collapse = ", ")))
@@ -728,7 +701,7 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
 
       #Initialize results storage
       TAC_decisions <- data.frame()
-      start_year <- max(2, j - n_years_for_proportions)
+      start_year <- max(2, obs_data_year - n_years_for_proportions + 1)
 
       cat(sprintf("\nArea allocation within fleets:\n"))
 
@@ -745,7 +718,7 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
           recent_catches <- decisionData[[catch_col]][
             which(decisionData$k == k &
                     decisionData$j >= start_year &
-                    decisionData$j < j) # < j, not <= j
+                    decisionData$j <= obs_data_year)
           ]
           area_catches_for_fleet[m] <- sum(recent_catches, na.rm = TRUE)
         }
@@ -797,9 +770,8 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
             TAC_previous = TAC_previous,
             TAC_preliminary = TAC_preliminary,
             stability_applied = stability_applied,
-            survey_data_timing = survey_data_timing,  # Record timing mode used
-            survey_max_year_used = survey_max_year - 1,  # Real year
-            fd_data_year_used = fd_data_year - 1,        # Real year
+            data_timing = "previous_year",
+            obs_data_year_used = obs_data_year - 1,
             stringsAsFactors = FALSE
           ))
 
@@ -883,11 +855,11 @@ multifleet_rfb_MP  <- function(phase, dataObject) {
 
       cat("\n--- SELECTIVITY VERIFICATION ---\n")
       for(f in 1:nfleets) {
-        # Sample: GTG 1, Age 10, keep selectivity
-        sample_sel <- selGroup_temp[[1]][[f]]$keep[[1]][10]
-        cat(sprintf("Fleet %d | GTG 1 | Age 10 | Keep selectivity: %.4f\n",
+        # Sample: GTG 1, Age 2, keep selectivity
+        sample_sel <- selGroup_temp[[1]][[f]]$keep[[1]][5]
+        cat(sprintf("Fleet %d | GTG 1 | Age 5 | Keep selectivity: %.4f\n",
                     f, sample_sel))
-        # Example output: "Fleet 1 | GTG 1 | Age 10 | Keep selectivity: 0.8534"
+        # Example output: "Fleet 1 | GTG 1 | Age 5 | Keep selectivity: 0.8534"
         # This confirms:
         # - Fleet indexing is correct
         # - GTG indexing is correct
@@ -1113,7 +1085,7 @@ multi_comprehensive_index@survey_design <- list(
   list(
     indextype = "FI",
     areas = c(1, 2),
-    indexYears = seq(1, 15, 3),
+    indexYears = seq(1, 15, 2),
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.3,
@@ -1499,7 +1471,7 @@ ggplot(nr_diag, aes(x = target_catch, y = predicted_catch, color = factor(area))
   geom_point() +
   geom_abline(slope = 1, intercept = 0, color = "red") +
   labs(title = "Target vs Predicted Catch - should be on 1:1 line")
-
+#(given TAC target,find F that produces exactly that catch = passed)
 
 #check for extreme values (extreme F values detected, convergencia failed)
 extreme_F <- nr_diag[nr_diag$final_F > 2 | nr_diag$final_F < 0.001, ]

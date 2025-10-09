@@ -280,9 +280,9 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
   cat("SOLVER DEBUG: areas =", areas, "nfleets =", nfleets, "\n")
   cat("SOLVER DEBUG: TAC_targets =", TAC_targets, "\n")
-  cat("SOLVER DEBUG: Sample N (GTG 1, Age 10, Area 1) =", N[[1]][10, j, 1], "\n")
-  cat("SOLVER DEBUG: Sample selectivity (GTG 1, Age 10) =",
-      if(is_multifleet) selGroup[[1]][[1]]$keep[[1]][10] else selGroup[[1]]$keep[[1]][10], "\n")
+  cat("SOLVER DEBUG: Sample N (GTG 1, Age 5, Area 1) =", N[[1]][5, j, 1], "\n")
+  cat("SOLVER DEBUG: Sample selectivity (GTG 1, Age 5) =",
+      if(is_multifleet) selGroup[[1]][[1]]$keep[[1]][5] else selGroup[[1]]$keep[[1]][5], "\n")
 
 
   ct <- TAC_targets  # TAC targets for current iteration
