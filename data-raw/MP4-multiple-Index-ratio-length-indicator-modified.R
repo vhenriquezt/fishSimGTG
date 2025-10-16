@@ -1,4 +1,5 @@
 #MP4: Index ratio (1 or multiple indices) + length indicators (none, one or multiple length indicators)
+#Modified
 
 # Here I am using 2 index ratio indicators (Survey + CPUE) and multiple length indicators
 
@@ -154,65 +155,73 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
   index_config <- list(
     #   "IDX_Survey_1"                           # single FI survey
     #   c("IDX_Survey_1", "IDX_CPUE_1_Fleet_1")  # multiple indices
-  #1. survey index to use for biomass trend
+    #1. survey index to use for biomass trend
     survey_index_names = c("IDX_Survey_1", "IDX_CPUE_3_Fleet_1"),
 
-  #2. observations for index ratio calculation
-  n_recent_obs = 2,      #number of observations for recent period (Index A)
-  n_historical_obs = 3,  #number of observations for historical reference (Index B)
+    #2. observations for index ratio calculation
+    n_recent_obs = 2,      #number of observations for recent period (Index A)
+    n_historical_obs = 3,  #number of observations for historical reference (Index B)
 
-  #3. how to combine multiple indices
-  index_combination_method = "weighted_average",  # Options: "weighted_average", "multiplicative", "minimum"
+    #3. how to combine multiple indices
+    index_combination_method = "weighted_average",  # Options: "weighted_average", "multiplicative", "minimum"
 
-  #4. Thr weigthing approach
-  index_weights = c(1.0,0.8),  # match length of survey_index_names
+    #4. Thr weigthing approach
+    index_weights = c(1.0,0.8),  # match length of survey_index_names
 
-  #5. Enable/disable index
-  use_index_ratio = TRUE
+    #5. Enable/disable index
+    use_index_ratio = TRUE
   )
 
 
-   #6. Length indicator configuration (this can be replaced by other L indicators - I just want to illustrate an example)
+  #6. Length indicator configuration (this can be replaced by other L indicators - I just want to illustrate an example)
 
   length_config <- list(
     # enable/disable each indicator with TRUE or FALSE
-    use_L_mean_L_mat = TRUE,    # L_mean FD / L50 maturity
-    use_L_mean_L_opt = TRUE,    # L_mean FD / L_optimal
-    use_Pmature = TRUE,         # Proportion mature in catch
-    use_L_mean_LF_M = TRUE,     # L_mean FD / LF_M (Beverton-Holt)
+    use_L_mean_L_mat = TRUE,    # L_mean (j-1) FD / L50 maturity
+    use_L_mean_L_opt = FALSE,    # L_mean FD / L_optimal
+    use_Pmature = TRUE,         # Proportion mature in catch (j-1)
+    use_L_mean_LF_M = FALSE,     # L_mean FD / LF_M (Beverton-Holt)
+    #Temporal trend indicator
+    use_L_mean_ratio = TRUE,     #L_mean (j-1) / L_mean (average of previous 5 years)
 
     # weights for combining indicators (only for enabled indicators)
     weights = c(
       L_mean_L_mat = 0.25,
-      L_mean_L_opt = 0.25,
+      #L_mean_L_opt = 0.25,
       Pmature = 0.25,
-      L_mean_LF_M = 0.25
+      #L_mean_LF_M = 0.25,
+      L_mean_ratio = 0.30
     ),
 
     # target values (what we want each indicator to achieve)
     targets = list(
       L_mean_L_mat = 1.2,    # For example we may want mean length 20% above maturity
-      L_mean_L_opt = 1.0,    # or mean length at optimal
+      #L_mean_L_opt = 1.0,    # or mean length at optimal
       Pmature = 0.50,        # or 50% of catch to be mature
-      L_mean_LF_M = 1.0      # or mean length at LF_M
+      #L_mean_LF_M = 1.0      # or mean length at LF_M
+      L_mean_ratio = 1.00    # new target no decline
+
     ),
 
     # penalty multipliers (TAC reduction when below target)
     # 1.0 = proportional penalty, >1.0 = more severe, <1.0 = less severe
     penalty_multipliers = c(
       L_mean_L_mat = 1.0,
-      L_mean_L_opt = 1.0,
+      #L_mean_L_opt = 1.0,
       Pmature = 1.5,         #for example, more severe penalty for immature fish
-      L_mean_LF_M = 0.8
+      #L_mean_LF_M = 0.8,
+      L_mean_ratio = 1.8     #strong penaly for decline
     ),
 
     # multipliers for TAC increase when above a target)
     # smaller than penalties to be more conservative
     reward_multipliers = c(
       L_mean_L_mat = 0.5,
-      L_mean_L_opt = 0.5,
+      #L_mean_L_opt = 0.5,
       Pmature = 0.3,
-      L_mean_LF_M = 0.5
+      #L_mean_LF_M = 0.5
+      L_mean_ratio = 0.4     #moderate reward if increasing
+
     ),
 
     # combination method for multiple length indicators
@@ -222,17 +231,26 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
     Lc = 8.4,              # minimum length of capture (cm) - for LF_M calculation
     target_Pmature = 0.5, # target proportion mature (for Pmature, e.g.: target 50% mature)
 
+    # Lookback period for L_mean_ratio calculation
+    length_lookback_years = 5,  # compare current year to previous 5 years
+
     #enable/disable all indicators
     use_length_indicators = TRUE
 
-    )
+  )
 
 
   #7. enable the use of biomass safeguard based on unfished spawning biomass
-  use_biomass_safeguard <- TRUE
+  #use_biomass_safeguard <- TRUE
 
-  #8. trigger point as proportion of B0 (e.g., Sb/B0)
-  trigger_proportion <- 0.20  # Trigger at 20% of unfished biomass
+  use_index_breaker <- TRUE
+  breaker_index <- "IDX_CPUE_3_Fleet_1"  # MRIP index -choose monitoring index (CPUE or Survey)
+
+  #8. trigger point as proportion of index
+  breaker_lookback_years <- 5 # look back 5 years to find minimum index
+  breaker_multiplier <- 0.50  # force 50% TAC when triggered
+
+  #trigger_proportion <- 0.20  # Trigger at 20% of unfished biomass
 
   #9. precautionary multiplier
   precautionary_m <- 0.95 #5% reduction to maintain 95% probability above Blim
@@ -325,7 +343,8 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
     any_length_enabled <- length_config$use_L_mean_L_mat ||
       length_config$use_L_mean_L_opt ||
       length_config$use_Pmature ||
-      length_config$use_L_mean_LF_M
+      length_config$use_L_mean_LF_M||
+      length_config$use_L_mean_ratio  #dded to check
 
     if(any_length_enabled) {
       if(is.null(LengthCompObj)) {
@@ -470,41 +489,41 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
 
 
 
-    # extract survey values up to determined maximum year
-    survey_data <- decisionData[decisionData$k == k &
-                                  decisionData$j <= obs_data_year,
-                                c("j", index_name)]
-    # remove NA values (years without survey observations)
-    survey_data <- survey_data[!is.na(survey_data[[index_name]]), ]
+        # extract survey values up to determined maximum year
+        survey_data <- decisionData[decisionData$k == k &
+                                      decisionData$j <= obs_data_year,
+                                    c("j", index_name)]
+        # remove NA values (years without survey observations)
+        survey_data <- survey_data[!is.na(survey_data[[index_name]]), ]
 
-    #validating enough survey observations for trend calculation
-    min_required <- index_config$n_recent_obs + index_config$n_historical_obs
+        #validating enough survey observations for trend calculation
+        min_required <- index_config$n_recent_obs + index_config$n_historical_obs
 
-    if(nrow(survey_data) < min_required) {
-      stop("Index '", index_name, "': Insufficient data. Need ", min_required,
-           " observations, found ", nrow(survey_data))
-    }
+        if(nrow(survey_data) < min_required) {
+          stop("Index '", index_name, "': Insufficient data. Need ", min_required,
+               " observations, found ", nrow(survey_data))
+        }
 
-    # calculate Index A (recent) - calculate Index B: mean of 3 values BEFORE the last 2
-    Index_A <- mean(tail(survey_data[[index_name]], index_config$n_recent_obs), na.rm = TRUE)
-    Index_B <- mean(tail(head(survey_data[[index_name]], -index_config$n_recent_obs),
-                         index_config$n_historical_obs), na.rm = TRUE)
+        # calculate Index A (recent) - calculate Index B: mean of 3 values BEFORE the last 2
+        Index_A <- mean(tail(survey_data[[index_name]], index_config$n_recent_obs), na.rm = TRUE)
+        Index_B <- mean(tail(head(survey_data[[index_name]], -index_config$n_recent_obs),
+                             index_config$n_historical_obs), na.rm = TRUE)
 
-    # calculate ratio for this index
-    r_index <- Index_A / Index_B
-    index_ratios <- c(index_ratios, r_index)
+        # calculate ratio for this index
+        r_index <- Index_A / Index_B
+        index_ratios <- c(index_ratios, r_index)
 
-    # store details
-    index_details[[index_name]] <- list(
-      Index_A = Index_A,
-      Index_B = Index_B,
-      ratio = r_index
-    )
+        # store details
+        index_details[[index_name]] <- list(
+          Index_A = Index_A,
+          Index_B = Index_B,
+          ratio = r_index
+        )
 
-    cat(sprintf("Index %d (%s):\n", idx, index_name))
-    cat(sprintf("  Index A (last %d): %.2f\n", index_config$n_recent_obs, Index_A))
-    cat(sprintf("  Index B (previous %d): %.2f\n", index_config$n_historical_obs, Index_B))
-    cat(sprintf("  Ratio: %.3f\n", r_index))
+        cat(sprintf("Index %d (%s):\n", idx, index_name))
+        cat(sprintf("  Index A (last %d): %.2f\n", index_config$n_recent_obs, Index_A))
+        cat(sprintf("  Index B (previous %d): %.2f\n", index_config$n_historical_obs, Index_B))
+        cat(sprintf("  Ratio: %.3f\n", r_index))
       }
 
 
@@ -539,15 +558,15 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
       cat(sprintf("\nFinal biomass trend ratio (r): %.3f ", r))
 
       if(r > 1) {
-      cat(sprintf("Stock INCREASING (r > 1)\n"))
+        cat(sprintf("Stock INCREASING (r > 1)\n"))
       } else if(r < 1) {
-      cat(sprintf("Stock DECLINING (r < 1)\n"))
+        cat(sprintf("Stock DECLINING (r < 1)\n"))
       } else {
-      cat(sprintf("Stock STABLE (r ~ 1)\n"))
+        cat(sprintf("Stock STABLE (r ~ 1)\n"))
       }
-      } else {
+    } else {
       cat("\nIndex ratio: DISABLED (r = 1.0)\n")
-      }
+    }
 
 
 
@@ -559,357 +578,498 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
                                method = "none", weights_used = NULL)
 
     if(length_config$use_length_indicators) {
-    #check if any length indicators are enabled
-    any_length_enabled <- length_config$use_L_mean_L_mat ||
-      length_config$use_L_mean_L_opt ||
-      length_config$use_Pmature ||
-      length_config$use_L_mean_LF_M
+      #check if any length indicators are enabled
+      any_length_enabled <- length_config$use_L_mean_L_mat ||
+        length_config$use_L_mean_L_opt ||
+        length_config$use_Pmature ||
+        length_config$use_L_mean_LF_M||
+        length_config$use_L_mean_ratio
 
-    if(any_length_enabled) {
+      if(any_length_enabled) {
 
-      # needed for proportion mature in catch (to get the probability of being mature at length of catch)
-      calculate_maturity_ogive <- function(lengths, lh) {
-        L50 <- lh$LifeHistory@L50
-        L95 <- L50 + lh$LifeHistory@L95delta
-        slope <- -(L95 - L50) / log(1/0.95 - 1)
+        # get length bin setup first (needed for the last length indicator)
+    length_bin_width <- LengthCompObj@length_bin_width
+    max_length <- max(unlist(lh$L))
+    length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width)
+    bin_midpoints <- length_bins[-length(length_bins)] + length_bin_width/2
 
-        # apply logistic to get maturity probability at each length
-        maturity <- 1 / (1 + exp(-(lengths - L50) / slope))
-        return(maturity)
+    #get most recent length composition data
+    current_lc <- decisionData[decisionData$k == k & decisionData$j == obs_data_year, ]
+
+    cat(sprintf("\nLength indicator calculation:\n"))
+    cat(sprintf("  Using length composition from real year %d (j=%d)\n",
+                obs_data_year - 1, obs_data_year))
+
+    #find all FD length bin columns
+    bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
+
+    if(length(bin_cols) == 0) {
+      stop("No FD length composition data available for year ", obs_data_year - 1, ". ",
+           "This MP requires length composition data when length indicators are enabled. ",
+           "Check LengthCompObj@survey_design configuration.")
+    }
+
+    #aggregate counts across all FD programs
+    total_counts <- numeric(length(bin_midpoints))
+    for(col in bin_cols) {
+      if(!is.na(current_lc[[col]])) {
+        bin_idx <- as.numeric(sub(".*_bin_", "", col))
+        if(bin_idx <= length(total_counts)) {
+          total_counts[bin_idx] <- total_counts[bin_idx] + current_lc[[col]]
+        }
       }
-
-      # calculate all length indicators
-      calculate_length_indicators <- function(lh, length_config, bin_midpoints, total_counts) {
-
-        indicators <- list() #  list of calculated indicator values
-        diagnostics <- list() # reference used (L_mat, L_opt, etc.)
-
-        # all indicators compare observed mean length to some reference length:
-        # f > 1: fishing larger than reference
-        # f < 1: fishing smaller than reference
+    }
 
 
-        # calculate L_mean (needed for most indicators)
-        # length indicators are based on this mean length from FD data
-        # represents the average size of fish being caught
-        if(sum(total_counts) > 0) {
-          L_mean <- sum(bin_midpoints * total_counts) / sum(total_counts)
 
-          # e.g., with 3 bins:
-          # bins:    [8.5cm,  9.5cm,  10.5cm]
-          # counts:  [10,     50,     30]
-          # l_mean = (8.5×10 + 9.5×50 + 10.5×30) / (10+50+30)
-          #          = (85 + 475 + 315) / 90
-          #          = 875 / 90 = 9.72cm
+        # needed for proportion mature in catch (to get the probability of being mature at length of catch)
+        calculate_maturity_ogive <- function(lengths, lh) {
+          L50 <- lh$LifeHistory@L50
+          L95 <- L50 + lh$LifeHistory@L95delta
+          slope <- -(L95 - L50) / log(1/0.95 - 1)
 
-        } else {
-          stop("No length composition samples available for year ", obs_data_year - 1, ". ",
-               "This MP requires length composition data when length indicators are enabled.")
+          # apply logistic to get maturity probability at each length
+          maturity <- 1 / (1 + exp(-(lengths - L50) / slope))
+          return(maturity)
         }
 
-        # 1. L_mean / L_mat (mean length relative to L50)
-        # e.g.:
-        #   f = 1.2:  fish 20% larger than 50% maturity
-        #   f = 1.0:  fish right at 50% maturity
-        #   f = 0.8:  fish 20% smaller than 50% maturity
+        # calculate all length indicators
+        calculate_length_indicators <- function(lh, length_config, bin_midpoints, total_counts) {
 
-        if(length_config$use_L_mean_L_mat) {
-          L_mat <- lh$LifeHistory@L50
-          indicators$L_mean_L_mat <- L_mean / L_mat
-          diagnostics$L_mat <- L_mat
-        } else {
-          diagnostics$L_mat <- NULL
-        }
+          indicators <- list() #  list of calculated indicator values
+          diagnostics <- list() # reference used (L_mat, L_opt, etc.)
 
-        # 2. L_mean / L_opt (mean length relative to optimal length)
-        # do we catch fish at the size that maximizes yield?
-        #e.g.:
-        #   f > 1.0: catching larger fish than optimal (less yield)
-        #   f = 1.0: catching at optimal size (maximum yield)
-        #   f < 1.0: catching smaller fish than optimal (growth overfishing)
-
-        if(length_config$use_L_mean_L_opt) {
-          MK_ratio <- lh$LifeHistory@M / lh$LifeHistory@K
-          L_opt <- (3 * lh$LifeHistory@Linf) / (3 + MK_ratio)
-          indicators$L_mean_L_opt <- L_mean / L_opt
-          diagnostics$L_opt <- L_opt
-        } else {
-          diagnostics$L_opt <- NULL
-        }
-
-        # 3. Proportion mature in catch
-        # what proportion of the catch is mature?- goal spawning Biomass proteccion
-        # here we compare to a predetermined target
-
-        #   f = 1.2: 20% above target
-        #   f = 1.0:  at target
-        #   f = 0.6: 40% below target
-
-        #   e.g.,:
-        #   bins:        [7.5cm,  8.5cm,  9.5cm,  10.5cm]
-        #   counts:      [20,     60,     80,     40]
-        #   maturity:    [0.15,   0.45,   0.75,   0.90]  (from ogive)
-        #   Pmature = (20×0.15 + 60×0.45 + 80×0.75 + 40×0.90) / 200
-        #           = (3 + 27 + 60 + 36) / 200 = 126/200 = 0.63
-        #   If target = 0.5: f = 0.63/0.5 = 1.26 (26% above target)
-
-        if(length_config$use_Pmature) {
-          # Calculate maturity at each bin midpoint
-          maturity_at_length <- calculate_maturity_ogive(bin_midpoints, lh)
-
-          # proportion proportion mature in catch (weighted average)
-          Pmature_value <- sum(total_counts * maturity_at_length) / sum(total_counts)
-
-          # scale to target ("how close to target")
-          # this makes it comparable to other indicators where f=1 is ideal
-          indicators$Pmature <- Pmature_value / length_config$target_Pmature
-          diagnostics$Pmature_value <- Pmature_value
-        } else {
-          diagnostics$Pmature_value <- NULL
-        }
-
-        # 4. L_mean / LF_M (Beverton-Holt as RFB)
-        # LF_M (length when F=M, used in ICES RFB rule) (I know it is not optimal for BG, buthere we can replace by another L indicator)
-        #   f > 1.0: catching larger than LF_M
-        #   f = 1.0: catching at LF_M (MSY proxy)
-        #   f < 1.0: catching smaller than LF_M
+          # all indicators compare observed mean length to some reference length:
+          # f > 1: fishing larger than reference
+          # f < 1: fishing smaller than reference
 
 
-        if(length_config$use_L_mean_LF_M) {
-          LF_M <- 0.75 * length_config$Lc + 0.25 * lh$LifeHistory@Linf
-          indicators$L_mean_LF_M <- L_mean / LF_M
-          diagnostics$LF_M <- LF_M
-        } else {
-          diagnostics$LF_M <- NULL
-        }
+          # calculate L_mean (needed for most indicators)
+          # length indicators are based on this mean length from FD data
+          # represents the average size of fish being caught
+          if(sum(total_counts) > 0) {
+            L_mean <- sum(bin_midpoints * total_counts) / sum(total_counts)
 
-        return(list(
-          indicators = indicators,       #list of f values for each enabled indicator
-          L_mean = L_mean,               #observed mean length in catch
-          diagnostics = diagnostics      #reference value used (L_mat, L_opt, etc.)
-        ))
-      }
+            # e.g., with 3 bins:
+            # bins:    [8.5cm,  9.5cm,  10.5cm]
+            # counts:  [10,     50,     30]
+            # l_mean = (8.5×10 + 9.5×50 + 10.5×30) / (10+50+30)
+            #          = (85 + 475 + 315) / 90
+            #          = 875 / 90 = 9.72cm
 
-      #combining length indicators
-      #when using multiple length indicators, combine them into a single
-      #multiplier (f_combined) for the TAC calculation
-      #each indicator captures different aspects of size structure
-      #L_mean/L_mat: Reproductive protection
-      #L_mean/L_opt: Yield opti
-      #Pmature: Spawning biomass
-      #L_mean/LF_M: FMSY proxy
-
-      # There are 3 possible methods to combine the Length indicators:
-      # 1. weighted_average: indicators based on importance (the user can allocate diff weigths)
-      # 2. multiplicative:  all indicators must be good (more conservative)
-      # 3. minimum: using the most pessimistic indicator (very conservative)
+          } else {
+            stop("No length composition samples available for year ", obs_data_year - 1, ". ",
+                 "This MP requires length composition data when length indicators are enabled.")
+          }
 
 
-      combine_length_indicators <- function(indicators, length_config) {
+          # 1. L_mean / L_mat (mean length relative to L50)
+          # e.g.:
+          #   f = 1.2:  fish 20% larger than 50% maturity
+          #   f = 1.0:  fish right at 50% maturity
+          #   f = 0.8:  fish 20% smaller than 50% maturity
 
-        # incase where no indicators are enabled
-        if(length(indicators) == 0) {
+          if(length_config$use_L_mean_L_mat) {
+            L_mat <- lh$LifeHistory@L50
+            indicators$L_mean_L_mat <- L_mean / L_mat
+            diagnostics$L_mat <- L_mat
+          } else {
+            diagnostics$L_mat <- NULL
+          }
+
+          # 2. L_mean / L_opt (mean length relative to optimal length)
+          # do we catch fish at the size that maximizes yield?
+          #e.g.:
+          #   f > 1.0: catching larger fish than optimal (less yield)
+          #   f = 1.0: catching at optimal size (maximum yield)
+          #   f < 1.0: catching smaller fish than optimal (growth overfishing)
+
+          if(length_config$use_L_mean_L_opt) {
+            MK_ratio <- lh$LifeHistory@M / lh$LifeHistory@K
+            L_opt <- (3 * lh$LifeHistory@Linf) / (3 + MK_ratio)
+            indicators$L_mean_L_opt <- L_mean / L_opt
+            diagnostics$L_opt <- L_opt
+          } else {
+            diagnostics$L_opt <- NULL
+          }
+
+          # 3. Proportion mature in catch
+          # what proportion of the catch is mature?- goal spawning Biomass proteccion
+          # here we compare to a predetermined target
+
+          #   f = 1.2: 20% above target
+          #   f = 1.0:  at target
+          #   f = 0.6: 40% below target
+
+          #   e.g.,:
+          #   bins:        [7.5cm,  8.5cm,  9.5cm,  10.5cm]
+          #   counts:      [20,     60,     80,     40]
+          #   maturity:    [0.15,   0.45,   0.75,   0.90]  (from ogive)
+          #   Pmature = (20×0.15 + 60×0.45 + 80×0.75 + 40×0.90) / 200
+          #           = (3 + 27 + 60 + 36) / 200 = 126/200 = 0.63
+          #   If target = 0.5: f = 0.63/0.5 = 1.26 (26% above target)
+
+          if(length_config$use_Pmature) {
+            # Calculate maturity at each bin midpoint
+            maturity_at_length <- calculate_maturity_ogive(bin_midpoints, lh)
+
+            # proportion proportion mature in catch (weighted average)
+            Pmature_value <- sum(total_counts * maturity_at_length) / sum(total_counts)
+
+            # scale to target ("how close to target")
+            # this makes it comparable to other indicators where f=1 is ideal
+            indicators$Pmature <- Pmature_value / length_config$target_Pmature
+            diagnostics$Pmature_value <- Pmature_value
+          } else {
+            diagnostics$Pmature_value <- NULL
+          }
+
+          # 4. L_mean / LF_M (Beverton-Holt as RFB)
+          # LF_M (length when F=M, used in ICES RFB rule) (I know it is not optimal for BG, buthere we can replace by another L indicator)
+          #   f > 1.0: catching larger than LF_M
+          #   f = 1.0: catching at LF_M (MSY proxy)
+          #   f < 1.0: catching smaller than LF_M
+
+
+          if(length_config$use_L_mean_LF_M) {
+            LF_M <- 0.75 * length_config$Lc + 0.25 * lh$LifeHistory@Linf
+            indicators$L_mean_LF_M <- L_mean / LF_M
+            diagnostics$LF_M <- LF_M
+          } else {
+            diagnostics$LF_M <- NULL
+          }
+
+          # 5. L_mean_ratio - Temporal trend in mean length
+          # compares CURRENT YEAR (j-1) to PREVIOUS lookback YEARS
+          # use to detect declining mean length in the most recent year
+          # This is the ONLY indicator that uses a rolling window (5 years rolling window)
+          # Current: year j-1 (obs_data_year)
+          # Reference: average of years (j-1-lookback) through (j-2)
+
+          # example with j=13, obs_data_year=12, lookback=5:
+          #   current: year 12 L_mean
+          #   reference: average L_mean from years 7, 8, 9, 10, 11
+          #
+          # Interpretation:
+          #   f > 1.0: mean length INCREASING (good)
+          #   f = 1.0: mean length STABLE
+          #   f < 1.0: mean length DECLINING (bad)
+
+          if(length_config$use_L_mean_ratio) {
+
+            lookback <- length_config$length_lookback_years  # e.g., 5
+
+            # CURRENT L_mean: already calculated above from obs_data_year (j-1)
+
+            # REFERENCE L_mean: average of the PREVIOUS 'lookback' years
+            # EXCLUDING the current year (obs_data_year) from the reference
+            #
+            # Example with obs_data_year = 12 and lookback = 5:
+            #   Current: year 12
+            #   Reference: years 7, 8, 9, 10, 11 (the 5 years BEFORE year 12)
+
+            start_year_ref <- obs_data_year - lookback      # = 12 - 5 = 7
+            end_year_ref <- obs_data_year - 1               # = 12 - 1 = 11
+
+
+            # Verify getting exactly 'lookback' years
+            n_ref_years <- end_year_ref - start_year_ref + 1
+            if(n_ref_years != lookback) {
+              warning(sprintf("Reference period has %d years, expected %d",
+                              n_ref_years, lookback))
+            }
+
+            # extract length composition for reference period
+            ref_lc <- decisionData[decisionData$k == k &
+                                     decisionData$j >= start_year_ref &
+                                     decisionData$j <= end_year_ref, ]
+
+            # verify NOT including current year
+            if(any(ref_lc$j == obs_data_year)) {
+              stop("ERROR: Reference period incorrectly includes current observation year!")
+            }
+
+            # find FD length bins for reference period
+            ref_bin_cols <- grep("LC_Fishery_.*_count_bin_", names(ref_lc), value = TRUE)
+
+            # aggregate counts from reference period (5 years)
+            ref_counts <- numeric(length(bin_midpoints))
+            for(col in ref_bin_cols) {
+              bin_idx <- as.numeric(sub(".*_bin_", "", col))
+              if(bin_idx <= length(ref_counts)) {
+                ref_counts[bin_idx] <- ref_counts[bin_idx] + sum(ref_lc[[col]], na.rm = TRUE)
+              }
+            }
+
+            if(sum(ref_counts) > 0) {
+              #we calculate reference L_mean (average over previous 'lookback' years)
+              L_mean_reference <- sum(bin_midpoints * ref_counts) / sum(ref_counts)
+
+              #maybe use here only the commercial lengths because they fish at deper waters
+              # wider range of lengths
+
+              indicators$L_mean_ratio <- L_mean / L_mean_reference
+              diagnostics$L_mean_reference <- L_mean_reference
+              diagnostics$L_mean_ref_years <- c(start_year_ref, end_year_ref)
+
+              cat(sprintf("\n5. L_mean_ratio (Temporal Trend):\n"))
+              cat(sprintf("   Current L_mean (year %d, j=%d): %.2f cm\n",
+                          obs_data_year - 1, obs_data_year, L_mean))
+              cat(sprintf("   Reference L_mean (years %d-%d, j=%d-%d): %.2f cm\n",
+                          start_year_ref - 1, end_year_ref - 1,
+                          start_year_ref, end_year_ref, L_mean_reference))
+              cat(sprintf("   Number of reference years: %d\n", n_ref_years))
+              cat(sprintf("   Ratio (current/reference): %.3f\n", indicators$L_mean_ratio))
+
+
+              if(indicators$L_mean_ratio > 1.0) {
+                cat(sprintf("    Status: Mean length INCREASING (good)\n"))
+              } else if(indicators$L_mean_ratio < 1.0) {
+                cat(sprintf("    Status: Mean length DECLINING (warning!)\n"))
+              } else {
+                cat(sprintf("    Status: Mean length STABLE\n"))
+              }
+
+            } else {
+              stop(sprintf("No length composition data in reference period (years %d-%d)",
+                           start_year_ref, end_year_ref))
+            }
+          } else {
+            diagnostics$L_mean_reference <- NULL
+            diagnostics$L_mean_ref_years <- NULL
+          }
+
+
           return(list(
-            f_combined = 1.0,   # no TAC adjustment
-            individual_adjustments = NULL,
-            method = "none",
-            weights_used = NULL
+            indicators = indicators,       #list of f values for each enabled indicator
+            L_mean = L_mean,               #observed mean length in catch
+            diagnostics = diagnostics      #reference value used (L_mat, L_opt, etc.)
           ))
         }
 
-        indicator_names <- names(indicators)
 
-        # calculate TAC adjustment for each indicator
-        # for each indicator, we convert the observed/target ratio into a TAC multiplier
-        # If indicator BELOW target (f < 1): apply penalty (reduce TAC)
-        # If indicator ABOVE target (f > 1): apply rewrds  (increase TAC)
-
-        # e.g.: penalty=1.0, reward=0.5 meaning:
-        # 20% below target: 20% TAC reduction (more aggressive)
-        # 20% above target: 10% TAC increase (more cautious)
-
-        # a very conservative example for reduction:
-        #   observed = 0.6, target = 1.0, penalty_mult = 1.5
-        #   deviation = 1.0 - 0.6 = 0.4 (40% below)
-        #   adjustment = 1 - 1.5 × (0.4/1.0) = 1 - 0.6 = 0.4
-        #   TAC reduced by 60% (more than proportional)
-
-        # a conservative example for increase:
-        #   observed = 1.2, target = 1.0, reward_mult = 0.5
-        #   deviation = 1.2 - 1.0 = 0.2 (20% above)
-        #   adjustment = 1 + 0.5 × (0.2/1.0) = 1 + 0.1 = 1.1
-        #   TAC increased by 10% (half of the improvement)
+        #combining length indicators
+        #when using multiple length indicators, combine them into a single
+        #multiplier (f_combined) for the TAC calculation
+        #each indicator captures different aspects of size structure
+        #L_mean/L_mat: Reproductive protection
+        #L_mean/L_opt: Yield opti
+        #Pmature: Spawning biomass
+        #L_mean/LF_M: FMSY proxy
+        #L_mean_ratio
 
 
-        adjustments <- sapply(indicator_names, function(name) {
+        # There are 3 possible methods to combine the Length indicators:
+        # 1. weighted_average: indicators based on importance (the user can allocate diff weigths)
+        # 2. multiplicative:  all indicators must be good (more conservative)
+        # 3. minimum: using the most pessimistic indicator (very conservative)
 
-          observed <- indicators[[name]]                            # e.g., f = 0.85 (15% below target)
-          target <- length_config$targets[[name]]                   # e.g., target = 1.0
-          penalty_mult <- length_config$penalty_multipliers[name]   # e.g., 1.0
-          reward_mult <- length_config$reward_multipliers[name]     # e.g., 0.5
 
-          if(observed < target) {
-            # Below target: apply penalty
-            deviation <- target - observed #1.0 - 0.85 = 0.15 (15% below)
-            adjustment <- 1 - penalty_mult * (deviation / target) #1 - 1.0 × (0.15/1.0) = 1 - 0.15 = 0.85
-            adjustment <- max(adjustment, 0.01)  # e.g., TAC reduced 15 - Floor at 1% of TAC
+        combine_length_indicators <- function(indicators, length_config) {
+
+          # incase where no indicators are enabled
+          if(length(indicators) == 0) {
+            return(list(
+              f_combined = 1.0,   # no TAC adjustment
+              individual_adjustments = NULL,
+              method = "none",
+              weights_used = NULL
+            ))
+          }
+
+          indicator_names <- names(indicators)
+
+          # calculate TAC adjustment for each indicator
+          # for each indicator, we convert the observed/target ratio into a TAC multiplier
+          # If indicator BELOW target (f < 1): apply penalty (reduce TAC)
+          # If indicator ABOVE target (f > 1): apply rewrds  (increase TAC)
+
+          # e.g.: penalty=1.0, reward=0.5 meaning:
+          # 20% below target: 20% TAC reduction (more aggressive)
+          # 20% above target: 10% TAC increase (more cautious)
+
+          # a very conservative example for reduction:
+          #   observed = 0.6, target = 1.0, penalty_mult = 1.5
+          #   deviation = 1.0 - 0.6 = 0.4 (40% below)
+          #   adjustment = 1 - 1.5 × (0.4/1.0) = 1 - 0.6 = 0.4
+          #   TAC reduced by 60% (more than proportional)
+
+          # a conservative example for increase:
+          #   observed = 1.2, target = 1.0, reward_mult = 0.5
+          #   deviation = 1.2 - 1.0 = 0.2 (20% above)
+          #   adjustment = 1 + 0.5 × (0.2/1.0) = 1 + 0.1 = 1.1
+          #   TAC increased by 10% (half of the improvement)
+
+
+          adjustments <- sapply(indicator_names, function(name) {
+
+            observed <- indicators[[name]]                            # e.g., f = 0.85 (15% below target)
+            target <- length_config$targets[[name]]                   # e.g., target = 1.0
+            penalty_mult <- length_config$penalty_multipliers[name]   # e.g., 1.0
+            reward_mult <- length_config$reward_multipliers[name]     # e.g., 0.5
+
+            if(observed < target) {
+              # Below target: apply penalty
+              deviation <- target - observed #1.0 - 0.85 = 0.15 (15% below)
+              adjustment <- 1 - penalty_mult * (deviation / target) #1 - 1.0 × (0.15/1.0) = 1 - 0.15 = 0.85
+              adjustment <- max(adjustment, 0.01)  # e.g., TAC reduced 15 - Floor at 1% of TAC
+            } else {
+              # Above target: apply reward
+              deviation <- observed - target
+              adjustment <- 1 + reward_mult * (deviation / target)
+              adjustment <- min(adjustment, max_tac_increase)  # Cap at 130% of TAC (30% increase maximum)
+            }
+
+            return(adjustment)
+          })
+
+          # adjustments is now a named vector, e.g.:
+          # c(L_mean_L_mat = 0.95, L_mean_L_opt = 1.10, Pmature = 0.85)
+
+          # combine based on indicator method
+          method <- length_config$combination_method
+
+          #combine indicators based on their relative importance (weights)
+          #all indicators contribute - higher weight = more influence on final TAC
+
+          #For example (weighted_average)
+          #L_mean/L_mat = 0.90 (10% below), weight = 0.25
+          #L_mean/L_opt = 1.05 (5% above),  weight = 0.25
+          #Pmature = 0.85 (15% below),      weight = 0.50 (higher concern)
+          #
+          #Normalized weights: [0.25, 0.25, 0.50] (already sum to 1)
+          #f_combined = 0.25×0.90 + 0.25×1.05 + 0.50×0.85
+          #              = 0.225 + 0.2625 + 0.425
+          #              = 0.9125
+          #   (1-0.9125 = 0.0875)TAC reduced by 8.75%
+
+
+          if(method == "weighted_average") {
+            # weighted average of adjustments
+            weights <- length_config$weights[indicator_names]
+            weights <- weights / sum(weights)     #weights are relative (normalized to sum to 1)
+            f_combined <- sum(adjustments * weights)
+            weights_used <- weights
+
+            #For example (multiplicative)
+            #f_combined = adjustment_1 × adjustment_2 × ... × adjustment_n
+            #quite conservative: all indicators must be good for TAC increase
+            #one poor indicator significantly reduces TAC
+            #   L_mean/L_mat = 0.95 (5% reduction)
+            #   L_mean/L_opt = 0.90 (10% reduction)
+            #   Pmature = 0.85 (15% reduction)
+
+            #   f_combined = 0.95 × 0.90 × 0.85 = 0.727
+            #   TAC reduced by 27.3% (more reduction here compared when we allocated equal weights)
+
+          } else if(method == "multiplicative") {
+            # multiply all adjustments
+            f_combined <- prod(adjustments)
+            weights_used <- NULL
+
+
+            #For example (minimum)- very pessimist (rebuilding or depleted stocks)
+            # use the lowest adjustement
+            #   L_mean/L_mat = 1.15 (15% increase possible)
+            #   L_mean/L_opt = 1.08 (8% increase possible)
+            #   Pmature = 0.75 (25% reduction needed)
+            #   f_combined = min(1.15, 1.08, 0.75) = 0.75
+            #   TAC reduced by 25%
+
+
+          } else if(method == "minimum") {
+            # most conservative (minimum adjustment)
+            f_combined <- min(adjustments)
+            weights_used <- NULL
+
           } else {
-            # Above target: apply reward
-            deviation <- observed - target
-            adjustment <- 1 + reward_mult * (deviation / target)
-            adjustment <- min(adjustment, max_tac_increase)  # Cap at 130% of TAC (30% increase maximum)
+            stop("Unknown combination method: ", method)
           }
 
-          return(adjustment)
-        })
+          return(list(
+            f_combined = f_combined,                    #final combined multiplier for TAC
+            individual_adjustments = adjustments,       #vector of individual indicator adjustments
+            method = method,                            #method used for combination
+            weights_used = weights_used                 #weights (NULL if not weighted_average)
+          ))
+        }
 
-        # adjustments is now a named vector, e.g.:
-        # c(L_mean_L_mat = 0.95, L_mean_L_opt = 1.10, Pmature = 0.85)
 
-        # combine based on indicator method
-        method <- length_config$combination_method
-
-        #combine indicators based on their relative importance (weights)
-        #all indicators contribute - higher weight = more influence on final TAC
-
-        #For example (weighted_average)
-        #L_mean/L_mat = 0.90 (10% below), weight = 0.25
-        #L_mean/L_opt = 1.05 (5% above),  weight = 0.25
-        #Pmature = 0.85 (15% below),      weight = 0.50 (higher concern)
+        # #get most recent length composition data
+        # current_lc <- decisionData[decisionData$k == k & decisionData$j == obs_data_year, ]
         #
-        #Normalized weights: [0.25, 0.25, 0.50] (already sum to 1)
-        #f_combined = 0.25×0.90 + 0.25×1.05 + 0.50×0.85
-        #              = 0.225 + 0.2625 + 0.425
-        #              = 0.9125
-        #   (1-0.9125 = 0.0875)TAC reduced by 8.75%
+        # cat(sprintf("\nLength indicator calculation:\n"))
+        # cat(sprintf("  Using length composition from real year %d (j=%d)\n",
+        #             obs_data_year - 1, obs_data_year))
+        #
+        # #find all FD length bin columns
+        # bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
+        #
+        # if(length(bin_cols) == 0) {
+        #   stop("No FD length composition data available for year ", obs_data_year - 1, ". ",
+        #        "This MP requires length composition data when length indicators are enabled. ",
+        #        "Check LengthCompObj@survey_design configuration.")
+        # }
+        #
+        # # get length bin info
+        # length_bin_width <- LengthCompObj@length_bin_width
+        # max_length <- max(unlist(lh$L))
+        # length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width)
+        # bin_midpoints <- length_bins[-length(length_bins)] + length_bin_width/2
+        #
+        # # aggregate counts across all FD programs
+        # total_counts <- numeric(length(bin_midpoints))
+        # for(col in bin_cols) {
+        #   if(!is.na(current_lc[[col]])) {
+        #     bin_idx <- as.numeric(sub(".*_bin_", "", col))
+        #     if(bin_idx <= length(total_counts)) {
+        #       total_counts[bin_idx] <- total_counts[bin_idx] + current_lc[[col]]
+        #     }
+        #   }
+        # }
+        # calculate all enabled length indicators
+        length_results <- calculate_length_indicators(
+          lh = lh,
+          length_config = length_config,
+          bin_midpoints = bin_midpoints,
+          total_counts = total_counts
+        )
 
-
-        if(method == "weighted_average") {
-          # weighted average of adjustments
-          weights <- length_config$weights[indicator_names]
-          weights <- weights / sum(weights)     #weights are relative (normalized to sum to 1)
-          f_combined <- sum(adjustments * weights)
-          weights_used <- weights
-
-          #For example (multiplicative)
-          #f_combined = adjustment_1 × adjustment_2 × ... × adjustment_n
-          #quite conservative: all indicators must be good for TAC increase
-          #one poor indicator significantly reduces TAC
-          #   L_mean/L_mat = 0.95 (5% reduction)
-          #   L_mean/L_opt = 0.90 (10% reduction)
-          #   Pmature = 0.85 (15% reduction)
-
-          #   f_combined = 0.95 × 0.90 × 0.85 = 0.727
-          #   TAC reduced by 27.3% (more reduction here compared when we allocated equal weights)
-
-        } else if(method == "multiplicative") {
-          # multiply all adjustments
-          f_combined <- prod(adjustments)
-          weights_used <- NULL
-
-
-          #For example (minimum)- very pessimist (rebuilding or depleted stocks)
-          # use the lowest adjustement
-          #   L_mean/L_mat = 1.15 (15% increase possible)
-          #   L_mean/L_opt = 1.08 (8% increase possible)
-          #   Pmature = 0.75 (25% reduction needed)
-          #   f_combined = min(1.15, 1.08, 0.75) = 0.75
-          #   TAC reduced by 25%
-
-
-        } else if(method == "minimum") {
-          # most conservative (minimum adjustment)
-          f_combined <- min(adjustments)
-          weights_used <- NULL
-
-        } else {
-          stop("Unknown combination method: ", method)
+        cat(sprintf("  L_mean = %.2f cm\n", length_results$L_mean))
+        for(name in names(length_results$indicators)) {
+          cat(sprintf("  %s = %.3f\n", name, length_results$indicators[[name]]))
         }
 
-        return(list(
-          f_combined = f_combined,                    #final combined multiplier for TAC
-          individual_adjustments = adjustments,       #vector of individual indicator adjustments
-          method = method,                            #method used for combination
-          weights_used = weights_used                 #weights (NULL if not weighted_average)
-        ))
-      }
+        # combine length indicators
+        length_combination <- combine_length_indicators(
+          indicators = length_results$indicators,
+          length_config = length_config
+        )
 
+        f_length <- length_combination$f_combined
 
-      #get most recent length composition data
-      current_lc <- decisionData[decisionData$k == k & decisionData$j == obs_data_year, ]
-
-      cat(sprintf("\nLength indicator calculation:\n"))
-      cat(sprintf("  Using length composition from real year %d (j=%d)\n",
-                  obs_data_year - 1, obs_data_year))
-
-      #find all FD length bin columns
-      bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
-
-      if(length(bin_cols) == 0) {
-        stop("No FD length composition data available for year ", obs_data_year - 1, ". ",
-             "This MP requires length composition data when length indicators are enabled. ",
-             "Check LengthCompObj@survey_design configuration.")
-      }
-
-      # get length bin info
-      length_bin_width <- LengthCompObj@length_bin_width
-      max_length <- max(unlist(lh$L))
-      length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width)
-      bin_midpoints <- length_bins[-length(length_bins)] + length_bin_width/2
-
-      # aggregate counts across all FD programs
-      total_counts <- numeric(length(bin_midpoints))
-      for(col in bin_cols) {
-        if(!is.na(current_lc[[col]])) {
-          bin_idx <- as.numeric(sub(".*_bin_", "", col))
-          if(bin_idx <= length(total_counts)) {
-            total_counts[bin_idx] <- total_counts[bin_idx] + current_lc[[col]]
-          }
+        cat(sprintf("\nLength indicator combination:\n"))
+        cat(sprintf("  Method: %s\n", length_combination$method))
+        if(!is.null(length_combination$weights_used)) {
+          cat(sprintf("  Weights: %s\n",
+                      paste(sprintf("%s=%.2f", names(length_combination$weights_used),
+                                    length_combination$weights_used), collapse=", ")))
         }
+        cat(sprintf("  Individual adjustments:\n"))
+        for(name in names(length_combination$individual_adjustments)) {
+          cat(sprintf("    %s: %.3f\n", name,
+                      length_combination$individual_adjustments[name]))
+        }
+        cat(sprintf("  Combined f_length = %.3f\n", f_length))
+
+      } else {
+        # No length indicators enabled (any_length_enabled = FALSE)
+        f_length <- 1.0
+        length_results <- list(L_mean = NA, indicators = list(), diagnostics = list())
+        length_combination <- list(f_combined = 1.0, individual_adjustments = NULL,
+                                   method = "none", weights_used = NULL)
+        cat("\nLength indicators: All disabled (f_length = 1.0)\n")
       }
-      # calculate all enabled length indicators
-      length_results <- calculate_length_indicators(
-        lh = lh,
-        length_config = length_config,
-        bin_midpoints = bin_midpoints,
-        total_counts = total_counts
-      )
-
-      cat(sprintf("  L_mean = %.2f cm\n", length_results$L_mean))
-      for(name in names(length_results$indicators)) {
-        cat(sprintf("  %s = %.3f\n", name, length_results$indicators[[name]]))
-      }
-
-      # combine length indicators
-      length_combination <- combine_length_indicators(
-        indicators = length_results$indicators,
-        length_config = length_config
-      )
-
-      f_length <- length_combination$f_combined
-
-      cat(sprintf("\nLength indicator combination:\n"))
-      cat(sprintf("  Method: %s\n", length_combination$method))
-      if(!is.null(length_combination$weights_used)) {
-        cat(sprintf("  Weights: %s\n",
-                    paste(sprintf("%s=%.2f", names(length_combination$weights_used),
-                                  length_combination$weights_used), collapse=", ")))
-      }
-      cat(sprintf("  Individual adjustments:\n"))
-      for(name in names(length_combination$individual_adjustments)) {
-        cat(sprintf("    %s: %.3f\n", name,
-                    length_combination$individual_adjustments[name]))
-      }
-      cat(sprintf("  Combined f_length = %.3f\n", f_length))
-
-    } else {
-      # No length indicators enabled (any_length_enabled = FALSE)
-      f_length <- 1.0
-      length_results <- list(L_mean = NA, indicators = list(), diagnostics = list())
-      length_combination <- list(f_combined = 1.0, individual_adjustments = NULL,
-                                 method = "none", weights_used = NULL)
-      cat("\nLength indicators: All disabled (f_length = 1.0)\n")
-    }
 
     } else {
 
@@ -922,48 +1082,58 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
     }
 
 
-    #Step 4: calculate biomass Safeguard (b)
-    # Purpose: Reduce TAC when stock approaches limit reference point
-    if(use_biomass_safeguard) {
+    #Step 4: calculate Safeguard (b)
+    # Purpose: Reduce TAC when index approaches the index breaker
+    if(use_index_breaker) {
 
-      #get previous year spawning biomass (sum across areas)
-      prev_year_j <- j - 1
-      current_SB <- sum(SB[prev_year_j, k, ])
+      # get index history
+      index_history <- decisionData[[breaker_index]][
+        decisionData$k == k & decisionData$j <= obs_data_year
+      ]
+      index_history <- index_history[!is.na(index_history)]
 
-      #get B0 from initial equilibrium (stored in 'is')
-      #access from first area's equilibrium calculation
-      B0 <- is$B0
+      cat(sprintf("\n=== Index Breaker ===\n"))
+      cat(sprintf("  Monitoring index: %s\n", breaker_index))
+      cat(sprintf("  Index history: %d years available\n", length(index_history)))
 
-      #calculate current depletion as SB/B0
-      SB_ratio <- current_SB / B0
+      # need lookback + 1 years (e.g., 6 years for lookback=5)
+      if(length(index_history) >= (breaker_lookback_years + 1)) {
 
-      #calculate trigger point
-      trigger_SB <- B0 * trigger_proportion
+        # current year index = obs_data_year (j-1) - last value
+        I_current <- tail(index_history, 1)
 
-      # Biomass safeguard: reduce TAC proportionally below trigger
-      # b = min(SB/trigger_SB, 1.0); safeguard multiplier (capped at 1.0)
-      b <- min(current_SB / trigger_SB, 1.0)
+        # previous 5 years (excluding current)
+        I_previous <- tail(head(index_history, -1), breaker_lookback_years)
+        I_min_reference <- min(I_previous)
 
-      cat(sprintf("\nBiomass safeguard (b):\n"))
-      cat(sprintf("  Using SB from PREVIOUS year (j=%d, real year %d)\n",
-                  prev_year_j, prev_year_j - 1))
-      cat(sprintf("  Previous year SB = %.2f\n", current_SB))
-      cat(sprintf("  B0 = %.2f\n", B0))
-      cat(sprintf("  SB/B0 = %.3f (%.1f%%)\n", SB_ratio, SB_ratio*100))
-      cat(sprintf("  Trigger = %.1f%% B0 = %.2f\n",
-                  trigger_proportion*100, trigger_SB))
-      cat(sprintf("  b = min(SB/Trigger, 1.0) = %.3f\n", b))
+        cat(sprintf("  Current index (year %d, j=%d): %.4f\n",
+                    obs_data_year - 1, obs_data_year, I_current))
+        cat(sprintf("  Min of previous %d years: %.4f\n",
+                    breaker_lookback_years, I_min_reference))
+        cat(sprintf("  Ratio (current/min): %.3f\n", I_current / I_min_reference))
 
-      if(b < 1.0) {
-        cat(sprintf("SAFEGUARD TRIGGERED (b < 1): TAC will be reduced!\n"))
+        #breaker: if current < minimum --> trigger
+        if(I_current < I_min_reference) {
+          b <- breaker_multiplier
+          cat(sprintf("\n BREAKER TRIGGERED!\n"))
+          cat(sprintf("  Current (%.4f) < Min (%.4f)\n", I_current, I_min_reference))
+          cat(sprintf("  Forcing b = %.2f (%.0f%% TAC reduction)\n",
+                      b, (1 - b) * 100))
+        } else {
+          # not enough history yet
+          b <- 1.0
+          cat(sprintf("\n  Insufficient history (%d years available). Need %d years.\n",
+                      length(index_history), breaker_lookback_years + 1))
+          cat(sprintf("  No breaker applied (b = 1.0)\n"))
+        }
+
       } else {
-        cat(sprintf("Stock above trigger (b = 1): No safeguard reduction\n"))
+        b <- 1.0
+        cat("\n breaker: DISABLED (b = 1.0)\n")
       }
-
-    } else {
-      b <- 1.0
-      cat("\nBiomass safeguard: DISABLED (b = 1.0)\n")
     }
+
+
 
     #Step 5: apply precautionary multiplier (m)
     # Purpose: additional precautionary reduction (e.g., 0.95 = 5% reduction)
@@ -1160,8 +1330,14 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
           r = r,
           n_indices_used = length(index_config$survey_index_names),
           index_combination_method = index_config$index_combination_method,
+
+          #breaker components (replaces SB/B0)
           b = b,
+          breaker_triggered = (b < 1.0),
+          # Precautionary multiplier
           m = precautionary_m,
+
+          #index details
           Index_A = Index_A,
           Index_B = Index_B,
 
@@ -1179,6 +1355,11 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
                              length_results$indicators$Pmature, NA),
           f_L_mean_LF_M = ifelse("L_mean_LF_M" %in% names(length_results$indicators),
                                  length_results$indicators$L_mean_LF_M, NA),
+          f_L_mean_ratio = ifelse("L_mean_ratio" %in% names(length_results$indicators),
+                                  length_results$indicators$L_mean_ratio, NA),
+
+
+
 
           #reference
           L_mat = ifelse(!is.null(length_results$diagnostics$L_mat),
@@ -1189,12 +1370,24 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
                         length_results$diagnostics$LF_M, NA),
           Pmature_value = ifelse(!is.null(length_results$diagnostics$Pmature_value),
                                  length_results$diagnostics$Pmature_value, NA),
-          SB_ratio = if(use_biomass_safeguard) current_SB / B0 else NA,
-          trigger_proportion = if(use_biomass_safeguard) trigger_proportion else NA,
+
+          L_mean_reference = ifelse(!is.null(length_results$diagnostics$L_mean_reference),
+                                    length_results$diagnostics$L_mean_reference, NA),
+
+
+          # TAC calculation details
+
+          # SB_ratio = if(use_biomass_safeguard) current_SB / B0 else NA,
+          # trigger_proportion = if(use_biomass_safeguard) trigger_proportion else NA,
           TAC_previous = TAC_previous,
           TAC_preliminary = TAC_preliminary,
           stability_applied = stability_applied,
-          safeguard_enabled = use_biomass_safeguard,
+
+          # breaker info (replaces biomass safeguard)
+          breaker_enabled = use_index_breaker,
+          breaker_index_used = breaker_index,
+
+          #safeguard_enabled = use_biomass_safeguard,
           obs_data_year_used = obs_data_year - 1,
           stringsAsFactors = FALSE
         ))
