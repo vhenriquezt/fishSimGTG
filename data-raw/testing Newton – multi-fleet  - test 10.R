@@ -451,6 +451,8 @@ multifleet_2fleet@fleet_historicalEffort[,,1] <- ta@historicalEffort
 multifleet_2fleet@fleet_historicalEffort[,,2] <- ta@historicalEffort
 
 
+
+
 # ============================================================================
 # COMPREHENSIVE OBSERVATION MODELS FOR MULTIFLEET (2 FLEETS)
 # ============================================================================
