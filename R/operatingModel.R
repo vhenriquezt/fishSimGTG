@@ -3789,14 +3789,35 @@ calculate_single_LengthComp  <- function(dataObject) {
   # find the range of lengths across all GTGs and ages - useful to define bins
   # length_bin_width from the LCompObs object
   length_bin_width <- LengthCompObj@length_bin_width
+
+  #new BUG: Oct 16,2025 (when I include stochasticity some iteration has fish reaching bigger sizes )
+  #The length composition code was calculating bins based
+  #on each iteration's actual maximum length
+  #oter 1 created  bins up to 155 (156 cols)
+  #iter 2 created bins up to 145  (146 cols)
+  # so rbind did nto work due to dif cols in each iter
+
+
+
+  #use the base LifeHistoryObj to get consistent max_length
+  base_Linf <- LifeHistoryObj@Linf
+  max_length_fixed <- base_Linf * 1.25  # use 125% of base Linf as upper bound
+  #define bins using fixed maximum
+  length_bins <- seq(0, max_length_fixed + length_bin_width, by = length_bin_width)
+  n_length_bins <- length(length_bins) - 1
+
+
   all_lengths <- unlist(lh$L)   # unlist() converts the list of length vectors into one big vector
   min_length <- min(all_lengths)# find the smallest length across all GTGs and ages
   max_length <- max(all_lengths)# find the largest length across all GTGs and ages
 
 
-  # define the bins
-  length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width) #create the sequence of bin edges
-  n_length_bins <- length(length_bins) - 1  #number of edges - 1  [0-1), [1-2), [2-3)..... etc
+  # add a warning if actual exceeds fixed (shouldn't happen with 110% buffer)
+  if(max_length  > max_length_fixed) {
+    warning(sprintf("Iteration %d: max length (%.2f) exceeds fixed max (%.2f). Consider increasing buffer.",
+                    k, max_length , max_length_fixed))
+  }
+
 
   # count indices
   n_indices <- length(LengthCompObj@survey_design)
