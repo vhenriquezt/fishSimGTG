@@ -63,7 +63,7 @@ stochastic_obj@recSD<- c(0.2, 0.6)
 survey1_sel_hist <- new("Fishery")
 survey1_sel_hist@title <- "Research Survey Historical"
 survey1_sel_hist@vulType <- "explog" # dome-shaped
-survey1_sel_hist@vulParams <- c(0.06,24.2,0.49) #dome-shaped - highest peak 35–40 cm -values above 0.2 produce a strongly dome-shaped (max value 0.5)
+survey1_sel_hist@vulParams <- c(0.4,24.2,0.08) #dome-shaped - highest peak 35–40 cm -values above 0.2 produce a strongly dome-shaped (max value 0.5)
 survey1_sel_hist@retType <- "full"
 survey1_sel_hist@retMax <- 1
 survey1_sel_hist@Dmort <- 0
@@ -72,7 +72,7 @@ survey1_sel_hist@Dmort <- 0
 survey1_sel_proj <- new("Fishery")
 survey1_sel_proj@title <- "Research Survey Projection"
 survey1_sel_proj@vulType <- "explog"
-survey1_sel_proj@vulParams <- c(0.06,24.2,0.49)
+survey1_sel_proj@vulParams <- c(0.4,24.2,0.08)
 survey1_sel_proj@retType <- "full"
 survey1_sel_proj@retMax <- 1
 survey1_sel_proj@Dmort <- 0
@@ -84,7 +84,7 @@ survey1_sel_proj@Dmort <- 0
 fleet1_sel_hist <- new("Fishery")
 fleet1_sel_hist@title <- "Fleet 1"
 fleet1_sel_hist@vulType <- "explog"
-fleet1_sel_hist@vulParams <- c(0.3,38.3,0.1)
+fleet1_sel_hist@vulParams <- c(0.28,38.3,0.14)
 fleet1_sel_hist@retType <- "logistic"
 fleet1_sel_hist@retParams<-c(60.96,1)
 fleet1_sel_hist@retMax <- 1
@@ -93,7 +93,7 @@ fleet1_sel_hist@Dmort <- 0.175 #9 -26%
 fleet1_sel_proj <- new("Fishery")
 fleet1_sel_proj@title <- "Fleet 1"
 fleet1_sel_proj@vulType <- "explog"
-fleet1_sel_proj@vulParams <- c(0.3,38.3,0.1)
+fleet1_sel_proj@vulParams <- c(0.28,38.3,0.14)
 fleet1_sel_proj@retType <- "logistic"
 fleet1_sel_proj@retParams<-c(60.96,1)
 fleet1_sel_proj@retMax <- 1
@@ -103,7 +103,7 @@ fleet1_sel_proj@Dmort <- 0.175 #9 -26%
 fleet2_sel_hist <- new("Fishery")
 fleet2_sel_hist@title <- "Fleet 2"
 fleet2_sel_hist@vulType <- "logistic"
-fleet2_sel_hist@vulParams <- c(70.8, 28.1) #95%= 98.9 #mini size 60. 96 cm
+fleet2_sel_hist@vulParams <- c(86.27, 24.57) #95%= 98.9 #mini size 60. 96 cm
 fleet2_sel_hist@retType <- "logistic"
 fleet2_sel_hist@retParams<-c(60.96,1)
 fleet2_sel_hist@retMax <- 1
@@ -112,7 +112,7 @@ fleet2_sel_hist@Dmort <- 0.375
 fleet2_sel_proj <- new("Fishery")
 fleet2_sel_proj@title <- "Fleet 2"
 fleet2_sel_proj@vulType <- "logistic"
-fleet2_sel_proj@vulParams <- c(70.8, 28.1) #95%= 98.9 #mini size 60. 96 cm
+fleet2_sel_proj@vulParams <- c(86.27, 24.57) #95%= 98.9 #mini size 60. 96 cm
 fleet2_sel_proj@retType <- "logistic"
 fleet2_sel_proj@retParams<-c(60.96,1)
 fleet2_sel_proj@retMax <- 1
@@ -271,8 +271,8 @@ multi_comprehensive_index@survey_design <- list(
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.5,     # assuming midyear for now
-    q_hist_bounds = c(0.01, 0.08),  #assuming low catchability range - does not observe the entire stock
-    q_proj_bounds = c(0.01, 0.08),
+    q_hist_bounds = c(1.56e-06, 2.41e-06),  #assuming low catchability range - does not observe the entire stock
+    q_proj_bounds = c(1.56e-06, 2.41e-06),
     hyperstability_hist_bounds = c(0.8, 1.2),
     hyperstability_proj_bounds = c(0.8, 1.2),
     obsError_CV_hist_bounds = c(0.086, 0.208),
@@ -285,8 +285,8 @@ multi_comprehensive_index@survey_design <- list(
     fleet_id = 1,
     areas = c(1),
     indexYears = seq(1, 35, 1),
-    q_hist_bounds = c(0.05, 0.15),
-    q_proj_bounds = c(0.05, 0.15),
+    q_hist_bounds = c(2.62e-06, 4.07e-06),
+    q_proj_bounds = c(2.62e-06, 4.07e-06),
     hyperstability_hist_bounds = c(0.8, 1.2),
     hyperstability_proj_bounds = c(0.8, 1.2),
     obsError_CV_hist_bounds = c(0.12, 0.30),
