@@ -1567,7 +1567,7 @@ multifleet_islope_length_MP   <- function(phase, dataObject) {
 # Strategy objects
 strategy_indexslope_length  <- new("Strategy")
 strategy_indexslope_length @title <- "Multiple Islope and Lindicators MP"
-strategy_indexslope_length @projectionYears <- 5
+strategy_indexslope_length @projectionYears <- 15
 strategy_indexslope_length @projectionName <- "multifleet_islope_length_MP"
 strategy_indexslope_length@projectionParams <- list()
 
@@ -1617,7 +1617,7 @@ multi_comprehensive_index@survey_design <- list(
   list(
     indextype = "FI",
     areas = c(1, 2),
-    indexYears = seq(1, 15, 2),
+    indexYears = seq(1, 25, 2),
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.3,
@@ -1633,7 +1633,7 @@ multi_comprehensive_index@survey_design <- list(
   list(
     indextype = "FI",
     areas = c(2),
-    indexYears = c(4, 8, 12, 15),
+    indexYears = c(4, 8, 12, 15,16,18,19,20,25),
     selectivity_hist_idx = 2,
     selectivity_proj_idx = 2,
     survey_timing = 0.7,
@@ -1651,7 +1651,7 @@ multi_comprehensive_index@survey_design <- list(
     indextype = "FD",
     fleet_id = 1,
     areas = c(1),
-    indexYears = 1:15,
+    indexYears = 1:25,
     q_hist_bounds = c(0.0001, 0.0003),
     q_proj_bounds = c(0.00015, 0.0004),
     hyperstability_hist_bounds = c(0.9, 1.1),
@@ -1665,7 +1665,7 @@ multi_comprehensive_index@survey_design <- list(
     indextype = "FD",
     fleet_id = 1,
     areas = c(2),
-    indexYears = seq(2, 15, 2),
+    indexYears = seq(2, 25, 1),
     q_hist_bounds = c(0.00015, 0.0004),
     q_proj_bounds = c(0.0002, 0.0005),
     hyperstability_hist_bounds = c(0.8, 1.2),
@@ -1679,7 +1679,7 @@ multi_comprehensive_index@survey_design <- list(
     indextype = "FD",
     fleet_id = 2,
     areas = c(1),
-    indexYears = 1:15,
+    indexYears = 1:25,
     q_hist_bounds = c(0.0002, 0.0006),
     q_proj_bounds = c(0.0003, 0.0008),
     hyperstability_hist_bounds = c(0.7, 1.3),
@@ -1693,7 +1693,7 @@ multi_comprehensive_index@survey_design <- list(
     indextype = "FD",
     fleet_id = 2,
     areas = c(2),
-    indexYears = seq(1, 15, 2),
+    indexYears = seq(1, 15, 1),
     q_hist_bounds = c(0.00025, 0.0007),
     q_proj_bounds = c(0.0004, 0.0009),
     hyperstability_hist_bounds = c(0.6, 1.4),
@@ -1713,11 +1713,11 @@ multi_comprehensive_catch@fleet_configs <- list(
   list(
     fleet_id = 1,
     areas = c(1, 2),
-    catchYears = 1:15,
-    reporting_rates = c(seq(0.9, 1.0, length.out = 10), rep(1.0, 5)),
+    catchYears = 1:25,
+    reporting_rates = c(seq(0.9, 1.0, length.out = 10), rep(1.0, 15)),
     obs_CVs = matrix(
-      c(c(seq(0.15, 0.10, length.out = 10), rep(0.08, 5)),
-        c(seq(0.25, 0.20, length.out = 10), rep(0.15, 5))),
+      c(c(seq(0.15, 0.10, length.out = 10), rep(0.08, 15)),
+        c(seq(0.25, 0.20, length.out = 10), rep(0.15, 15))),
       ncol = 2
     )
   ),
@@ -1726,11 +1726,11 @@ multi_comprehensive_catch@fleet_configs <- list(
   list(
     fleet_id = 2,
     areas = c(1, 2),
-    catchYears = seq(1, 15, 1),
-    reporting_rates = c(seq(0.7, 0.9, length.out = 10), rep(0.95, 5)),
+    catchYears = seq(1, 25, 1),
+    reporting_rates = c(seq(0.7, 0.9, length.out = 10), rep(0.95, 15)),
     obs_CVs = matrix(
-      c(c(seq(0.25, 0.20, length.out = 10), rep(0.18, 5)),
-        c(seq(0.40, 0.35, length.out = 10), rep(0.30, 5))),
+      c(c(seq(0.25, 0.20, length.out = 10), rep(0.18, 15)),
+        c(seq(0.40, 0.35, length.out = 10), rep(0.30, 15))),
       ncol = 2
     )
   )
@@ -1750,8 +1750,8 @@ multi_comprehensive_lcomp@survey_design <- list(
     indextype = "FD",
     fleet_id = 1,
     areas = c(1),
-    years = seq(1, 15, 1),
-    sample_sizes = seq(100, 250, length.out = 15)
+    years = seq(1, 25, 1),
+    sample_sizes = seq(100, 250, length.out = 25)
   ),
 
   # 2. Fleet 2 fishery length composition
@@ -1759,16 +1759,16 @@ multi_comprehensive_lcomp@survey_design <- list(
     indextype = "FD",
     fleet_id = 2,
     areas = c(2),
-    years = seq(1, 15, 1),
-    sample_sizes = seq(80, 180, length.out = 15)
+    years = seq(1, 25, 1),
+    sample_sizes = seq(80, 180, length.out = 25)
   ),
 
   # 3. Survey 1 length composition - Area 1 only
   list(
     indextype = "FI",
     areas = c(1,2),
-    years = seq(1,15,3),
-    sample_sizes = c(300,250,300,300,300),
+    years = seq(1,25,3),
+    sample_sizes = c(300,250,300,300,300,300,300,300,300),
     selectivity_hist_idx = 1,
     selectivity_proj_idx = 1,
     survey_timing = 0.3
@@ -1778,7 +1778,7 @@ multi_comprehensive_lcomp@survey_design <- list(
   list(
     indextype = "FI",
     areas = c(2),
-    years = c(4, 8, 12, 15),
+    years = c(4, 8, 12, 25),
     sample_sizes = c(150, 180, 200, 220),
     selectivity_hist_idx = 2,
     selectivity_proj_idx = 2,
@@ -2056,3 +2056,4 @@ for(age in test_ages) {
   cat(sprintf("  Different? %s\n", abs(f1_keep - f2_keep) > 0.001))
 
 }
+
