@@ -234,20 +234,28 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
     # Lookback period for L_mean_ratio calculation
     length_lookback_years = 5,  # compare current year to previous 5 years
 
+    # catch source for weighting length compositions
+    # Options:
+    # "observed" - use observed catches from CatchObsObj (includes observation error)
+    # "true"     - use true catches from simulation (catchB_by_fleet)
+    # "auto"     - try observed first, fall back to true if unavailable
+    catch_source_for_weighting = "auto",  # "observed", "true", or "auto"
+
+
     #enable/disable all indicators
     use_length_indicators = TRUE
 
   )
 
 
-  #7. enable the use of biomass safeguard based on unfished spawning biomass
+  #7. enable the use of safeguard
   #use_biomass_safeguard <- TRUE
 
   use_index_breaker <- TRUE
   breaker_index <- "IDX_CPUE_3_Fleet_1"  # MRIP index -choose monitoring index (CPUE or Survey)
 
   #8. trigger point as proportion of index
-  breaker_lookback_years <- 5 # look back 5 years to find minimum index
+  breaker_lookback_years <- 5 # look back 5 years to find minimum index (window rollign)
   breaker_multiplier <- 0.50  # force 50% TAC when triggered
 
   #trigger_proportion <- 0.20  # Trigger at 20% of unfished biomass
@@ -264,11 +272,20 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
   max_tac_increase <- 1.2  # 20% maximum increase
 
 
-  # It is important to mention here that:
-  # Stability clause (7): Controls year-to-year TAC changes
-  # max_increase = 0.20 = +20% cap
-  # max_decrease = 0.30 = -30% floor
-  # Only applies when b >= 1 (stock healthy)
+  # Important: interaction between length indicators and stability clause
+  # Length indicator cap (max_tac_increase = 1.2):
+  #   - Applied to each indicator adjustment before combining
+  #   - Limits individual indicator increases to +20%
+
+  # Stability clause (Step 7):
+  #   - Applied to final TAC after all multipliers
+  #   - max_increase = 0.20 (+20% cap)
+  #   - max_decrease = 0.30 (-30% floor)
+  #   - Only active when b >= 1 (stock healthy)
+  #
+  # Result: TAC increases limited to +20% even if length indicators suggest more
+
+
 
   # The length indicator maximum (in combine_length_indicators)
   # max_tac_increase = 1.2 = caps individual length indicator adjustments at 120% (max increase 20%)
@@ -363,6 +380,20 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
   }
 
   if(phase == 2) {
+
+
+    # Step 0: Time indexing (j  real year, obs_data_year)
+    # Step 1: Previous TAC (initial or from prior year)
+    # Step 2: Index ratio (r) - biomass trend from surveys/CPUE
+    # Step 3: Length indicators (f_length) - size structure
+    #         3.1: Calculate L_mean (catch-weighted for multifleet)
+    #         3.2: Combine multiple indicators
+    # Step 4: Safeguard (b) - index breaker
+    # Step 5: Precautionary multiplier (m) - additional buffer
+    # Step 6: Preliminary TAC = TAC_prev × r × f_length × b × m
+    # Step 7: Stability clause - limit year-to-year changes
+    # Step 8: Fleet allocation - split TAC among fleets
+    # Step 9: Area allocation - distribute fleet TACs to areas
 
     #Step 0: j index to real year
 
@@ -570,7 +601,7 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
 
 
 
-    #Step 3: length indicators
+    #Step 3: length indicators (f_length calculation)
 
     f_length <- 1.0  # Default if disabled
     length_results <- list(L_mean = NA, indicators = list(), diagnostics = list())
@@ -600,6 +631,8 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
     cat(sprintf("  Using length composition from real year %d (j=%d)\n",
                 obs_data_year - 1, obs_data_year))
 
+    #validate length composition data availability
+    #this check ensures we have FD data before calling calculate_length_indicators()
     #find all FD length bin columns
     bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
 
@@ -608,18 +641,6 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
            "This MP requires length composition data when length indicators are enabled. ",
            "Check LengthCompObj@survey_design configuration.")
     }
-
-    #aggregate counts across all FD programs
-    total_counts <- numeric(length(bin_midpoints))
-    for(col in bin_cols) {
-      if(!is.na(current_lc[[col]])) {
-        bin_idx <- as.numeric(sub(".*_bin_", "", col))
-        if(bin_idx <= length(total_counts)) {
-          total_counts[bin_idx] <- total_counts[bin_idx] + current_lc[[col]]
-        }
-      }
-    }
-
 
 
         # needed for proportion mature in catch (to get the probability of being mature at length of catch)
@@ -634,48 +655,271 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
         }
 
         # calculate all length indicators
-        calculate_length_indicators <- function(lh, length_config, bin_midpoints, total_counts) {
+        # calculate all length indicators
+        calculate_length_indicators <- function(lh, length_config, decisionData,
+                                                current_lc, obs_data_year, k,
+                                                is_multifleet, nfleets, areas,
+                                                catchB_by_fleet = NULL) { #new: pass true catches
 
           indicators <- list() #  list of calculated indicator values
           diagnostics <- list() # reference used (L_mat, L_opt, etc.)
 
-          # all indicators compare observed mean length to some reference length:
-          # f > 1: fishing larger than reference
-          # f < 1: fishing smaller than reference
+
+          #get length bin setup
+          length_bin_width <- LengthCompObj@length_bin_width
+          max_length <- max(unlist(lh$L))
+          length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width)
+          bin_midpoints <- length_bins[-length(length_bins)] + length_bin_width/2
+
+          # NEW ADDITION
+
+          # STEP 1: CALCULATE L_MEAN WITH CATCH-WEIGHTING (MULTIFLEET)
+          # weight each fleet's L_mean by its catch proportion
+
+          if(is_multifleet) {
+            L_mean_by_fleet <- numeric(nfleets)
+            fleet_catch_props <- numeric(nfleets)
+            catch_source_used <- "none"
 
 
-          # calculate L_mean (needed for most indicators)
-          # length indicators are based on this mean length from FD data
-          # represents the average size of fish being caught
-          if(sum(total_counts) > 0) {
-            L_mean <- sum(bin_midpoints * total_counts) / sum(total_counts)
+            for(f in 1:nfleets) {
+              #get this fleet length composition
+              fleet_bin_pattern <- paste0("LC_Fishery_.*_Fleet_", f, "_count_bin_")
+              fleet_bin_cols <- grep(fleet_bin_pattern, names(current_lc), value = TRUE)
 
-            # e.g., with 3 bins:
-            # bins:    [8.5cm,  9.5cm,  10.5cm]
-            # counts:  [10,     50,     30]
-            # l_mean = (8.5×10 + 9.5×50 + 10.5×30) / (10+50+30)
-            #          = (85 + 475 + 315) / 90
-            #          = 875 / 90 = 9.72cm
+              if(length(fleet_bin_cols) > 0) {
+                #initialize count vector
+                fleet_counts <- numeric(length(bin_midpoints))
+                # sum across all length bins for this fleet
+                for(col in fleet_bin_cols) {
+                  bin_idx <- as.numeric(sub(".*_bin_", "", col))
+                  if(bin_idx <= length(fleet_counts) && !is.na(current_lc[[col]])) {
+                    fleet_counts[bin_idx] <- fleet_counts[bin_idx] + current_lc[[col]]
+                  }
+                }
+
+                # calculate fleet-specific L_mean
+                # L_mean = sum(length × count) / sum(count)
+
+                if(sum(fleet_counts) > 0) {
+                  L_mean_by_fleet[f] <- sum(bin_midpoints * fleet_counts) / sum(fleet_counts)
+                } else {
+                  L_mean_by_fleet[f] <- NA
+                }
+              } else {
+                L_mean_by_fleet[f] <- NA
+              }
+
+              #get fleet catch proportions
+              #Three modes (catch_source_for_weighting): "observed", "true", or "auto"
+              # "observed" = use CatchObsObj (includes observation error)
+              # "true" = use catchB_by_fleet (no observation error)
+              # "auto" = try observed first, fall back to true catch
+
+              catch_source <- length_config$catch_source_for_weighting
+              fleet_total_catch <- 0
+
+              # trying observed catch first (if requested or auto)
+              if(catch_source %in% c("observed", "auto")) {
+                observed_available <- TRUE
+                for(m in 1:areas) {
+                  catch_col <- paste0("fleet_", f, "_observed_catch_area_", m)
+
+                  # check if column exists in decisionData
+                  if(catch_col %in% names(decisionData)) {
+                    catch_value <- decisionData[[catch_col]][
+                      decisionData$k == k & decisionData$j == obs_data_year
+                    ]
+
+                    if(length(catch_value) > 0 && !is.na(catch_value)) {
+                      fleet_total_catch <- fleet_total_catch + catch_value
+                    }
+                  } else {
+                    # Column does not exist - observed catches not available
+                    observed_available <- FALSE
+                    break
+                  }
+                }
+                # check if we successfully got observed catches
+                if(observed_available && fleet_total_catch > 0) {
+                  catch_source_used <- "observed"
+                } else if(catch_source == "observed") {
+                  stop("Observed catches requested but not available. ",
+                       "Check that CatchObsObj is provided and has data for year ", obs_data_year - 1)
+                }
+                # if "auto" and observed not available, continue to try true
+              }
+              # fall back to TRUE catch (if needed)
+              if(catch_source_used == "none") {
+                if(is.null(catchB_by_fleet)) {
+                  stop("True catches not available. Need catchB_by_fleet from dataObject.")
+                }
+
+                #sum true catches across all areas for this fleet
+                #access to catchB_by_fleet[year, iteration, area, fleet]
+                for(m in 1:areas) {
+                  fleet_total_catch <- fleet_total_catch + catchB_by_fleet[obs_data_year, k, m, f]
+                }
+                catch_source_used <- "true"
+              }
+
+              ## Store this fleet's total catch for proportional weighting
+              fleet_catch_props[f] <- fleet_total_catch
+            }
+
+            #normalize catch proportions
+            if(sum(fleet_catch_props) > 0) {
+              fleet_catch_props <- fleet_catch_props / sum(fleet_catch_props)
+            } else {
+              warning("No catch data available for fleet weighting, using equal weights")
+              fleet_catch_props <- rep(1/nfleets, nfleets)
+              catch_source_used <- "equal_weights"
+            }
+
+            #calculate catch-weighted L_mean
+            #only use fleets with valid length data
+            valid_fleets <- !is.na(L_mean_by_fleet)
+            if(sum(valid_fleets) > 0) {
+              #renormalize weights for valid fleets only
+              valid_weights <- fleet_catch_props[valid_fleets]
+              valid_weights <- valid_weights / sum(valid_weights)
+
+              ## weighted average
+              L_mean <- sum(L_mean_by_fleet[valid_fleets] * valid_weights)
+
+              #store diagnostics
+              diagnostics$L_mean_by_fleet <- L_mean_by_fleet
+              diagnostics$fleet_catch_props <- fleet_catch_props
+              diagnostics$weighting_method <- "catch-weighted"
+              diagnostics$catch_source_used <- catch_source_used  # new
+
+
+              #print results
+              cat(sprintf("\n  Catch-weighted L_mean calculation:\n"))
+              cat(sprintf("  Catch source: %s\n", catch_source_used))
+              for(f in 1:nfleets) {
+                if(valid_fleets[f]) {
+                  cat(sprintf("    Fleet %d: L_mean=%.2f cm, catch proportion=%.1f%%\n",
+                              f, L_mean_by_fleet[f], fleet_catch_props[f]*100))
+                }
+              }
+              cat(sprintf("  Overall L_mean = %.2f cm\n", L_mean))
+
+            } else {
+              stop("No valid length data available from any fleet")
+            }
 
           } else {
-            stop("No length composition samples available for year ", obs_data_year - 1, ". ",
-                 "This MP requires length composition data when length indicators are enabled.")
+            # for simgle fleet we just use simple aggregation (no weighting needed)
+            bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
+
+            if(length(bin_cols) == 0) {
+              stop("No FD length composition data available")
+            }
+
+            total_counts <- numeric(length(bin_midpoints))
+            for(col in bin_cols) {
+              if(!is.na(current_lc[[col]])) {
+                bin_idx <- as.numeric(sub(".*_bin_", "", col))
+                if(bin_idx <= length(total_counts)) {
+                  total_counts[bin_idx] <- total_counts[bin_idx] +
+                    current_lc[[col]]
+                }
+              }
+            }
+
+            if(sum(total_counts) > 0) {
+              L_mean <- sum(bin_midpoints * total_counts) / sum(total_counts)
+              diagnostics$weighting_method <- "unweighted"
+              diagnostics$catch_source_used <- "single_fleet"
+            } else {
+              stop("No length composition samples available")
+            }
           }
 
 
-          # 1. L_mean / L_mat (mean length relative to L50)
-          # e.g.:
-          #   f = 1.2:  fish 20% larger than 50% maturity
-          #   f = 1.0:  fish right at 50% maturity
-          #   f = 0.8:  fish 20% smaller than 50% maturity
+          # Step 2. Proportion mature in catch - Also calculate Pmature with same catch-weighting
+          # what proportion of the catch is mature?- goal spawning Biomass proteccion
+          # here we compare to a predetermined target
 
+
+
+          if(length_config$use_Pmature) {
+            if(is_multifleet) {
+              Pmature_by_fleet <- numeric(nfleets)
+
+              for(f in 1:nfleets) {
+                fleet_bin_pattern <- paste0("LC_Fishery_.*_Fleet_", f, "_count_bin_")
+                fleet_bin_cols <- grep(fleet_bin_pattern, names(current_lc), value = TRUE)
+
+                if(length(fleet_bin_cols) > 0) {
+                  fleet_counts <- numeric(length(bin_midpoints))
+                  for(col in fleet_bin_cols) {
+                    bin_idx <- as.numeric(sub(".*_bin_", "", col))
+                    if(bin_idx <= length(fleet_counts) && !is.na(current_lc[[col]])) {
+                      fleet_counts[bin_idx] <- fleet_counts[bin_idx] + current_lc[[col]]
+                    }
+                  }
+
+                  if(sum(fleet_counts) > 0) {
+                    maturity_at_length <- calculate_maturity_ogive(bin_midpoints, lh)
+
+                    # weighted average: sum(count × maturity) / sum(count)
+                    Pmature_by_fleet[f] <- sum(fleet_counts * maturity_at_length) / sum(fleet_counts)
+                  } else {
+                    Pmature_by_fleet[f] <- NA
+                  }
+                } else {
+                  Pmature_by_fleet[f] <- NA
+                }
+              }
+
+              # use same fleet catch proportions as L_mean (consistent weighting across all indicators)
+              # this ensures all length indicators (L_mean, Pmature, L_mean_ratio) use identical weighting
+              valid_fleets <- !is.na(Pmature_by_fleet)
+              if(sum(valid_fleets) > 0) {
+                valid_weights <- fleet_catch_props[valid_fleets]
+                valid_weights <- valid_weights / sum(valid_weights)
+                Pmature_value <- sum(Pmature_by_fleet[valid_fleets] * valid_weights)
+              } else {
+                stop("No valid Pmature data from any fleet")
+              }
+
+            } else {
+              #single fleet Pmature
+              bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
+              total_counts <- numeric(length(bin_midpoints))
+              for(col in bin_cols) {
+                if(!is.na(current_lc[[col]])) {
+                  bin_idx <- as.numeric(sub(".*_bin_", "", col))
+                  if(bin_idx <= length(total_counts)) {
+                    total_counts[bin_idx] <- total_counts[bin_idx] + current_lc[[col]]
+                  }
+                }
+              }
+              maturity_at_length <- calculate_maturity_ogive(bin_midpoints, lh)
+              Pmature_value <- sum(total_counts * maturity_at_length) / sum(total_counts)
+            }
+
+            #scale to target (makes f=1.0 when at target)
+            indicators$Pmature <- Pmature_value / length_config$target_Pmature
+            diagnostics$Pmature_value <- Pmature_value
+          }
+
+
+
+          #Step 3: Other L indicators (all use the L_mean calculated above))
+
+          # for other indicators (L_mean/L_mat, L_mean/L_opt, etc.)
+          # Keeping existing code -  uses the L_mean calculated above
+
+          # 1. L_mean / L_mat (mean length relative to length at maturity)
           if(length_config$use_L_mean_L_mat) {
             L_mat <- lh$LifeHistory@L50
             indicators$L_mean_L_mat <- L_mean / L_mat
             diagnostics$L_mat <- L_mat
-          } else {
-            diagnostics$L_mat <- NULL
           }
+
 
           # 2. L_mean / L_opt (mean length relative to optimal length)
           # do we catch fish at the size that maximizes yield?
@@ -689,174 +933,131 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
             L_opt <- (3 * lh$LifeHistory@Linf) / (3 + MK_ratio)
             indicators$L_mean_L_opt <- L_mean / L_opt
             diagnostics$L_opt <- L_opt
-          } else {
-            diagnostics$L_opt <- NULL
           }
 
-          # 3. Proportion mature in catch
-          # what proportion of the catch is mature?- goal spawning Biomass proteccion
-          # here we compare to a predetermined target
-
-          #   f = 1.2: 20% above target
-          #   f = 1.0:  at target
-          #   f = 0.6: 40% below target
-
-          #   e.g.,:
-          #   bins:        [7.5cm,  8.5cm,  9.5cm,  10.5cm]
-          #   counts:      [20,     60,     80,     40]
-          #   maturity:    [0.15,   0.45,   0.75,   0.90]  (from ogive)
-          #   Pmature = (20×0.15 + 60×0.45 + 80×0.75 + 40×0.90) / 200
-          #           = (3 + 27 + 60 + 36) / 200 = 126/200 = 0.63
-          #   If target = 0.5: f = 0.63/0.5 = 1.26 (26% above target)
-
-          if(length_config$use_Pmature) {
-            # Calculate maturity at each bin midpoint
-            maturity_at_length <- calculate_maturity_ogive(bin_midpoints, lh)
-
-            # proportion proportion mature in catch (weighted average)
-            Pmature_value <- sum(total_counts * maturity_at_length) / sum(total_counts)
-
-            # scale to target ("how close to target")
-            # this makes it comparable to other indicators where f=1 is ideal
-            indicators$Pmature <- Pmature_value / length_config$target_Pmature
-            diagnostics$Pmature_value <- Pmature_value
-          } else {
-            diagnostics$Pmature_value <- NULL
-          }
-
-          # 4. L_mean / LF_M (Beverton-Holt as RFB)
-          # LF_M (length when F=M, used in ICES RFB rule) (I know it is not optimal for BG, buthere we can replace by another L indicator)
-          #   f > 1.0: catching larger than LF_M
-          #   f = 1.0: catching at LF_M (MSY proxy)
-          #   f < 1.0: catching smaller than LF_M
-
-
+          # 3. L_mean / LF_M (Beverton-Holt reference length)
           if(length_config$use_L_mean_LF_M) {
             LF_M <- 0.75 * length_config$Lc + 0.25 * lh$LifeHistory@Linf
             indicators$L_mean_LF_M <- L_mean / LF_M
             diagnostics$LF_M <- LF_M
-          } else {
-            diagnostics$LF_M <- NULL
           }
 
-          # 5. L_mean_ratio - Temporal trend in mean length
-          # compares CURRENT YEAR (j-1) to PREVIOUS lookback YEARS
-          # use to detect declining mean length in the most recent year
-          # This is the ONLY indicator that uses a rolling window (5 years rolling window)
-          # Current: year j-1 (obs_data_year)
-          # Reference: average of years (j-1-lookback) through (j-2)
-
-          # example with j=13, obs_data_year=12, lookback=5:
-          #   current: year 12 L_mean
-          #   reference: average L_mean from years 7, 8, 9, 10, 11
-          #
-          # Interpretation:
-          #   f > 1.0: mean length INCREASING (good)
-          #   f = 1.0: mean length STABLE
-          #   f < 1.0: mean length DECLINING (bad)
+          #4 . L_mean_ratio - Temporal trend in mean length
+          # Compares current year (j-1) to previus lookback years (uses a rolling window)
 
           if(length_config$use_L_mean_ratio) {
 
             lookback <- length_config$length_lookback_years  # e.g., 5
+            #current L_mean: already calculated above from obs_data_year (j-1)
 
-            # CURRENT L_mean: already calculated above from obs_data_year (j-1)
-
-            # REFERENCE L_mean: average of the PREVIOUS 'lookback' years
-            # EXCLUDING the current year (obs_data_year) from the reference
+            #Ref L_mean: average of the previus 'lookback' years
+            #excluding the current year (obs_data_year)
             #
             # Example with obs_data_year = 12 and lookback = 5:
-            #   Current: year 12
-            #   Reference: years 7, 8, 9, 10, 11 (the 5 years BEFORE year 12)
+            # current: year 12
+            # reference: years 7, 8, 9, 10, 11 (the 5 years before year 12)
 
             start_year_ref <- obs_data_year - lookback      # = 12 - 5 = 7
             end_year_ref <- obs_data_year - 1               # = 12 - 1 = 11
 
 
-            # Verify getting exactly 'lookback' years
-            n_ref_years <- end_year_ref - start_year_ref + 1
-            if(n_ref_years != lookback) {
-              warning(sprintf("Reference period has %d years, expected %d",
-                              n_ref_years, lookback))
-            }
-
-            # extract length composition for reference period
+            #extract length composition for reference period
             ref_lc <- decisionData[decisionData$k == k &
                                      decisionData$j >= start_year_ref &
                                      decisionData$j <= end_year_ref, ]
 
-            # verify NOT including current year
-            if(any(ref_lc$j == obs_data_year)) {
-              stop("ERROR: Reference period incorrectly includes current observation year!")
-            }
+            if(is_multifleet) {
+              L_mean_ref_by_fleet <- numeric(nfleets)
 
-            # find FD length bins for reference period
-            ref_bin_cols <- grep("LC_Fishery_.*_count_bin_", names(ref_lc), value = TRUE)
+              for(f in 1:nfleets) {
+                fleet_bin_pattern <- paste0("LC_Fishery_.*_Fleet_", f, "_count_bin_")
+                fleet_bin_cols <- grep(fleet_bin_pattern, names(ref_lc), value = TRUE)
 
-            # aggregate counts from reference period (5 years)
-            ref_counts <- numeric(length(bin_midpoints))
-            for(col in ref_bin_cols) {
-              bin_idx <- as.numeric(sub(".*_bin_", "", col))
-              if(bin_idx <= length(ref_counts)) {
-                ref_counts[bin_idx] <- ref_counts[bin_idx] + sum(ref_lc[[col]], na.rm = TRUE)
+                if(length(fleet_bin_cols) > 0) {
+                  ref_fleet_counts <- numeric(length(bin_midpoints))
+                  for(col in fleet_bin_cols) {
+                    bin_idx <- as.numeric(sub(".*_bin_", "", col))
+                    if(bin_idx <= length(ref_fleet_counts)) {
+                      ref_fleet_counts[bin_idx] <- ref_fleet_counts[bin_idx] +
+                        sum(ref_lc[[col]], na.rm = TRUE)
+                    }
+                  }
+
+                  if(sum(ref_fleet_counts) > 0) {
+                    L_mean_ref_by_fleet[f] <- sum(bin_midpoints * ref_fleet_counts) / sum(ref_fleet_counts)
+                  } else {
+                    L_mean_ref_by_fleet[f] <- NA
+                  }
+                }
               }
-            }
 
-            if(sum(ref_counts) > 0) {
-              #we calculate reference L_mean (average over previous 'lookback' years)
-              L_mean_reference <- sum(bin_midpoints * ref_counts) / sum(ref_counts)
-
-              #maybe use here only the commercial lengths because they fish at deper waters
-              # wider range of lengths
-
-              indicators$L_mean_ratio <- L_mean / L_mean_reference
-              diagnostics$L_mean_reference <- L_mean_reference
-              diagnostics$L_mean_ref_years <- c(start_year_ref, end_year_ref)
-
-              cat(sprintf("\n5. L_mean_ratio (Temporal Trend):\n"))
-              cat(sprintf("   Current L_mean (year %d, j=%d): %.2f cm\n",
-                          obs_data_year - 1, obs_data_year, L_mean))
-              cat(sprintf("   Reference L_mean (years %d-%d, j=%d-%d): %.2f cm\n",
-                          start_year_ref - 1, end_year_ref - 1,
-                          start_year_ref, end_year_ref, L_mean_reference))
-              cat(sprintf("   Number of reference years: %d\n", n_ref_years))
-              cat(sprintf("   Ratio (current/reference): %.3f\n", indicators$L_mean_ratio))
-
-
-              if(indicators$L_mean_ratio > 1.0) {
-                cat(sprintf("    Status: Mean length INCREASING (good)\n"))
-              } else if(indicators$L_mean_ratio < 1.0) {
-                cat(sprintf("    Status: Mean length DECLINING (warning!)\n"))
+              #use same fleet catch proportions as current year
+              valid_fleets <- !is.na(L_mean_ref_by_fleet)
+              if(sum(valid_fleets) > 0) {
+                valid_weights <- fleet_catch_props[valid_fleets]
+                valid_weights <- valid_weights / sum(valid_weights)
+                L_mean_reference <- sum(L_mean_ref_by_fleet[valid_fleets] *
+                                          valid_weights)
               } else {
-                cat(sprintf("    Status: Mean length STABLE\n"))
+                stop("No valid reference length data")
               }
 
             } else {
-              stop(sprintf("No length composition data in reference period (years %d-%d)",
-                           start_year_ref, end_year_ref))
+              #single fleet reference
+              ref_bin_cols <- grep("LC_Fishery_.*_count_bin_", names(ref_lc), value = TRUE)
+              ref_counts <- numeric(length(bin_midpoints))
+              for(col in ref_bin_cols) {
+                bin_idx <- as.numeric(sub(".*_bin_", "", col))
+                if(bin_idx <= length(ref_counts)) {
+                  ref_counts[bin_idx] <- ref_counts[bin_idx] +
+                    sum(ref_lc[[col]], na.rm = TRUE)
+                }
+              }
+              L_mean_reference <- sum(bin_midpoints * ref_counts) / sum(ref_counts)
             }
-          } else {
-            diagnostics$L_mean_reference <- NULL
-            diagnostics$L_mean_ref_years <- NULL
+
+            indicators$L_mean_ratio <- L_mean / L_mean_reference
+            diagnostics$L_mean_reference <- L_mean_reference
+            diagnostics$L_mean_ref_years <- c(start_year_ref, end_year_ref)
           }
 
-
           return(list(
-            indicators = indicators,       #list of f values for each enabled indicator
-            L_mean = L_mean,               #observed mean length in catch
-            diagnostics = diagnostics      #reference value used (L_mat, L_opt, etc.)
+            indicators = indicators,
+            L_mean = L_mean,
+            diagnostics = diagnostics
           ))
         }
 
+        #call length ind calcuation
+        current_lc <- decisionData[decisionData$k == k &
+                                     decisionData$j == obs_data_year, ]
 
-        #combining length indicators
+        cat(sprintf("\nLength indicator calculation:\n"))
+        cat(sprintf("  Using length composition from real year %d (j=%d)\n",
+                    obs_data_year - 1, obs_data_year))
+
+        # Call with catchB_by_fleet for catch-weighting
+        length_results <- calculate_length_indicators(
+          lh = lh,
+          length_config = length_config,
+          decisionData = decisionData,
+          current_lc = current_lc,
+          obs_data_year = obs_data_year,
+          k = k,
+          is_multifleet = is_multifleet,
+          nfleets = nfleets,
+          areas = areas,
+          catchB_by_fleet = catchB_by_fleet  # true catches for weighting
+        )
+
+        # Step 3.1: Calculate all length indicators (L_mean, Pmature, etc.)
+        # the function above calculates catch-weighted L_mean for multifleet scenarios
+
+        # Step 3.2: Combine length indicators into single TAC multiplier
+
         #when using multiple length indicators, combine them into a single
         #multiplier (f_combined) for the TAC calculation
         #each indicator captures different aspects of size structure
-        #L_mean/L_mat: Reproductive protection
-        #L_mean/L_opt: Yield opti
-        #Pmature: Spawning biomass
-        #L_mean/LF_M: FMSY proxy
-        #L_mean_ratio
 
 
         # There are 3 possible methods to combine the Length indicators:
@@ -995,51 +1196,6 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
         }
 
 
-        # #get most recent length composition data
-        # current_lc <- decisionData[decisionData$k == k & decisionData$j == obs_data_year, ]
-        #
-        # cat(sprintf("\nLength indicator calculation:\n"))
-        # cat(sprintf("  Using length composition from real year %d (j=%d)\n",
-        #             obs_data_year - 1, obs_data_year))
-        #
-        # #find all FD length bin columns
-        # bin_cols <- grep("LC_Fishery_.*_count_bin_", names(current_lc), value = TRUE)
-        #
-        # if(length(bin_cols) == 0) {
-        #   stop("No FD length composition data available for year ", obs_data_year - 1, ". ",
-        #        "This MP requires length composition data when length indicators are enabled. ",
-        #        "Check LengthCompObj@survey_design configuration.")
-        # }
-        #
-        # # get length bin info
-        # length_bin_width <- LengthCompObj@length_bin_width
-        # max_length <- max(unlist(lh$L))
-        # length_bins <- seq(0, max_length + length_bin_width, by = length_bin_width)
-        # bin_midpoints <- length_bins[-length(length_bins)] + length_bin_width/2
-        #
-        # # aggregate counts across all FD programs
-        # total_counts <- numeric(length(bin_midpoints))
-        # for(col in bin_cols) {
-        #   if(!is.na(current_lc[[col]])) {
-        #     bin_idx <- as.numeric(sub(".*_bin_", "", col))
-        #     if(bin_idx <= length(total_counts)) {
-        #       total_counts[bin_idx] <- total_counts[bin_idx] + current_lc[[col]]
-        #     }
-        #   }
-        # }
-        # calculate all enabled length indicators
-        length_results <- calculate_length_indicators(
-          lh = lh,
-          length_config = length_config,
-          bin_midpoints = bin_midpoints,
-          total_counts = total_counts
-        )
-
-        cat(sprintf("  L_mean = %.2f cm\n", length_results$L_mean))
-        for(name in names(length_results$indicators)) {
-          cat(sprintf("  %s = %.3f\n", name, length_results$indicators[[name]]))
-        }
-
         # combine length indicators
         length_combination <- combine_length_indicators(
           indicators = length_results$indicators,
@@ -1082,7 +1238,7 @@ multifleet_indexratio_length_MP_V2   <- function(phase, dataObject) {
     }
 
 
-    #Step 4: calculate Safeguard (b)
+    #Step 4: Calculate safeguard (b) - Index breaker
     # Purpose: Reduce TAC when index approaches the index breaker
     if(use_index_breaker) {
 
