@@ -60,6 +60,23 @@ TimeAreaObj@historicalEffort<-matrix(1:1, nrow = 10, ncol = 2, byrow = FALSE)
 #---Not sure how to set this up? Type ?selWrapper
 HistFisheryObj<-new("Fishery")
 HistFisheryObj@title<-"Example"
+HistFisheryObj@vulType<-"explogFlex"
+HistFisheryObj@vulParams<-c(0.05, 24.20,  0.80, 24.00)
+HistFisheryObj@retType<-"full"
+HistFisheryObj@retMax <- 1
+HistFisheryObj@Dmort <- 0.2
+
+#To simply display to the console
+lhOut<-LHwrapper(LifeHistoryObj, TimeAreaObj)
+selWrapper(lh = lhOut, TimeAreaObj, FisheryObj = HistFisheryObj, doPlot = TRUE)
+
+
+
+#---Pupulate a Fishery object
+#---Contains selectivity, retention and discard characteristics
+#---Not sure how to set this up? Type ?selWrapper
+HistFisheryObj<-new("Fishery")
+HistFisheryObj@title<-"Example"
 HistFisheryObj@vulType<-"gillnetMasterNormal"
 HistFisheryObj@vulParams<-c(4.19,0.71,5.08)
 HistFisheryObj@retType<-"logistic"

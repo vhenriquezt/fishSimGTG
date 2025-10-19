@@ -259,6 +259,27 @@ selWrapper<-function(lh, TimeAreaObj, FisheryObj, doPlot = FALSE,  wd = NULL, im
     }
   }
 
+  #Exponential logistic Flex
+  explogProbFlex<-function(L, param, maxProb){
+    if(
+      length(param) != 4 ||
+      length(maxProb) == 0 ||
+      maxProb < 0 ||
+      maxProb > 1
+    ) {
+      NULL
+    } else {
+      tryCatch({
+        tmp<-exp(param[3]*param[1]*(param[2]-L))/(1-param[3]*(1-exp(param[1]*(param[2]-L))))
+        tmp[which(L < param[4])] <- 0
+        tmp
+      },
+      error = function(c) NULL,
+      warning = function(c) NULL
+      )
+    }
+  }
+
   #Gillnet master normal
   gillnetNormalProb<-function(L, param){
     if(
@@ -349,7 +370,7 @@ selWrapper<-function(lh, TimeAreaObj, FisheryObj, doPlot = FALSE,  wd = NULL, im
   sel<-list()
   if(is.null(lh) ||
      !is(FisheryObj, "Fishery") ||
-     !(FisheryObj@vulType %in%  c("logistic", "explog", "gillnetMasterNormal", "gillnetMasterLognormal")) ||
+     !(FisheryObj@vulType %in%  c("logistic", "explog", "explogFlex", "gillnetMasterNormal", "gillnetMasterLognormal")) ||
      !(FisheryObj@retType %in%  c("full", "logistic", "slotLimit")) ||
      length(FisheryObj@retMax) == 0 ||
      FisheryObj@retMax < 0 ||
@@ -366,6 +387,9 @@ selWrapper<-function(lh, TimeAreaObj, FisheryObj, doPlot = FALSE,  wd = NULL, im
     }
     if(FisheryObj@vulType == "explog") {
       sel$vul<-lapply(1:lh$gtg, FUN=function(x) explogProb(L = lh$L[[x]], param = FisheryObj@vulParams, maxProb = 1.0))
+    }
+    if(FisheryObj@vulType == "explogFlex") {
+      sel$vul<-lapply(1:lh$gtg, FUN=function(x) explogProbFlex(L = lh$L[[x]], param = FisheryObj@vulParams, maxProb = 1.0))
     }
     if(FisheryObj@vulType == "gillnetMasterNormal") {
       sel$vul<-lapply(1:lh$gtg, FUN=function(x) gillnetNormalProb(L = lh$L[[x]], param = FisheryObj@vulParams))

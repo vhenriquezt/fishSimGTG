@@ -244,8 +244,22 @@ multifleet_2fleet@fleet_selectivity_proj_list <- list(
 
 #adding the array of fleet historical eefort
 multifleet_2fleet@fleet_historicalEffort <- array(dim = c(ta@historicalYears, ta@areas, 2))
-multifleet_2fleet@fleet_historicalEffort[,,1] <- ta@historicalEffort
-multifleet_2fleet@fleet_historicalEffort[,,2] <- ta@historicalEffort
+
+#----
+#Bill Edit: Vania, here I've provided historical effort or F multiplier for both
+#reference OMs. You'll need to re-organize the code as needed
+
+#OM1 - stable fishing mortality
+multifleet_2fleet@fleet_historicalEffort[,,1] <- matrix(1:1, nrow = 25, ncol = 2, byrow = FALSE)
+multifleet_2fleet@fleet_historicalEffort[,,2] <- matrix(1:1, nrow = 25, ncol = 2, byrow = FALSE)
+##Below, a reminded to set the historical effort devs (move to approapriate location in your code)
+stochastic_obj@histEffortSD<- c(0.13, 0.25)
+
+#OM2 - increasing fishing mortality
+multifleet_2fleet@fleet_historicalEffort[,,1] <- matrix((1.02)^(0:24), nrow = 25, ncol = 2, byrow = FALSE)
+multifleet_2fleet@fleet_historicalEffort[,,2] <- matrix((1.02)^(0:24), nrow = 25, ncol = 2, byrow = FALSE)
+##Below, a reminded to set the historical effort devs (move to approapriate location in your code)
+stochastic_obj@histEffortSD<- c(0.13, 0.25)
 
 
 # ============================================================================
