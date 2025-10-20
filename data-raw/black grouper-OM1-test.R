@@ -2,6 +2,7 @@
 
 
 rm(list=ls())
+devtools::document()
 devtools::load_all()
 library(ggplot2)
 library(dplyr)
@@ -55,15 +56,15 @@ stochastic_obj@historicalBio <- c(0.3, 0.6)
 stochastic_obj@M<-c(0.09, 0.30)
 stochastic_obj@Steep <- c(0.58, 0.86)
 stochastic_obj@recSD<- c(0.2, 0.6)
-
+stochastic_obj@histEffortSD<- c(0.13, 0.25) #adding SD effort
 
 
 
 #Selectivity: Fishery independent survey (RVC)
 survey1_sel_hist <- new("Fishery")
 survey1_sel_hist@title <- "Research Survey Historical"
-survey1_sel_hist@vulType <- "explog" # dome-shaped
-survey1_sel_hist@vulParams <- c(0.4,24.2,0.08) #dome-shaped - highest peak 35–40 cm -values above 0.2 produce a strongly dome-shaped (max value 0.5)
+survey1_sel_hist@vulType <- "explogFlex" # dome-shaped
+survey1_sel_hist@vulParams <- c(0.058,24.2,0.9,24)
 survey1_sel_hist@retType <- "full"
 survey1_sel_hist@retMax <- 1
 survey1_sel_hist@Dmort <- 0
@@ -71,8 +72,8 @@ survey1_sel_hist@Dmort <- 0
 
 survey1_sel_proj <- new("Fishery")
 survey1_sel_proj@title <- "Research Survey Projection"
-survey1_sel_proj@vulType <- "explog"
-survey1_sel_proj@vulParams <- c(0.4,24.2,0.08)
+survey1_sel_proj@vulType <- "explogFlex"
+survey1_sel_proj@vulParams <- c(0.058,24.2,0.9,24)
 survey1_sel_proj@retType <- "full"
 survey1_sel_proj@retMax <- 1
 survey1_sel_proj@Dmort <- 0
@@ -84,7 +85,7 @@ survey1_sel_proj@Dmort <- 0
 fleet1_sel_hist <- new("Fishery")
 fleet1_sel_hist@title <- "Fleet 1"
 fleet1_sel_hist@vulType <- "explog"
-fleet1_sel_hist@vulParams <- c(0.28,38.3,0.14)
+fleet1_sel_hist@vulParams <- c(0.55,38.3,0.1)
 fleet1_sel_hist@retType <- "logistic"
 fleet1_sel_hist@retParams<-c(60.96,1)
 fleet1_sel_hist@retMax <- 1
@@ -93,7 +94,7 @@ fleet1_sel_hist@Dmort <- 0.175 #9 -26%
 fleet1_sel_proj <- new("Fishery")
 fleet1_sel_proj@title <- "Fleet 1"
 fleet1_sel_proj@vulType <- "explog"
-fleet1_sel_proj@vulParams <- c(0.28,38.3,0.14)
+fleet1_sel_proj@vulParams <- c(0.55,38.3,0.1)
 fleet1_sel_proj@retType <- "logistic"
 fleet1_sel_proj@retParams<-c(60.96,1)
 fleet1_sel_proj@retMax <- 1
@@ -253,13 +254,13 @@ multifleet_2fleet@fleet_historicalEffort <- array(dim = c(ta@historicalYears, ta
 multifleet_2fleet@fleet_historicalEffort[,,1] <- matrix(1:1, nrow = 25, ncol = 2, byrow = FALSE)
 multifleet_2fleet@fleet_historicalEffort[,,2] <- matrix(1:1, nrow = 25, ncol = 2, byrow = FALSE)
 ##Below, a reminded to set the historical effort devs (move to approapriate location in your code)
-stochastic_obj@histEffortSD<- c(0.13, 0.25)
+#stochastic_obj@histEffortSD<- c(0.13, 0.25)
 
 #OM2 - increasing fishing mortality
 multifleet_2fleet@fleet_historicalEffort[,,1] <- matrix((1.02)^(0:24), nrow = 25, ncol = 2, byrow = FALSE)
 multifleet_2fleet@fleet_historicalEffort[,,2] <- matrix((1.02)^(0:24), nrow = 25, ncol = 2, byrow = FALSE)
 ##Below, a reminded to set the historical effort devs (move to approapriate location in your code)
-stochastic_obj@histEffortSD<- c(0.13, 0.25)
+#stochastic_obj@histEffortSD<- c(0.13, 0.25)
 
 
 # ============================================================================
@@ -527,6 +528,15 @@ plot_length_composition_by_area(result_OM1_BG,
 # #check SB
 plot_SB(result_OM1_BG,areas=1)
 plot_SB(result_OM1_BG,areas=2)
+
+#new plot
+plot_SB_total(result_OM1_BG)
+plot_catchN_total(result_OM1_BG, show_fleets = TRUE)
+plot_catchB_total(result_OM1_BG, show_fleets = FALSE)
+
+#only when the obs model creates catch observations
+#plot_observed_catch_total(result_OM1_BG, show_fleets = TRUE)
+
 
 plot_Ftotal_multi(result_OM1_BG,areas=c(1,2))
 plot_Ftotal_multi(result_OM1_BG,areas=c(1))
