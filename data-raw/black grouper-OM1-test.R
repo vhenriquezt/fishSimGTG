@@ -3,6 +3,7 @@
 
 rm(list=ls())
 devtools::document()
+devtools::check()
 devtools::load_all()
 library(ggplot2)
 library(dplyr)
