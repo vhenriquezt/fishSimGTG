@@ -13,7 +13,21 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Imports: LBSPR, shinyWidgets, methods, stats, graphics, tidyverse, ggplot2, dplyr, gridExtra, parallel, snowfall, tidyr, here 
+Imports: 
+    LBSPR,
+    shinyWidgets,
+    methods,
+    stats,
+    graphics,
+    tidyverse,
+    ggplot2,
+    dplyr,
+    gridExtra,
+    parallel,
+    snowfall,
+    tidyr,
+    here,
+    tibble
 Depends: 
     R (>= 4.3.0)
 URL: https://github.com/natureanalytics-ca/fishSimGTG
