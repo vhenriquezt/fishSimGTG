@@ -2021,7 +2021,10 @@ lifehistoryDev<-function(TimeAreaObj, StochasticObj){
        StochasticObj@Steep[2] <= 1 &&
        StochasticObj@Steep[2] >= StochasticObj@Steep[1]
     ) {
-      Steep<-runif(iterations, min = StochasticObj@Steep[1], max = StochasticObj@Steep[2])
+      #Steep<-runif(iterations, min = StochasticObj@Steep[1], max = StochasticObj@Steep[2])
+      upper <- 1
+      lower <- 0.21
+      Steep <- rbeta(iterations, StochasticObj@Steep[1], StochasticObj@Steep[2])*(upper-lower)+lower
     }
 
     #--------
