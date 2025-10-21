@@ -1500,7 +1500,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       catchB_by_fleet <- mseParallel[[1]]$dynamics$multifleet$catchB_by_fleet
       catchN_by_fleet <- mseParallel[[1]]$dynamics$multifleet$catchN_by_fleet
       discB_by_fleet <- mseParallel[[1]]$dynamics$multifleet$discB_by_fleet
-      discN_by_fleet <- mmseParallel[[1]]$dynamics$multifleet$discN_by_fleet
+      discN_by_fleet <- mseParallel[[1]]$dynamics$multifleet$discN_by_fleet
       RB_by_fleet <- mseParallel[[1]]$dynamics$multifleet$RB_by_fleet
       VB_by_fleet <- mseParallel[[1]]$dynamics$multifleet$RB_by_fleet
 
