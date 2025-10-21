@@ -1537,7 +1537,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
         final_effort_proportions[input[[i]][1]:input[[i]][2],] <- mseParallel[[i]]$dynamics$multifleet$final_effort_proportions[input[[i]][1]:input[[i]][2],]
         target_catch_proportions[input[[i]][1]:input[[i]][2],] <- mseParallel[[i]]$dynamics$multifleet$target_catch_proportions[input[[i]][1]:input[[i]][2],]
         actual_catch_proportions[input[[i]][1]:input[[i]][2],] <- mseParallel[[i]]$dynamics$multifleet$actual_catch_proportions[input[[i]][1]:input[[i]][2],]
-        #allocation_type[input[[i]][1]:input[[i]][2],] <- mseParallel[[1]]$dynamics$multifleet$allocation_type[input[[i]][1]:input[[i]][2],]
+
         allocation_type[input[[i]][1]:input[[i]][2]] <- mseParallel[[i]]$dynamics$multifleet$allocation_type[input[[i]][1]:input[[i]][2]]
       }
     }
