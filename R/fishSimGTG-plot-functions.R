@@ -2867,3 +2867,1578 @@ plot_observed_catch_total <- function(simulation_result,
   return(p)
 }
 
+
+# ============================================================================
+# MODIFIED PLOTTING FUNCTIONS WITH ENHANCED FONTS AND STANDARDIZATION
+# Added: Oct 22, 2025
+# These functions improve the original plotting functions above
+# Changes: Larger fonts, standardization by last historical year
+# ============================================================================
+
+# Helper function for standardization
+get_last_historical_value_mod <- function(data, historical_end, metric_col = "value") {
+  last_hist_data <- data %>%
+    filter(user_year == (historical_end - 1)) %>%
+    pull(!!sym(metric_col))
+
+  if(length(last_hist_data) == 0) return(1)
+  return(median(last_hist_data, na.rm = TRUE))
+}
+
+
+#' Modified Total Catch Biomass by Fleet
+#'
+#' Enhanced version with larger fonts and standardization
+#' @inheritParams plot_catchB_total
+#' @export
+plot_catchB_total_modified <- function(simulation_result,
+                                       show_fleets = TRUE,
+                                       show_median = TRUE,
+                                       show_quantiles = TRUE,
+                                       show_individual = FALSE,
+                                       color_palette = NULL,
+                                       title = NULL,
+                                       save_plot = FALSE,
+                                       filename = NULL,
+                                       width = 14,
+                                       height = 10) {
+
+  dynamics <- simulation_result$dynamics
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+  is_multifleet <- !is.null(dynamics$multifleet)
+
+  if(is_multifleet && show_fleets) {
+    catchB_array <- dynamics$multifleet$catchB_by_fleet
+    years <- dim(catchB_array)[1]
+    total_iterations <- dim(catchB_array)[2]
+    nfleets <- dim(catchB_array)[4]
+
+    plot_data <- data.frame()
+
+    for(fleet in 1:nfleets) {
+      catchB_fleet <- apply(catchB_array[, , , fleet], c(1, 2), sum, na.rm = TRUE)
+
+      for(iter in 1:total_iterations) {
+        iter_data <- data.frame(
+          year = 1:years,
+          user_year = 0:(years-1),
+          value = catchB_fleet[, iter],
+          iteration = iter,
+          fleet = paste("Fleet", fleet),
+          period = ifelse(1:years <= historical_end, "Historical", "Projection")
+        )
+        plot_data <- rbind(plot_data, iter_data)
+      }
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, fleet, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(color_palette)) {
+      colors <- c("steelblue", "darkgreen", "orange", "purple", "brown", "pink")[1:nfleets]
+    } else {
+      colors <- color_palette[1:nfleets]
+    }
+
+    if(is.null(title)) {
+      title <- "Total Catch Biomass by Fleet\n(Standardized by Last Historical Year)"
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, color = fleet,
+                             group = interaction(fleet, iteration)),
+                         alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value, color = fleet),
+                         size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_color_manual(values = colors) +
+      scale_fill_manual(values = colors) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Catch Biomass",
+           color = "Fleet", fill = "Fleet") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
+        legend.position = "bottom",
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "bold"),
+        legend.key.size = unit(1.5, "cm")
+      )
+
+  } else {
+    catchB_array <- dynamics$catchB
+    catchB_total <- apply(catchB_array, c(1, 2), sum, na.rm = TRUE)
+    years <- dim(catchB_total)[1]
+    total_iterations <- dim(catchB_total)[2]
+
+    plot_data <- data.frame()
+    for(iter in 1:total_iterations) {
+      iter_data <- data.frame(
+        year = 1:years,
+        user_year = 0:(years-1),
+        value = catchB_total[, iter],
+        iteration = iter,
+        period = ifelse(1:years <= historical_end, "Historical", "Projection")
+      )
+      plot_data <- rbind(plot_data, iter_data)
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(title)) {
+      title <- "Total Catch Biomass\n(Standardized by Last Historical Year)"
+    }
+
+    if(is.null(color_palette)) {
+      main_color <- "brown"
+    } else {
+      main_color <- color_palette[1]
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, group = iteration),
+                         color = main_color, alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75),
+                           fill = main_color, alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value),
+                         color = main_color, size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Catch Biomass") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+      )
+  }
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      filename <- paste0("catchB_total_", fleet_suffix, "_modified.jpeg")
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+#' Modified Total Catch Numbers by Fleet
+#'
+#' Enhanced version with larger fonts and standardization
+#' @inheritParams plot_catchN_total
+#' @export
+plot_catchN_total_modified <- function(simulation_result,
+                                       show_fleets = TRUE,
+                                       show_median = TRUE,
+                                       show_quantiles = TRUE,
+                                       show_individual = FALSE,
+                                       color_palette = NULL,
+                                       title = NULL,
+                                       save_plot = FALSE,
+                                       filename = NULL,
+                                       width = 14,
+                                       height = 10) {
+
+  dynamics <- simulation_result$dynamics
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+  is_multifleet <- !is.null(dynamics$multifleet)
+
+  if(is_multifleet && show_fleets) {
+    catchN_array <- dynamics$multifleet$catchN_by_fleet
+    years <- dim(catchN_array)[1]
+    total_iterations <- dim(catchN_array)[2]
+    nfleets <- dim(catchN_array)[4]
+
+    plot_data <- data.frame()
+
+    for(fleet in 1:nfleets) {
+      catchN_fleet <- apply(catchN_array[, , , fleet], c(1, 2), sum, na.rm = TRUE)
+
+      for(iter in 1:total_iterations) {
+        iter_data <- data.frame(
+          year = 1:years,
+          user_year = 0:(years-1),
+          value = catchN_fleet[, iter],
+          iteration = iter,
+          fleet = paste("Fleet", fleet),
+          period = ifelse(1:years <= historical_end, "Historical", "Projection")
+        )
+        plot_data <- rbind(plot_data, iter_data)
+      }
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, fleet, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(color_palette)) {
+      colors <- c("steelblue", "darkgreen", "orange", "purple", "brown", "pink")[1:nfleets]
+    } else {
+      colors <- color_palette[1:nfleets]
+    }
+
+    if(is.null(title)) {
+      title <- "Total Catch Numbers by Fleet\n(Standardized by Last Historical Year)"
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, color = fleet,
+                             group = interaction(fleet, iteration)),
+                         alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value, color = fleet),
+                         size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_color_manual(values = colors) +
+      scale_fill_manual(values = colors) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Catch Numbers",
+           color = "Fleet", fill = "Fleet") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
+        legend.position = "bottom",
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "bold"),
+        legend.key.size = unit(1.5, "cm")
+      )
+
+  } else {
+    catchN_array <- dynamics$catchN
+    catchN_total <- apply(catchN_array, c(1, 2), sum, na.rm = TRUE)
+    years <- dim(catchN_total)[1]
+    total_iterations <- dim(catchN_total)[2]
+
+    plot_data <- data.frame()
+    for(iter in 1:total_iterations) {
+      iter_data <- data.frame(
+        year = 1:years,
+        user_year = 0:(years-1),
+        value = catchN_total[, iter],
+        iteration = iter,
+        period = ifelse(1:years <= historical_end, "Historical", "Projection")
+      )
+      plot_data <- rbind(plot_data, iter_data)
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(title)) {
+      title <- "Total Catch Numbers\n(Standardized by Last Historical Year)"
+    }
+
+    if(is.null(color_palette)) {
+      main_color <- "brown"
+    } else {
+      main_color <- color_palette[1]
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, group = iteration),
+                         color = main_color, alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75),
+                           fill = main_color, alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value),
+                         color = main_color, size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Catch Numbers") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+      )
+  }
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      filename <- paste0("catchN_total_", fleet_suffix, "_modified.jpeg")
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+#' Modified Total Spawning Biomass
+#'
+#' Enhanced version with larger fonts and standardization
+#' @inheritParams plot_SB_total
+#' @export
+plot_SB_total_modified <- function(simulation_result,
+                                   show_median = TRUE,
+                                   show_quantiles = TRUE,
+                                   show_individual = FALSE,
+                                   color_palette = NULL,
+                                   title = NULL,
+                                   save_plot = FALSE,
+                                   filename = NULL,
+                                   width = 14,
+                                   height = 10) {
+
+  dynamics <- simulation_result$dynamics
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+
+  SB_array <- dynamics$SB
+  SB_total <- apply(SB_array, c(1, 2), sum, na.rm = TRUE)
+
+  years <- dim(SB_total)[1]
+  total_iterations <- dim(SB_total)[2]
+
+  plot_data <- data.frame()
+  for(iter in 1:total_iterations) {
+    iter_data <- data.frame(
+      year = 1:years,
+      user_year = 0:(years-1),
+      value = SB_total[, iter],
+      iteration = iter,
+      period = ifelse(1:years <= historical_end, "Historical", "Projection")
+    )
+    plot_data <- rbind(plot_data, iter_data)
+  }
+
+  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+  plot_data$value <- plot_data$value / std_factor
+
+  summary_data <- plot_data %>%
+    group_by(user_year, period) %>%
+    summarise(
+      median_value = median(value, na.rm = TRUE),
+      q25 = quantile(value, 0.25, na.rm = TRUE),
+      q75 = quantile(value, 0.75, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  if(is.null(title)) {
+    title <- "Total Spawning Biomass\n(Standardized by Last Historical Year)"
+  }
+
+  if(is.null(color_palette)) {
+    main_color <- "steelblue"
+  } else {
+    main_color <- color_palette[1]
+  }
+
+  p <- ggplot()
+
+  if(show_individual) {
+    p <- p + geom_line(data = plot_data,
+                       aes(x = user_year, y = value, group = iteration),
+                       color = main_color, alpha = 0.3, size = 0.5)
+  }
+
+  if(show_quantiles) {
+    p <- p + geom_ribbon(data = summary_data,
+                         aes(x = user_year, ymin = q25, ymax = q75),
+                         fill = main_color, alpha = 0.3)
+  }
+
+  if(show_median) {
+    p <- p + geom_line(data = summary_data,
+                       aes(x = user_year, y = median_value),
+                       color = main_color, size = 2)
+  }
+
+  p <- p +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+               color = "red", alpha = 0.7, size = 1) +
+    scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+    labs(title = title, x = "Year", y = "Relative Spawning Biomass") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+      axis.text.y = element_text(size = 16),
+      axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+      axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+      plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+    )
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      filename <- "SB_total_modified.jpeg"
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+#' Modified Recruitment
+#'
+#' Enhanced version with larger fonts and standardization
+#' @inheritParams plot_recN
+#' @export
+plot_recN_modified <- function(simulation_result,
+                               show_median = TRUE,
+                               show_quantiles = TRUE,
+                               show_individual = FALSE,
+                               color_palette = NULL,
+                               title = NULL,
+                               save_plot = FALSE,
+                               filename = NULL,
+                               width = 14,
+                               height = 10) {
+
+  dynamics <- simulation_result$dynamics
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+
+  recN_array <- dynamics$recN
+  years <- dim(recN_array)[1]
+  total_iterations <- dim(recN_array)[2]
+
+  plot_data <- data.frame()
+  for(iter in 1:total_iterations) {
+    iter_data <- data.frame(
+      year = 1:years,
+      user_year = 0:(years-1),
+      value = recN_array[, iter],
+      iteration = iter,
+      period = ifelse(1:years <= historical_end, "Historical", "Projection")
+    )
+    plot_data <- rbind(plot_data, iter_data)
+  }
+
+  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+  plot_data$value <- plot_data$value / std_factor
+
+  summary_data <- plot_data %>%
+    group_by(user_year, period) %>%
+    summarise(
+      median_value = median(value, na.rm = TRUE),
+      q25 = quantile(value, 0.25, na.rm = TRUE),
+      q75 = quantile(value, 0.75, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  if(is.null(title)) {
+    title <- "Total Recruitment\n(Standardized by Last Historical Year)"
+  }
+
+  if(is.null(color_palette)) {
+    main_color <- "darkgreen"
+  } else {
+    main_color <- color_palette[1]
+  }
+
+  p <- ggplot()
+
+  if(show_individual) {
+    p <- p + geom_line(data = plot_data,
+                       aes(x = user_year, y = value, group = iteration),
+                       color = main_color, alpha = 0.3, size = 0.5)
+  }
+
+  if(show_quantiles) {
+    p <- p + geom_ribbon(data = summary_data,
+                         aes(x = user_year, ymin = q25, ymax = q75),
+                         fill = main_color, alpha = 0.3)
+  }
+
+  if(show_median) {
+    p <- p + geom_line(data = summary_data,
+                       aes(x = user_year, y = median_value),
+                       color = main_color, size = 2)
+  }
+
+  p <- p +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+               color = "red", alpha = 0.7, size = 1) +
+    scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+    labs(title = title, x = "Year", y = "Relative Recruitment") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+      axis.text.y = element_text(size = 16),
+      axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+      axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+      plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+    )
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      filename <- "recN_modified.jpeg"
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+#' Modified Total Discards by Fleet (numbers)
+#'
+#' Enhanced version with larger fonts and standardization
+#' @inheritParams plot_catchN_total
+#' @export
+plot_discN_total_modified <- function(simulation_result,
+                                      show_fleets = TRUE,
+                                      show_median = TRUE,
+                                      show_quantiles = TRUE,
+                                      show_individual = FALSE,
+                                      color_palette = NULL,
+                                      title = NULL,
+                                      save_plot = FALSE,
+                                      filename = NULL,
+                                      width = 14,
+                                      height = 10) {
+
+  dynamics <- simulation_result$dynamics
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+  is_multifleet <- !is.null(dynamics$multifleet)
+
+  if(is_multifleet && show_fleets) {
+    discN_array <- dynamics$multifleet$discN_by_fleet
+    years <- dim(discN_array)[1]
+    total_iterations <- dim(discN_array)[2]
+    nfleets <- dim(discN_array)[4]
+
+    plot_data <- data.frame()
+
+    for(fleet in 1:nfleets) {
+      discN_fleet <- apply(discN_array[, , , fleet], c(1, 2), sum, na.rm = TRUE)
+
+      for(iter in 1:total_iterations) {
+        iter_data <- data.frame(
+          year = 1:years,
+          user_year = 0:(years-1),
+          value = discN_fleet[, iter],
+          iteration = iter,
+          fleet = paste("Fleet", fleet),
+          period = ifelse(1:years <= historical_end, "Historical", "Projection")
+        )
+        plot_data <- rbind(plot_data, iter_data)
+      }
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, fleet, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(color_palette)) {
+      colors <- c("steelblue", "darkgreen", "orange", "purple", "brown", "pink")[1:nfleets]
+    } else {
+      colors <- color_palette[1:nfleets]
+    }
+
+    if(is.null(title)) {
+      title <- "Total Discards by Fleet (Numbers)\n(Standardized by Last Historical Year)"
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, color = fleet,
+                             group = interaction(fleet, iteration)),
+                         alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value, color = fleet),
+                         size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_color_manual(values = colors) +
+      scale_fill_manual(values = colors) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Discard Numbers",
+           color = "Fleet", fill = "Fleet") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
+        legend.position = "bottom",
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "bold"),
+        legend.key.size = unit(1.5, "cm")
+      )
+
+  } else {
+    discN_array <- dynamics$discN
+    discN_total <- apply(discN_array, c(1, 2), sum, na.rm = TRUE)
+    years <- dim(discN_total)[1]
+    total_iterations <- dim(discN_total)[2]
+
+    plot_data <- data.frame()
+    for(iter in 1:total_iterations) {
+      iter_data <- data.frame(
+        year = 1:years,
+        user_year = 0:(years-1),
+        value = discN_total[, iter],
+        iteration = iter,
+        period = ifelse(1:years <= historical_end, "Historical", "Projection")
+      )
+      plot_data <- rbind(plot_data, iter_data)
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(title)) {
+      title <- "Total Discards (Numbers)\n(Standardized by Last Historical Year)"
+    }
+
+    if(is.null(color_palette)) {
+      main_color <- "brown"
+    } else {
+      main_color <- color_palette[1]
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, group = iteration),
+                         color = main_color, alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75),
+                           fill = main_color, alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value),
+                         color = main_color, size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Discard Numbers") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+      )
+  }
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      filename <- paste0("discN_total_", fleet_suffix, "_modified.jpeg")
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+#' Modified Total Fishing Mortality by Fleet (Area 1 only)
+#'
+#' Enhanced version with larger fonts and standardization
+#' Uses only Area 1 as total F
+#' @inheritParams plot_Ftotal_multi
+#' @export
+plot_Ftotal_modified <- function(simulation_result,
+                                 show_fleets = TRUE,
+                                 show_median = TRUE,
+                                 show_quantiles = TRUE,
+                                 show_individual = FALSE,
+                                 color_palette = NULL,
+                                 title = NULL,
+                                 save_plot = FALSE,
+                                 filename = NULL,
+                                 width = 14,
+                                 height = 10) {
+
+  dynamics <- simulation_result$dynamics
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+  is_multifleet <- !is.null(dynamics$multifleet)
+
+  if(is_multifleet && show_fleets) {
+    Ftotal_array <- dynamics$multifleet$Ftotal_by_fleet
+    years <- dim(Ftotal_array)[1]
+    total_iterations <- dim(Ftotal_array)[2]
+    nfleets <- dim(Ftotal_array)[4]
+
+    plot_data <- data.frame()
+
+    # Extract Area 1 only (dimension 3, index 1)
+    for(fleet in 1:nfleets) {
+      Ftotal_fleet <- Ftotal_array[, , 1, fleet]  # Area 1 only
+
+      for(iter in 1:total_iterations) {
+        iter_data <- data.frame(
+          year = 1:years,
+          user_year = 0:(years-1),
+          value = Ftotal_fleet[, iter],
+          iteration = iter,
+          fleet = paste("Fleet", fleet),
+          period = ifelse(1:years <= historical_end, "Historical", "Projection")
+        )
+        plot_data <- rbind(plot_data, iter_data)
+      }
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, fleet, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(color_palette)) {
+      colors <- c("steelblue", "darkgreen", "orange", "purple", "brown", "pink")[1:nfleets]
+    } else {
+      colors <- color_palette[1:nfleets]
+    }
+
+    if(is.null(title)) {
+      title <- "Total Fishing Mortality by Fleet (Area 1)\n(Standardized by Last Historical Year)"
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, color = fleet,
+                             group = interaction(fleet, iteration)),
+                         alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value, color = fleet),
+                         size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_color_manual(values = colors) +
+      scale_fill_manual(values = colors) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Fishing Mortality",
+           color = "Fleet", fill = "Fleet") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
+        legend.position = "bottom",
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "bold"),
+        legend.key.size = unit(1.5, "cm")
+      )
+
+  } else {
+    Ftotal_array <- dynamics$Ftotal
+    # Extract Area 1 only
+    Ftotal_area1 <- Ftotal_array[, , 1]
+
+    years <- dim(Ftotal_area1)[1]
+    total_iterations <- dim(Ftotal_area1)[2]
+
+    plot_data <- data.frame()
+    for(iter in 1:total_iterations) {
+      iter_data <- data.frame(
+        year = 1:years,
+        user_year = 0:(years-1),
+        value = Ftotal_area1[, iter],
+        iteration = iter,
+        period = ifelse(1:years <= historical_end, "Historical", "Projection")
+      )
+      plot_data <- rbind(plot_data, iter_data)
+    }
+
+    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    plot_data$value <- plot_data$value / std_factor
+
+    summary_data <- plot_data %>%
+      group_by(user_year, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(title)) {
+      title <- "Total Fishing Mortality (Area 1)\n(Standardized by Last Historical Year)"
+    }
+
+    if(is.null(color_palette)) {
+      main_color <- "brown"
+    } else {
+      main_color <- color_palette[1]
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, group = iteration),
+                         color = main_color, alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75),
+                           fill = main_color, alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value),
+                         color = main_color, size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative Fishing Mortality") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+      )
+  }
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      filename <- paste0("Ftotal_", fleet_suffix, "_modified.jpeg")
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+#' Modified Indices Plots (Survey and CPUE)
+#'
+#' Enhanced version with larger fonts
+#' @inheritParams plot_indices
+#' @export
+plot_indices_modified <- function(simulation_result,
+                                  index_pattern = "IDX_",
+                                  show_median = TRUE,
+                                  show_quantiles = TRUE,
+                                  show_individual = FALSE,
+                                  point_size = 2,
+                                  line_alpha = 0.5,
+                                  color_palette = NULL,
+                                  title = NULL,
+                                  save_plot = FALSE,
+                                  filename = NULL,
+                                  width = 14,
+                                  height = 10) {
+
+  obs_data <- simulation_result$HCR$decisionData
+  if(is.null(obs_data)) {
+    stop("no observation data found in simulation result")
+  }
+
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+
+  index_cols <- grep(paste0("^", index_pattern), names(obs_data), value = TRUE)
+  index_cols <- index_cols[!grepl("_(areas|indexYears|fleet_id|indextype|selectivity_|survey_timing)", index_cols)]
+
+  if(length(index_cols) == 0) {
+    stop("No index columns found matching pattern: ", index_pattern)
+  }
+
+  # Prepare data
+  plot_data <- data.frame()
+
+  for(idx_col in index_cols) {
+    valid_rows <- !is.na(obs_data[[idx_col]])
+    if(any(valid_rows)) {
+      temp_df <- obs_data[valid_rows, ] %>%
+        mutate(
+          user_year = j - 1,
+          value = !!sym(idx_col),
+          index_name = idx_col,
+          index_clean = gsub("^IDX_(Survey_|CPUE_)", "", idx_col),
+          index_clean = gsub("_", " ", index_clean),
+          iteration = k,
+          period = ifelse(j <= historical_end, "Historical", "Projection")
+        ) %>%
+        select(user_year, value, index_name, index_clean, iteration, period)
+
+      plot_data <- rbind(plot_data, temp_df)
+    }
+  }
+
+  if(nrow(plot_data) == 0) {
+    stop("no valid data for plotting")
+  }
+
+  summary_data <- plot_data %>%
+    group_by(user_year, index_name, index_clean, period) %>%
+    summarise(
+      median_value = median(value, na.rm = TRUE),
+      q25 = quantile(value, 0.25, na.rm = TRUE),
+      q75 = quantile(value, 0.75, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  if(is.null(title)) {
+    title <- "Survey and CPUE Indices"
+  }
+
+  p <- ggplot()
+
+  if(show_individual) {
+    p <- p + geom_point(data = plot_data,
+                        aes(x = user_year, y = value, color = index_clean),
+                        alpha = line_alpha, size = point_size * 0.7)
+  }
+
+  if(show_quantiles) {
+    p <- p + geom_ribbon(data = summary_data,
+                         aes(x = user_year, ymin = q25, ymax = q75, fill = index_clean),
+                         alpha = 0.3)
+  }
+
+  if(show_median) {
+    p <- p + geom_line(data = summary_data,
+                       aes(x = user_year, y = median_value, color = index_clean),
+                       size = 2)
+    p <- p + geom_point(data = summary_data,
+                        aes(x = user_year, y = median_value, color = index_clean),
+                        size = point_size)
+  }
+
+  p <- p +
+    facet_wrap(~ index_clean, scales = "free_y", ncol = 2) +
+    geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+               color = "red", alpha = 0.7, size = 1) +
+    scale_x_continuous(breaks = function(x) pretty(x, n = 6)) +
+    labs(title = title, x = "Year", y = "Index Value") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+      axis.text.y = element_text(size = 14),
+      axis.title.x = element_text(size = 18, face = "bold", margin = margin(t = 15)),
+      axis.title.y = element_text(size = 18, face = "bold", margin = margin(r = 15)),
+      plot.title = element_text(hjust = 0.5, size = 20, face = "bold", margin = margin(b = 20)),
+      strip.text = element_text(size = 16, face = "bold"),
+      legend.position = "none"
+    )
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      pattern_clean <- gsub("_$", "", gsub("^IDX_", "", index_pattern))
+      filename <- paste0("indices_", pattern_clean, "_modified.jpeg")
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+#' Modified Length Compositions (using proportions)
+#'
+#' Enhanced version with larger fonts and proportions instead of raw counts
+#' @param simulation_result Output from runProjection
+#' @param fleet_id Fleet number to plot
+#' @param years Years to plot or "all"
+#' @param show_median Show median line
+#' @param show_quantiles Show quantile ribbon
+#' @param show_individual Show individual iterations
+#' @param color_palette Custom colors
+#' @param title Custom title
+#' @param save_plot Save to file
+#' @param filename Custom filename
+#' @param width Plot width
+#' @param height Plot height
+#' @export
+plot_length_comp_modified <- function(simulation_result,
+                                      fleet_id = 1,
+                                      years = "all",
+                                      show_median = TRUE,
+                                      show_quantiles = TRUE,
+                                      show_individual = FALSE,
+                                      color_palette = NULL,
+                                      title = NULL,
+                                      save_plot = FALSE,
+                                      filename = NULL,
+                                      width = 14,
+                                      height = 10) {
+
+  # Ensure matrix format
+  if(!is.null(simulation_result$HCR$decisionData) &&
+     is.null(simulation_result$observation_matrices)) {
+    obs_data <- simulation_result$HCR$decisionData
+    has_lc <- any(grepl("^LC_.*_count_bin_\\d+$", names(obs_data)))
+
+    if(has_lc && exists("adapt_observation_data")) {
+      simulation_result <- adapt_observation_data(simulation_result, verbose = FALSE)
+    }
+  }
+
+  if(is.null(simulation_result$observation_matrices)) {
+    stop("No observation matrices found. Ensure observation data is available.")
+  }
+
+  obs_matrices <- simulation_result$observation_matrices
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+
+  # Find length comp columns for this fleet
+  lc_pattern <- paste0("^LC_fleet", fleet_id, "_.*_count_bin_\\d+$")
+  lc_cols <- grep(lc_pattern, names(obs_matrices), value = TRUE)
+
+  if(length(lc_cols) == 0) {
+    stop(paste("No length composition data found for fleet", fleet_id))
+  }
+
+  # Extract bin numbers
+  bin_nums <- as.numeric(gsub(".*_bin_(\\d+)$", "\\1", lc_cols))
+  lc_cols <- lc_cols[order(bin_nums)]
+  bin_nums <- sort(bin_nums)
+
+  # Get length bins
+  lh <- simulation_result$LifeHistoryObj
+  length_bins <- seq(0, lh@Linf * 1.5, length.out = max(bin_nums) + 1)
+  bin_mids <- (length_bins[-1] + length_bins[-length(length_bins)]) / 2
+
+  # Prepare data - CONVERT TO PROPORTIONS
+  plot_data <- data.frame()
+
+  first_matrix <- obs_matrices[[lc_cols[1]]]
+  all_years <- 0:(nrow(first_matrix) - 1)
+
+  if(!identical(years, "all")) {
+    all_years <- intersect(all_years, years)
+  }
+
+  for(year in all_years) {
+    year_idx <- year + 1
+
+    for(iter in 1:ncol(first_matrix)) {
+      # Extract counts for all bins
+      counts <- sapply(lc_cols, function(col) {
+        obs_matrices[[col]][year_idx, iter]
+      })
+
+      # Convert to proportions
+      total_count <- sum(counts, na.rm = TRUE)
+      if(total_count > 0 && !all(is.na(counts))) {
+        proportions <- counts / total_count
+
+        temp_df <- data.frame(
+          user_year = year,
+          length_bin = bin_mids[bin_nums],
+          proportion = proportions,
+          iteration = iter,
+          period = ifelse(year < (historical_end - 1), "Historical", "Projection")
+        )
+        plot_data <- rbind(plot_data, temp_df)
+      }
+    }
+  }
+
+  if(nrow(plot_data) == 0) {
+    stop("No valid length composition data to plot")
+  }
+
+  # Summary statistics
+  summary_data <- plot_data %>%
+    group_by(user_year, length_bin, period) %>%
+    summarise(
+      median_prop = median(proportion, na.rm = TRUE),
+      q25 = quantile(proportion, 0.25, na.rm = TRUE),
+      q75 = quantile(proportion, 0.75, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  if(is.null(title)) {
+    length_units <- if(length(lh@L_units) > 0) lh@L_units else "cm"
+    title <- paste0("Length Composition - Fleet ", fleet_id, " (Proportions)")
+  }
+
+  if(is.null(color_palette)) {
+    main_color <- "steelblue"
+  } else {
+    main_color <- color_palette[1]
+  }
+
+  # Create plot
+  p <- ggplot()
+
+  if(show_individual) {
+    p <- p + geom_line(data = plot_data,
+                       aes(x = length_bin, y = proportion,
+                           group = interaction(user_year, iteration)),
+                       color = main_color, alpha = 0.2, size = 0.3)
+  }
+
+  if(show_quantiles) {
+    p <- p + geom_ribbon(data = summary_data,
+                         aes(x = length_bin, ymin = q25, ymax = q75,
+                             group = user_year),
+                         fill = main_color, alpha = 0.3)
+  }
+
+  if(show_median) {
+    p <- p + geom_line(data = summary_data,
+                       aes(x = length_bin, y = median_prop, group = user_year),
+                       color = main_color, size = 1.5)
+  }
+
+  p <- p +
+    facet_wrap(~ user_year, scales = "free_y") +
+    labs(title = title,
+         x = paste0("Length (", if(length(lh@L_units) > 0) lh@L_units else "cm", ")"),
+         y = "Proportion") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+      axis.text.y = element_text(size = 14),
+      axis.title.x = element_text(size = 18, face = "bold", margin = margin(t = 15)),
+      axis.title.y = element_text(size = 18, face = "bold", margin = margin(r = 15)),
+      plot.title = element_text(hjust = 0.5, size = 20, face = "bold", margin = margin(b = 20)),
+      strip.text = element_text(size = 14, face = "bold")
+    )
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      filename <- paste0("length_comp_fleet", fleet_id, "_modified.jpeg")
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+#' Modified Total TAC by Fleet (summed across areas, standardized by catch)
+#'
+#' Enhanced version with larger fonts and standardization by catch
+#' @inheritParams plot_catchB_total
+#' @export
+plot_TAC_total_modified <- function(simulation_result,
+                                    show_fleets = TRUE,
+                                    show_median = TRUE,
+                                    show_quantiles = TRUE,
+                                    show_individual = FALSE,
+                                    color_palette = NULL,
+                                    title = NULL,
+                                    save_plot = FALSE,
+                                    filename = NULL,
+                                    width = 14,
+                                    height = 10) {
+
+  dynamics <- simulation_result$dynamics
+  historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
+  is_multifleet <- !is.null(dynamics$multifleet)
+
+  # Get TAC and catch data
+  if(is_multifleet && show_fleets) {
+    TAC_array <- dynamics$multifleet$TAC_by_fleet
+    catchB_array <- dynamics$multifleet$catchB_by_fleet
+
+    years <- dim(TAC_array)[1]
+    total_iterations <- dim(TAC_array)[2]
+    nfleets <- dim(TAC_array)[4]
+
+    # Calculate standardization factors from catch
+    catch_std_factors <- numeric(nfleets)
+
+    for(fleet in 1:nfleets) {
+      catchB_fleet <- apply(catchB_array[, , , fleet], c(1, 2), sum, na.rm = TRUE)
+
+      # Get last historical year catch
+      last_hist_idx <- historical_end
+      last_hist_catch <- catchB_fleet[last_hist_idx, ]
+      catch_std_factors[fleet] <- median(last_hist_catch, na.rm = TRUE)
+    }
+
+    # Prepare TAC data
+    plot_data <- data.frame()
+
+    for(fleet in 1:nfleets) {
+      TAC_fleet <- apply(TAC_array[, , , fleet], c(1, 2), sum, na.rm = TRUE)
+
+      for(iter in 1:total_iterations) {
+        iter_data <- data.frame(
+          year = 1:years,
+          user_year = 0:(years-1),
+          value = TAC_fleet[, iter] / catch_std_factors[fleet],
+          iteration = iter,
+          fleet = paste("Fleet", fleet),
+          period = ifelse(1:years <= historical_end, "Historical", "Projection")
+        )
+        plot_data <- rbind(plot_data, iter_data)
+      }
+    }
+
+    # Filter to projection period
+    plot_data <- plot_data %>% filter(period == "Projection")
+
+    if(nrow(plot_data) == 0) {
+      stop("No TAC data found in projection period")
+    }
+
+    summary_data <- plot_data %>%
+      group_by(user_year, fleet, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(color_palette)) {
+      colors <- c("steelblue", "darkgreen", "orange", "purple", "brown", "pink")[1:nfleets]
+    } else {
+      colors <- color_palette[1:nfleets]
+    }
+
+    if(is.null(title)) {
+      title <- "Total TAC by Fleet\n(Standardized by Last Historical Year Catch)"
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, color = fleet,
+                             group = interaction(fleet, iteration)),
+                         alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value, color = fleet),
+                         size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_color_manual(values = colors) +
+      scale_fill_manual(values = colors) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative TAC",
+           color = "Fleet", fill = "Fleet") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
+        legend.position = "bottom",
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "bold"),
+        legend.key.size = unit(1.5, "cm")
+      )
+
+  } else {
+    TAC_array <- dynamics$TAC
+    catchB_array <- dynamics$catchB
+
+    TAC_total <- apply(TAC_array, c(1, 2), sum, na.rm = TRUE)
+    catchB_total <- apply(catchB_array, c(1, 2), sum, na.rm = TRUE)
+
+    years <- dim(TAC_total)[1]
+    total_iterations <- dim(TAC_total)[2]
+
+    # Calculate standardization factor
+    last_hist_idx <- historical_end
+    last_hist_catch <- catchB_total[last_hist_idx, ]
+    catch_std_factor <- median(last_hist_catch, na.rm = TRUE)
+
+    plot_data <- data.frame()
+    for(iter in 1:total_iterations) {
+      iter_data <- data.frame(
+        year = 1:years,
+        user_year = 0:(years-1),
+        value = TAC_total[, iter] / catch_std_factor,
+        iteration = iter,
+        period = ifelse(1:years <= historical_end, "Historical", "Projection")
+      )
+      plot_data <- rbind(plot_data, iter_data)
+    }
+
+    plot_data <- plot_data %>% filter(period == "Projection")
+
+    if(nrow(plot_data) == 0) {
+      stop("No TAC data found in projection period")
+    }
+
+    summary_data <- plot_data %>%
+      group_by(user_year, period) %>%
+      summarise(
+        median_value = median(value, na.rm = TRUE),
+        q25 = quantile(value, 0.25, na.rm = TRUE),
+        q75 = quantile(value, 0.75, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    if(is.null(title)) {
+      title <- "Total TAC\n(Standardized by Last Historical Year Catch)"
+    }
+
+    if(is.null(color_palette)) {
+      main_color <- "brown"
+    } else {
+      main_color <- color_palette[1]
+    }
+
+    p <- ggplot()
+
+    if(show_individual) {
+      p <- p + geom_line(data = plot_data,
+                         aes(x = user_year, y = value, group = iteration),
+                         color = main_color, alpha = 0.3, size = 0.5)
+    }
+
+    if(show_quantiles) {
+      p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q25, ymax = q75),
+                           fill = main_color, alpha = 0.3)
+    }
+
+    if(show_median) {
+      p <- p + geom_line(data = summary_data,
+                         aes(x = user_year, y = median_value),
+                         color = main_color, size = 2)
+    }
+
+    p <- p +
+      geom_vline(xintercept = historical_end - 1, linetype = "dashed",
+                 color = "red", alpha = 0.7, size = 1) +
+      scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
+      labs(title = title, x = "Year", y = "Relative TAC") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
+        plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+      )
+  }
+
+  if(save_plot) {
+    if(is.null(filename)) {
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      filename <- paste0("TAC_total_", fleet_suffix, "_modified.jpeg")
+    }
+    ggsave(filename, p, width = width, height = height, dpi = 300)
+    cat("Plot saved as:", filename, "\n")
+  }
+
+  return(p)
+}
+
+
+# ============================================================================
+# END OF MODIFIED PLOTTING FUNCTIONS
+# ============================================================================
+
+cat("\n")
+cat("=========================================================================\n")
+cat("Modified plotting functions loaded successfully!\n")
+cat("=========================================================================\n")
+cat("\nAvailable modified functions:\n")
+cat("  1. plot_catchB_total_modified()      - Catch biomass by fleet\n")
+cat("  2. plot_catchN_total_modified()      - Catch numbers by fleet\n")
+cat("  3. plot_SB_total_modified()          - Spawning biomass\n")
+cat("  4. plot_recN_modified()              - Recruitment\n")
+cat("  5. plot_discN_total_modified()       - Discards by fleet\n")
+cat("  6. plot_Ftotal_modified()            - Fishing mortality (Area 1)\n")
+cat("  7. plot_indices_modified()           - Survey and CPUE indices\n")
+cat("  8. plot_length_comp_modified()       - Length compositions (proportions)\n")
+cat("  9. plot_TAC_total_modified()         - TAC by fleet (standardized by catch)\n")
+cat("\nAll modified functions include:\n")
+cat("  - Larger fonts (axis: 16pt, titles: 20pt, plot title: 22pt)\n")
+cat("  - Standardization by last historical year (where applicable)\n")
+cat("  - Enhanced legend sizes\n")
+cat("=========================================================================\n")
+cat("\n")
+
+
+
