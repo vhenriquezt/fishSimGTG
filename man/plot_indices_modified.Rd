@@ -21,28 +21,32 @@ plot_indices_modified(
 )
 }
 \arguments{
-\item{simulation_result}{Output object from \code{runProjection()} containing observation data}
+\item{simulation_result}{Output from runProjection}
 
-\item{index_pattern}{Character. Pattern to match index column names. Default is "IDX_"}
+\item{index_pattern}{Pattern to match (e.g., "IDX_Survey_1", "IDX_CPUE_2")}
 
-\item{show_median}{Logical. Whether to show median points. Default is TRUE}
+\item{show_median}{Show median line}
 
-\item{show_quantiles}{Logical. Whether to show quantile ranges. Default is TRUE}
+\item{show_quantiles}{Show quantile ribbon}
 
-\item{show_individual}{Logical. Whether to show individual iteration points. Default is FALSE}
+\item{show_individual}{Show individual iterations}
 
-\item{point_size}{Numeric. Size of points in plot. Default is 1.5}
+\item{point_size}{Size of points}
 
-\item{line_alpha}{Numeric. Transparency of individual iteration points (0-1). Default is 0.5}
+\item{line_alpha}{Transparency}
 
-\item{color_palette}{Character vector of colors. If NULL, uses default colors}
+\item{color_palette}{Custom colors}
 
-\item{title}{Character. Custom plot title. If NULL, generates automatic title}
+\item{title}{Custom title}
 
-\item{save_plot}{Logical. Whether to save plot to file. Default is FALSE}
+\item{save_plot}{Save to file}
 
-\item{filename}{Character. Filename for saved plot. If NULL, generates automatic filename}
+\item{filename}{Custom filename}
+
+\item{width}{Plot width}
+
+\item{height}{Plot height}
 }
 \description{
-Enhanced version with larger fonts
+Enhanced version with larger fonts, keeps original flexible pattern matching
 }

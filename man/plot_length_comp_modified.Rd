@@ -2,11 +2,13 @@
 % Please edit documentation in R/fishSimGTG-plot-functions.R
 \name{plot_length_comp_modified}
 \alias{plot_length_comp_modified}
-\title{Modified Length Compositions (using proportions)}
+\title{Modified Length Composition}
 \usage{
 plot_length_comp_modified(
-  simulation_result,
-  fleet_id = 1,
+  result,
+  program_pattern = "LC_Fishery",
+  area_filter = "all",
+  fleet_filter = "all",
   years = "all",
   show_median = TRUE,
   show_quantiles = TRUE,
@@ -20,9 +22,13 @@ plot_length_comp_modified(
 )
 }
 \arguments{
-\item{simulation_result}{Output from runProjection}
+\item{result}{Simulation result}
 
-\item{fleet_id}{Fleet number to plot}
+\item{program_pattern}{Pattern to match (e.g., "LC_Fishery", "LC_Survey")}
+
+\item{area_filter}{Areas to include}
+
+\item{fleet_filter}{Fleets to include}
 
 \item{years}{Years to plot or "all"}
 
@@ -45,5 +51,5 @@ plot_length_comp_modified(
 \item{height}{Plot height}
 }
 \description{
-Enhanced version with larger fonts and proportions instead of raw counts
+Enhanced version with larger fonts and proportions, uses program_pattern like original
 }

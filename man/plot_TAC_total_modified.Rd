@@ -2,7 +2,7 @@
 % Please edit documentation in R/fishSimGTG-plot-functions.R
 \name{plot_TAC_total_modified}
 \alias{plot_TAC_total_modified}
-\title{Modified Total TAC by Fleet (summed across areas, standardized by catch)}
+\title{Modified Total TAC by Fleet}
 \usage{
 plot_TAC_total_modified(
   simulation_result,
@@ -19,28 +19,29 @@ plot_TAC_total_modified(
 )
 }
 \arguments{
-\item{simulation_result}{Output object from \code{runProjection()}}
+\item{simulation_result}{Output from runProjection}
 
-\item{show_fleets}{Logical. Whether to show fleet breakdown in multifleet. Default is TRUE}
+\item{show_fleets}{Show fleet breakdown}
 
-\item{show_median}{Logical. Whether to show median line. Default is TRUE}
+\item{show_median}{Show median line}
 
-\item{show_quantiles}{Logical. Whether to show quantile ribbon. Default is TRUE}
+\item{show_quantiles}{Show quantile ribbon}
 
-\item{show_individual}{Logical. Whether to show individual iteration lines. Default is FALSE}
+\item{show_individual}{Show individual iterations}
 
-\item{color_palette}{Character vector of colors. If NULL, uses default}
+\item{color_palette}{Custom colors}
 
-\item{title}{Character. Custom plot title. If NULL, generates automatic title}
+\item{title}{Custom title}
 
-\item{save_plot}{Logical. Whether to save plot. Default is FALSE}
+\item{save_plot}{Save to file}
 
-\item{filename}{Character. Filename for saved plot}
+\item{filename}{Custom filename}
 
-\item{width}{Numeric. Plot width in inches. Default is 12}
+\item{width}{Plot width}
 
-\item{height}{Numeric. Plot height in inches. Default is 8}
+\item{height}{Plot height}
 }
 \description{
 Enhanced version with larger fonts and standardization by catch
+Uses HCR$decisionAnnual like the original
 }
