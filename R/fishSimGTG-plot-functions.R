@@ -2963,7 +2963,7 @@ plot_catchB_total_modified <- function(simulation_result,
     names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total Catch Biomass by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year)"
+      title <- "Total Catch Biomass by Fleet\n(Standardized by Last Historical Year)"
     }
 
     p <- ggplot()
@@ -3172,7 +3172,7 @@ plot_catchN_total_modified <- function(simulation_result,
     names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total Catch Numbers by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year)"
+      title <- "Total Catch Numbers by Fleet\n(Standardized by Last Historical Year)"
     }
 
     p <- ggplot()
@@ -3587,7 +3587,7 @@ plot_discN_total_modified <- function(simulation_result,
     names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total Discards by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year)"
+      title <- "Total Discards by Fleet\n(Standardized by Last Historical Year)"
     }
 
     p <- ggplot()
@@ -3797,7 +3797,7 @@ plot_Ftotal_modified <- function(simulation_result,
     names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Fishing Mortality by Fleet (Area 1)\n(Each Fleet Standardized by Its Own Last Historical Year)"
+      title <- "Fishing Mortality by Fleet \n(Standardized by Last Historical Year)"
     }
 
     p <- ggplot()
@@ -4413,7 +4413,7 @@ plot_TAC_total_modified <- function(simulation_result,
     names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "TAC by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year Catch)"
+      title <- "TAC by Fleet\n(Standardized by Last Historical Year Catch)"
     }
 
     p <- ggplot()
