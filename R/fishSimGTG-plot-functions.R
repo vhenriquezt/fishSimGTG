@@ -2877,8 +2877,12 @@ plot_observed_catch_total <- function(simulation_result,
 
 # Helper function for standardization
 get_last_historical_value_mod <- function(data, historical_end, metric_col = "value") {
+  # get data from the LAST historical year
+  # historical_end is the FIRST projection year, so last historical is historical_end - 1
+  last_hist_year <- historical_end - 1
+
   last_hist_data <- data %>%
-    filter(user_year == (historical_end - 1)) %>%
+    filter(user_year == last_hist_year) %>%
     pull(!!sym(metric_col))
 
   if(length(last_hist_data) == 0) return(1)
@@ -3885,22 +3889,10 @@ plot_Ftotal_modified <- function(simulation_result,
 }
 
 
-#' Modified Indices Plots (Survey and CPUE)
+#' Modified Indices Plots
 #'
-#' Enhanced version with larger fonts, keeps original flexible pattern matching
-#' @param simulation_result Output from runProjection
-#' @param index_pattern Pattern to match (e.g., "IDX_Survey_1", "IDX_CPUE_2")
-#' @param show_median Show median line
-#' @param show_quantiles Show quantile ribbon
-#' @param show_individual Show individual iterations
-#' @param point_size Size of points
-#' @param line_alpha Transparency
-#' @param color_palette Custom colors
-#' @param title Custom title
-#' @param save_plot Save to file
-#' @param filename Custom filename
-#' @param width Plot width
-#' @param height Plot height
+#' Enhanced version with larger fonts AND standardization
+#' Keeps original faceted style that handles gaps well
 #' @export
 plot_indices_modified <- function(simulation_result,
                                   index_pattern = "IDX_",
@@ -3923,7 +3915,7 @@ plot_indices_modified <- function(simulation_result,
 
   historical_end <- simulation_result$TimeAreaObj@historicalYears + 1
 
-  #find index columns matching the pattern
+  # Find index columns
   index_cols <- grep(paste0("^", index_pattern), names(obs_data), value = TRUE)
   index_cols <- index_cols[!grepl("_(areas|indexYears|fleet_id|indextype|selectivity_|survey_timing)", index_cols)]
 
@@ -3931,88 +3923,132 @@ plot_indices_modified <- function(simulation_result,
     stop("No index columns found matching pattern: ", index_pattern)
   }
 
-  #prepare data
-  plot_data <- data.frame()
+  # Prepare data
+  plot_data_list <- list()
 
-  for(idx_col in index_cols) {
-    valid_rows <- !is.na(obs_data[[idx_col]])
-    if(any(valid_rows)) {
-      temp_df <- obs_data[valid_rows, ] %>%
-        mutate(
-          user_year = j - 1,
-          value = !!sym(idx_col),
-          index_name = idx_col,
-          index_clean = gsub("^IDX_(Survey_|CPUE_)", "", idx_col),
-          index_clean = gsub("_", " ", index_clean),
-          iteration = k,
-          period = ifelse(j <= historical_end, "Historical", "Projection")
-        ) %>%
-        select(user_year, value, index_name, index_clean, iteration, period)
+  for(i in seq_along(index_cols)) {
+    index_col <- index_cols[i]
 
-      plot_data <- rbind(plot_data, temp_df)
+    # Get metadata
+    areas_col <- paste0(index_col, "_areas")
+    fleet_col <- paste0(index_col, "_fleet_id")
+
+    areas_str <- if(areas_col %in% names(obs_data)) {
+      unique_areas <- unique(obs_data[[areas_col]][!is.na(obs_data[[areas_col]])])
+      if(length(unique_areas) > 0) unique_areas[1] else "Unknown"
+    } else {
+      "Unknown"
+    }
+
+    fleet_str <- if(fleet_col %in% names(obs_data)) {
+      unique_fleets <- unique(obs_data[[fleet_col]][!is.na(obs_data[[fleet_col]])])
+      if(length(unique_fleets) > 0 && !is.na(unique_fleets[1])) {
+        paste("Fleet", unique_fleets[1])
+      } else {
+        NA
+      }
+    } else {
+      NA
+    }
+
+    #panel name
+    if(!is.na(fleet_str)) {
+      panel_name <- paste(index_col, "-", fleet_str, "- Area(s)", areas_str)
+    } else {
+      panel_name <- paste(index_col, "- Area(s)", areas_str)
+    }
+
+    # extract data
+    index_data <- obs_data %>%
+      filter(!is.na(!!sym(index_col))) %>%
+      mutate(
+        user_year = j - 1,
+        iteration = k,
+        value = !!sym(index_col),
+        panel = panel_name,
+        index_name = index_col,
+        period = ifelse(j <= historical_end, "Historical", "Projection")
+      ) %>%
+      select(user_year, iteration, value, panel, index_name, period)
+
+    if(nrow(index_data) > 0) {
+      plot_data_list[[i]] <- index_data
     }
   }
 
-  if(nrow(plot_data) == 0) {
+  if(length(plot_data_list) == 0) {
     stop("no valid data for plotting")
   }
 
+  plot_data <- dplyr::bind_rows(plot_data_list)
+
+  # STANDARDIZATION: Divide by last historical year median
+  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+  plot_data$value <- plot_data$value / std_factor
+
+  #calculate statistics
   summary_data <- plot_data %>%
-    group_by(user_year, index_name, index_clean, period) %>%
+    group_by(user_year, panel, index_name, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
+      n_obs = n(),
       .groups = "drop"
     )
 
-  if(is.null(title)) {
-    title <- paste("Index:", index_pattern)
-  }
-
+  n_panels <- length(unique(plot_data$panel))
   if(is.null(color_palette)) {
-    main_color <- "steelblue"
+    colors <- c("steelblue", "darkgreen", "orange", "purple", "brown", "pink", "cyan4", "red", "darkgray")[1:n_panels]
   } else {
-    main_color <- color_palette[1]
+    colors <- rep(color_palette, length.out = n_panels)
   }
 
   p <- ggplot()
 
+  #individual iteration points
   if(show_individual) {
     p <- p + geom_point(data = plot_data,
                         aes(x = user_year, y = value),
-                        color = main_color,
-                        alpha = line_alpha, size = point_size * 0.7)
+                        alpha = line_alpha, size = point_size * 0.7, color = "lightblue")
   }
 
+  # quantile ranges
   if(show_quantiles) {
-    p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q25, ymax = q75),
-                         fill = main_color, alpha = 0.3)
+    p <- p + geom_pointrange(data = summary_data,
+                             aes(x = user_year, y = median_value,
+                                 ymin = q25, ymax = q75),
+                             alpha = 0.6, size = 0.8, color = "gray60")
   }
+
 
   if(show_median) {
-    p <- p + geom_line(data = summary_data,
-                       aes(x = user_year, y = median_value),
-                       color = main_color, size = 2)
     p <- p + geom_point(data = summary_data,
                         aes(x = user_year, y = median_value),
-                        color = main_color, size = point_size)
+                        color = "black", size = point_size * 1.2)
   }
 
+  #
   p <- p +
     geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                color = "red", alpha = 0.7, size = 1) +
+    facet_wrap(~ panel, scales = "free_y") +
     scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
-    labs(title = title, x = "Year", y = "Index Value") +
+    labs(
+      title = if(is.null(title)) "Index/CPUE Time Series (Standardized)" else title,
+      subtitle = "Points show observations (gaps = no data), black = median, gray = quantiles. Standardized by last historical year.",
+      x = "Year",
+      y = "Relative Index Value"
+    ) +
     theme_minimal() +
     theme(
-      # INCREASED FONT SIZES
-      axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
-      axis.text.y = element_text(size = 16),
-      axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
-      axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
-      plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20))
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+      axis.text.y = element_text(size = 14),
+      axis.title.x = element_text(size = 18, face = "bold", margin = margin(t = 15)),
+      axis.title.y = element_text(size = 18, face = "bold", margin = margin(r = 15)),
+      strip.text = element_text(size = 14, face = "bold"),
+      plot.title = element_text(hjust = 0.5, size = 20, face = "bold", margin = margin(b = 10)),
+      plot.subtitle = element_text(hjust = 0.5, size = 14)
     )
 
   if(save_plot) {

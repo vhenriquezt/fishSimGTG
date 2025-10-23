@@ -2,7 +2,7 @@
 % Please edit documentation in R/fishSimGTG-plot-functions.R
 \name{plot_indices_modified}
 \alias{plot_indices_modified}
-\title{Modified Indices Plots (Survey and CPUE)}
+\title{Modified Indices Plots}
 \usage{
 plot_indices_modified(
   simulation_result,
@@ -20,33 +20,7 @@ plot_indices_modified(
   height = 10
 )
 }
-\arguments{
-\item{simulation_result}{Output from runProjection}
-
-\item{index_pattern}{Pattern to match (e.g., "IDX_Survey_1", "IDX_CPUE_2")}
-
-\item{show_median}{Show median line}
-
-\item{show_quantiles}{Show quantile ribbon}
-
-\item{show_individual}{Show individual iterations}
-
-\item{point_size}{Size of points}
-
-\item{line_alpha}{Transparency}
-
-\item{color_palette}{Custom colors}
-
-\item{title}{Custom title}
-
-\item{save_plot}{Save to file}
-
-\item{filename}{Custom filename}
-
-\item{width}{Plot width}
-
-\item{height}{Plot height}
-}
 \description{
-Enhanced version with larger fonts, keeps original flexible pattern matching
+Enhanced version with larger fonts AND standardization
+Keeps original faceted style that handles gaps well
 }
