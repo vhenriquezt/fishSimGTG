@@ -4,8 +4,12 @@
 \alias{plot_survey_length_comp_modified}
 \title{Wrapper for survey length compositions}
 \usage{
-plot_survey_length_comp_modified(result, areas = "all", ...)
+plot_survey_length_comp_modified(result, area_filter = "all", ...)
+
+plot_survey_length_comp_modified(result, area_filter = "all", ...)
 }
 \description{
 Wrapper for survey length compositions
+
+Wrapper for survey length compositions - modified (proportions version)
 }

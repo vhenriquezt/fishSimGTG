@@ -4,8 +4,22 @@
 \alias{plot_fishery_length_comp_modified}
 \title{Wrapper for fishery length compositions}
 \usage{
-plot_fishery_length_comp_modified(result, areas = "all", fleets = "all", ...)
+plot_fishery_length_comp_modified(
+  result,
+  area_filter = "all",
+  fleet_filter = "all",
+  ...
+)
+
+plot_fishery_length_comp_modified(
+  result,
+  area_filter = "all",
+  fleet_filter = "all",
+  ...
+)
 }
 \description{
 Wrapper for fishery length compositions
+
+Wrapper for fishery length compositions - modified (proportions version)
 }
