@@ -2890,10 +2890,10 @@ get_last_historical_value_mod <- function(data, historical_end, metric_col = "va
 }
 
 
-#' Modified Total Catch Biomass by Fleet
+#' Modified Total Catch Biomass by Fleet - PANEL VERSION
 #'
-#' Enhanced version with larger fonts and standardization
-#' @inheritParams plot_catchB_total
+#' Each fleet in separate panel, standardized by its own last historical year
+#' @inheritParams plot_catchB_total_modified
 #' @export
 plot_catchB_total_modified <- function(simulation_result,
                                        show_fleets = TRUE,
@@ -2928,18 +2928,26 @@ plot_catchB_total_modified <- function(simulation_result,
           user_year = 0:(years-1),
           value = catchB_fleet[, iter],
           iteration = iter,
-          fleet = paste("Fleet", fleet),
+          fleet = fleet,
+          fleet_label = paste("Fleet", fleet),
           period = ifelse(1:years <= historical_end, "Historical", "Projection")
         )
         plot_data <- rbind(plot_data, iter_data)
       }
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-    plot_data$value <- plot_data$value / std_factor
+    # Standardize EACH FLEET by its own last historical year
+    plot_data <- plot_data %>%
+      group_by(fleet) %>%
+      mutate(
+        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
-      group_by(user_year, fleet, period) %>%
+      group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
@@ -2952,35 +2960,38 @@ plot_catchB_total_modified <- function(simulation_result,
     } else {
       colors <- color_palette[1:nfleets]
     }
+    names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total Catch Biomass by Fleet\n(Standardized by Last Historical Year)"
+      title <- "Total Catch Biomass by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year)"
     }
 
     p <- ggplot()
 
     if(show_individual) {
       p <- p + geom_line(data = plot_data,
-                         aes(x = user_year, y = value, color = fleet,
+                         aes(x = user_year, y = value, color = fleet_label,
                              group = interaction(fleet, iteration)),
                          alpha = 0.3, size = 0.5)
     }
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.3)
     }
 
     if(show_median) {
       p <- p + geom_line(data = summary_data,
-                         aes(x = user_year, y = median_value, color = fleet),
+                         aes(x = user_year, y = median_value, color = fleet_label),
                          size = 2)
     }
 
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
+      facet_wrap(~ fleet_label, scales = "free_y", ncol = 1) +
       scale_color_manual(values = colors) +
       scale_fill_manual(values = colors) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
@@ -2993,13 +3004,12 @@ plot_catchB_total_modified <- function(simulation_result,
         axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
         axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
         plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
-        legend.position = "bottom",
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 18, face = "bold"),
-        legend.key.size = unit(1.5, "cm")
+        strip.text = element_text(size = 18, face = "bold"),
+        legend.position = "none"  # Not needed with facets
       )
 
   } else {
+    # Single fleet - keep original behavior
     catchB_array <- dynamics$catchB
     catchB_total <- apply(catchB_array, c(1, 2), sum, na.rm = TRUE)
     years <- dim(catchB_total)[1]
@@ -3017,7 +3027,7 @@ plot_catchB_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
     plot_data$value <- plot_data$value / std_factor
 
     summary_data <- plot_data %>%
@@ -3062,6 +3072,7 @@ plot_catchB_total_modified <- function(simulation_result,
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
       labs(title = title, x = "Year", y = "Relative Catch Biomass") +
       theme_minimal() +
@@ -3076,7 +3087,7 @@ plot_catchB_total_modified <- function(simulation_result,
 
   if(save_plot) {
     if(is.null(filename)) {
-      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet_panels" else "total"
       filename <- paste0("catchB_total_", fleet_suffix, "_modified.jpeg")
     }
     ggsave(filename, p, width = width, height = height, dpi = 300)
@@ -3087,10 +3098,11 @@ plot_catchB_total_modified <- function(simulation_result,
 }
 
 
-#' Modified Total Catch Numbers by Fleet
+
+#' Modified Total Catch Numbers by Fleet - PANEL VERSION
 #'
-#' Enhanced version with larger fonts and standardization
-#' @inheritParams plot_catchN_total
+#' Each fleet in separate panel, standardized by its own last historical year
+#' @inheritParams plot_catchN_total_modified
 #' @export
 plot_catchN_total_modified <- function(simulation_result,
                                        show_fleets = TRUE,
@@ -3125,18 +3137,26 @@ plot_catchN_total_modified <- function(simulation_result,
           user_year = 0:(years-1),
           value = catchN_fleet[, iter],
           iteration = iter,
-          fleet = paste("Fleet", fleet),
+          fleet = fleet,
+          fleet_label = paste("Fleet", fleet),
           period = ifelse(1:years <= historical_end, "Historical", "Projection")
         )
         plot_data <- rbind(plot_data, iter_data)
       }
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-    plot_data$value <- plot_data$value / std_factor
+    # Standardize EACH FLEET by its own last historical year
+    plot_data <- plot_data %>%
+      group_by(fleet) %>%
+      mutate(
+        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
-      group_by(user_year, fleet, period) %>%
+      group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
@@ -3149,35 +3169,38 @@ plot_catchN_total_modified <- function(simulation_result,
     } else {
       colors <- color_palette[1:nfleets]
     }
+    names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total Catch Numbers by Fleet\n(Standardized by Last Historical Year)"
+      title <- "Total Catch Numbers by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year)"
     }
 
     p <- ggplot()
 
     if(show_individual) {
       p <- p + geom_line(data = plot_data,
-                         aes(x = user_year, y = value, color = fleet,
+                         aes(x = user_year, y = value, color = fleet_label,
                              group = interaction(fleet, iteration)),
                          alpha = 0.3, size = 0.5)
     }
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.3)
     }
 
     if(show_median) {
       p <- p + geom_line(data = summary_data,
-                         aes(x = user_year, y = median_value, color = fleet),
+                         aes(x = user_year, y = median_value, color = fleet_label),
                          size = 2)
     }
 
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
+      facet_wrap(~ fleet_label, scales = "free_y", ncol = 1) +
       scale_color_manual(values = colors) +
       scale_fill_manual(values = colors) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
@@ -3190,13 +3213,12 @@ plot_catchN_total_modified <- function(simulation_result,
         axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
         axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
         plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
-        legend.position = "bottom",
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 18, face = "bold"),
-        legend.key.size = unit(1.5, "cm")
+        strip.text = element_text(size = 18, face = "bold"),
+        legend.position = "none"
       )
 
   } else {
+    # Single fleet
     catchN_array <- dynamics$catchN
     catchN_total <- apply(catchN_array, c(1, 2), sum, na.rm = TRUE)
     years <- dim(catchN_total)[1]
@@ -3214,7 +3236,7 @@ plot_catchN_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
     plot_data$value <- plot_data$value / std_factor
 
     summary_data <- plot_data %>%
@@ -3259,6 +3281,7 @@ plot_catchN_total_modified <- function(simulation_result,
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
       labs(title = title, x = "Year", y = "Relative Catch Numbers") +
       theme_minimal() +
@@ -3273,7 +3296,7 @@ plot_catchN_total_modified <- function(simulation_result,
 
   if(save_plot) {
     if(is.null(filename)) {
-      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet_panels" else "total"
       filename <- paste0("catchN_total_", fleet_suffix, "_modified.jpeg")
     }
     ggsave(filename, p, width = width, height = height, dpi = 300)
@@ -3491,10 +3514,10 @@ plot_recN_modified <- function(simulation_result,
 }
 
 
-#' Modified Total Discards by Fleet (numbers)
+#' Modified Total Discards by Fleet - PANEL VERSION
 #'
-#' Enhanced version with larger fonts and standardization
-#' @inheritParams plot_catchN_total
+#' Each fleet in separate panel, standardized by its own last historical year
+#' @inheritParams plot_discN_total_modified
 #' @export
 plot_discN_total_modified <- function(simulation_result,
                                       show_fleets = TRUE,
@@ -3529,18 +3552,26 @@ plot_discN_total_modified <- function(simulation_result,
           user_year = 0:(years-1),
           value = discN_fleet[, iter],
           iteration = iter,
-          fleet = paste("Fleet", fleet),
+          fleet = fleet,
+          fleet_label = paste("Fleet", fleet),
           period = ifelse(1:years <= historical_end, "Historical", "Projection")
         )
         plot_data <- rbind(plot_data, iter_data)
       }
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-    plot_data$value <- plot_data$value / std_factor
+    # Standardize EACH FLEET by its own last historical year
+    plot_data <- plot_data %>%
+      group_by(fleet) %>%
+      mutate(
+        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
-      group_by(user_year, fleet, period) %>%
+      group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
@@ -3553,35 +3584,38 @@ plot_discN_total_modified <- function(simulation_result,
     } else {
       colors <- color_palette[1:nfleets]
     }
+    names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total Discards by Fleet (Numbers)\n(Standardized by Last Historical Year)"
+      title <- "Total Discards by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year)"
     }
 
     p <- ggplot()
 
     if(show_individual) {
       p <- p + geom_line(data = plot_data,
-                         aes(x = user_year, y = value, color = fleet,
+                         aes(x = user_year, y = value, color = fleet_label,
                              group = interaction(fleet, iteration)),
                          alpha = 0.3, size = 0.5)
     }
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.3)
     }
 
     if(show_median) {
       p <- p + geom_line(data = summary_data,
-                         aes(x = user_year, y = median_value, color = fleet),
+                         aes(x = user_year, y = median_value, color = fleet_label),
                          size = 2)
     }
 
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
+      facet_wrap(~ fleet_label, scales = "free_y", ncol = 1) +
       scale_color_manual(values = colors) +
       scale_fill_manual(values = colors) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
@@ -3594,13 +3628,12 @@ plot_discN_total_modified <- function(simulation_result,
         axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
         axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
         plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
-        legend.position = "bottom",
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 18, face = "bold"),
-        legend.key.size = unit(1.5, "cm")
+        strip.text = element_text(size = 18, face = "bold"),
+        legend.position = "none"
       )
 
   } else {
+    # Single fleet
     discN_array <- dynamics$discN
     discN_total <- apply(discN_array, c(1, 2), sum, na.rm = TRUE)
     years <- dim(discN_total)[1]
@@ -3618,7 +3651,7 @@ plot_discN_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
     plot_data$value <- plot_data$value / std_factor
 
     summary_data <- plot_data %>%
@@ -3631,7 +3664,7 @@ plot_discN_total_modified <- function(simulation_result,
       )
 
     if(is.null(title)) {
-      title <- "Total Discards (Numbers)\n(Standardized by Last Historical Year)"
+      title <- "Total Discards\n(Standardized by Last Historical Year)"
     }
 
     if(is.null(color_palette)) {
@@ -3663,6 +3696,7 @@ plot_discN_total_modified <- function(simulation_result,
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
       labs(title = title, x = "Year", y = "Relative Discard Numbers") +
       theme_minimal() +
@@ -3677,7 +3711,7 @@ plot_discN_total_modified <- function(simulation_result,
 
   if(save_plot) {
     if(is.null(filename)) {
-      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet_panels" else "total"
       filename <- paste0("discN_total_", fleet_suffix, "_modified.jpeg")
     }
     ggsave(filename, p, width = width, height = height, dpi = 300)
@@ -3688,11 +3722,11 @@ plot_discN_total_modified <- function(simulation_result,
 }
 
 
-#' Modified Total Fishing Mortality by Fleet (Area 1 only)
+#' Modified Fishing Mortality by Fleet - PANEL VERSION
 #'
-#' Enhanced version with larger fonts and standardization
-#' Uses only Area 1 as total F
-#' @inheritParams plot_Ftotal_multi
+#' Each fleet in separate panel, standardized by its own last historical year
+#' Uses Area 1 only
+#' @inheritParams plot_Ftotal_modified
 #' @export
 plot_Ftotal_modified <- function(simulation_result,
                                  show_fleets = TRUE,
@@ -3728,18 +3762,26 @@ plot_Ftotal_modified <- function(simulation_result,
           user_year = 0:(years-1),
           value = Ftotal_fleet[, iter],
           iteration = iter,
-          fleet = paste("Fleet", fleet),
+          fleet = fleet,
+          fleet_label = paste("Fleet", fleet),
           period = ifelse(1:years <= historical_end, "Historical", "Projection")
         )
         plot_data <- rbind(plot_data, iter_data)
       }
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-    plot_data$value <- plot_data$value / std_factor
+    # Standardize EACH FLEET by its own last historical year
+    plot_data <- plot_data %>%
+      group_by(fleet) %>%
+      mutate(
+        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
-      group_by(user_year, fleet, period) %>%
+      group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
@@ -3752,35 +3794,38 @@ plot_Ftotal_modified <- function(simulation_result,
     } else {
       colors <- color_palette[1:nfleets]
     }
+    names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total Fishing Mortality by Fleet (Area 1)\n(Standardized by Last Historical Year)"
+      title <- "Fishing Mortality by Fleet (Area 1)\n(Each Fleet Standardized by Its Own Last Historical Year)"
     }
 
     p <- ggplot()
 
     if(show_individual) {
       p <- p + geom_line(data = plot_data,
-                         aes(x = user_year, y = value, color = fleet,
+                         aes(x = user_year, y = value, color = fleet_label,
                              group = interaction(fleet, iteration)),
                          alpha = 0.3, size = 0.5)
     }
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.3)
     }
 
     if(show_median) {
       p <- p + geom_line(data = summary_data,
-                         aes(x = user_year, y = median_value, color = fleet),
+                         aes(x = user_year, y = median_value, color = fleet_label),
                          size = 2)
     }
 
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
+      facet_wrap(~ fleet_label, scales = "free_y", ncol = 1) +
       scale_color_manual(values = colors) +
       scale_fill_manual(values = colors) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
@@ -3793,15 +3838,13 @@ plot_Ftotal_modified <- function(simulation_result,
         axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
         axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
         plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
-        legend.position = "bottom",
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 18, face = "bold"),
-        legend.key.size = unit(1.5, "cm")
+        strip.text = element_text(size = 18, face = "bold"),
+        legend.position = "none"
       )
 
   } else {
+    # Single fleet
     Ftotal_array <- dynamics$Ftotal
-    # Extract Area 1 only
     Ftotal_area1 <- Ftotal_array[, , 1]
 
     years <- dim(Ftotal_area1)[1]
@@ -3819,7 +3862,7 @@ plot_Ftotal_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- get_last_historical_value_mod(plot_data, historical_end)
+    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
     plot_data$value <- plot_data$value / std_factor
 
     summary_data <- plot_data %>%
@@ -3832,7 +3875,7 @@ plot_Ftotal_modified <- function(simulation_result,
       )
 
     if(is.null(title)) {
-      title <- "Total Fishing Mortality (Area 1)\n(Standardized by Last Historical Year)"
+      title <- "Fishing Mortality (Area 1)\n(Standardized by Last Historical Year)"
     }
 
     if(is.null(color_palette)) {
@@ -3864,6 +3907,7 @@ plot_Ftotal_modified <- function(simulation_result,
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
       labs(title = title, x = "Year", y = "Relative Fishing Mortality") +
       theme_minimal() +
@@ -3878,7 +3922,7 @@ plot_Ftotal_modified <- function(simulation_result,
 
   if(save_plot) {
     if(is.null(filename)) {
-      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet" else "total"
+      fleet_suffix <- if(is_multifleet && show_fleets) "by_fleet_panels" else "total"
       filename <- paste0("Ftotal_", fleet_suffix, "_modified.jpeg")
     }
     ggsave(filename, p, width = width, height = height, dpi = 300)
@@ -3887,7 +3931,6 @@ plot_Ftotal_modified <- function(simulation_result,
 
   return(p)
 }
-
 
 #' Modified Indices Plots
 #'
@@ -4310,7 +4353,6 @@ plot_TAC_total_modified <- function(simulation_result,
                                     width = 14,
                                     height = 10) {
 
-  #get TAC data from HCR
   tac_data <- simulation_result$HCR$decisionAnnual
 
   if(is.null(tac_data) || !"TAC" %in% names(tac_data)) {
@@ -4322,14 +4364,13 @@ plot_TAC_total_modified <- function(simulation_result,
   is_multifleet <- !is.null(dynamics$multifleet)
   has_fleets <- "fleet" %in% names(tac_data)
 
-  #get catch data for standardization
   if(is_multifleet && has_fleets && show_fleets) {
     catchB_array <- dynamics$multifleet$catchB_by_fleet
     years <- dim(catchB_array)[1]
     total_iterations <- dim(catchB_array)[2]
     nfleets <- dim(catchB_array)[4]
 
-    #calculate standardization factors from catch (last historical year)
+    # Calculate standardization factors from catch (last historical year) for EACH FLEET
     catch_std_factors <- numeric(nfleets)
 
     for(fleet in 1:nfleets) {
@@ -4338,7 +4379,7 @@ plot_TAC_total_modified <- function(simulation_result,
       catch_std_factors[fleet] <- median(last_hist_catch, na.rm = TRUE)
     }
 
-    #prepare TAC plot data (sum across areas for each fleet)
+    # Prepare TAC plot data (sum across areas for each fleet)
     plot_data <- tac_data %>%
       group_by(year, fleet, iteration) %>%
       summarise(TAC = sum(TAC, na.rm = TRUE), .groups = "drop") %>%
@@ -4356,7 +4397,7 @@ plot_TAC_total_modified <- function(simulation_result,
     }
 
     summary_data <- plot_data %>%
-      group_by(user_year, fleet_label, period) %>%
+      group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
@@ -4372,7 +4413,7 @@ plot_TAC_total_modified <- function(simulation_result,
     names(colors) <- paste("Fleet", 1:nfleets)
 
     if(is.null(title)) {
-      title <- "Total TAC by Fleet\n(Standardized by Last Historical Year Catch)"
+      title <- "TAC by Fleet\n(Each Fleet Standardized by Its Own Last Historical Year Catch)"
     }
 
     p <- ggplot()
@@ -4402,6 +4443,8 @@ plot_TAC_total_modified <- function(simulation_result,
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
+      facet_wrap(~ fleet_label, scales = "free_y", ncol = 1) +
       scale_color_manual(values = colors) +
       scale_fill_manual(values = colors) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
@@ -4414,22 +4457,18 @@ plot_TAC_total_modified <- function(simulation_result,
         axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 15)),
         axis.title.y = element_text(size = 20, face = "bold", margin = margin(r = 15)),
         plot.title = element_text(hjust = 0.5, size = 22, face = "bold", margin = margin(b = 20)),
-        legend.position = "bottom",
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 18, face = "bold"),
-        legend.key.size = unit(1.5, "cm")
+        strip.text = element_text(size = 18, face = "bold"),
+        legend.position = "none"
       )
 
   } else {
-    #single fleet or aggregated
+    # Single fleet or aggregated
     catchB_array <- dynamics$catchB
     catchB_total <- apply(catchB_array, c(1, 2), sum, na.rm = TRUE)
 
-    #calculate standardization factor
     last_hist_catch <- catchB_total[historical_end, ]
     catch_std_factor <- median(last_hist_catch, na.rm = TRUE)
 
-    #prepare TAC plot data (sum across areas)
     plot_data <- tac_data %>%
       group_by(year, iteration) %>%
       summarise(TAC = sum(TAC, na.rm = TRUE), .groups = "drop") %>%
@@ -4489,6 +4528,7 @@ plot_TAC_total_modified <- function(simulation_result,
     p <- p +
       geom_vline(xintercept = historical_end - 1, linetype = "dashed",
                  color = "red", alpha = 0.7, size = 1) +
+      geom_hline(yintercept = 1, linetype = "dotted", color = "black", alpha = 0.5, size = 0.8) +
       scale_x_continuous(breaks = function(x) pretty(x, n = 8)) +
       labs(title = title, x = "Year", y = "Relative TAC") +
       theme_minimal() +
@@ -4503,7 +4543,7 @@ plot_TAC_total_modified <- function(simulation_result,
 
   if(save_plot) {
     if(is.null(filename)) {
-      fleet_suffix <- if(has_fleets && show_fleets) "by_fleet" else "total"
+      fleet_suffix <- if(has_fleets && show_fleets) "by_fleet_panels" else "total"
       filename <- paste0("TAC_total_", fleet_suffix, "_modified.jpeg")
     }
     ggsave(filename, p, width = width, height = height, dpi = 300)

@@ -2,7 +2,7 @@
 % Please edit documentation in R/fishSimGTG-plot-functions.R
 \name{plot_catchB_total_modified}
 \alias{plot_catchB_total_modified}
-\title{Modified Total Catch Biomass by Fleet}
+\title{Modified Total Catch Biomass by Fleet - PANEL VERSION}
 \usage{
 plot_catchB_total_modified(
   simulation_result,
@@ -18,29 +18,6 @@ plot_catchB_total_modified(
   height = 10
 )
 }
-\arguments{
-\item{simulation_result}{Output object from \code{runProjection()}}
-
-\item{show_fleets}{Logical. Whether to show fleet breakdown in multifleet. Default is TRUE}
-
-\item{show_median}{Logical. Whether to show median line. Default is TRUE}
-
-\item{show_quantiles}{Logical. Whether to show quantile ribbon. Default is TRUE}
-
-\item{show_individual}{Logical. Whether to show individual iteration lines. Default is FALSE}
-
-\item{color_palette}{Character vector of colors. If NULL, uses default}
-
-\item{title}{Character. Custom plot title. If NULL, generates automatic title}
-
-\item{save_plot}{Logical. Whether to save plot. Default is FALSE}
-
-\item{filename}{Character. Filename for saved plot}
-
-\item{width}{Numeric. Plot width in inches. Default is 12}
-
-\item{height}{Numeric. Plot height in inches. Default is 8}
-}
 \description{
-Enhanced version with larger fonts and standardization
+Each fleet in separate panel, standardized by its own last historical year
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/fishSimGTG-plot-functions.R
 \name{plot_Ftotal_modified}
 \alias{plot_Ftotal_modified}
-\title{Modified Total Fishing Mortality by Fleet (Area 1 only)}
+\title{Modified Fishing Mortality by Fleet - PANEL VERSION}
 \usage{
 plot_Ftotal_modified(
   simulation_result,
@@ -19,6 +19,6 @@ plot_Ftotal_modified(
 )
 }
 \description{
-Enhanced version with larger fonts and standardization
-Uses only Area 1 as total F
+Each fleet in separate panel, standardized by its own last historical year
+Uses Area 1 only
 }
