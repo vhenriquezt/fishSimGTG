@@ -499,6 +499,12 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
     #ensure F values remain positive
     ft <- pmax(ft, tiny)
+    ft[tac_managed] <- pmin(ft[tac_managed], 5)
+    # # check for very high F values and prevent them - only for TAC-managed
+    # if (any(ft[tac_managed] > 5)) {
+    #   warning("F values became very large during iteration. Capping at 5.")
+    #   ft[tac_managed] <- pmin(ft[tac_managed], 5)
+    # }
 
     #check convergence
     # relative_error <- abs(error / pmax(ct, tiny))
@@ -529,13 +535,9 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     #   ft <- pmin(ft, 5)
     # }
 
-    #changed:
-    # check for very high F values and prevent them - only for TAC-managed
-    if (any(ft[tac_managed] > 10)) {
-      warning("F values became very large during iteration. Capping at 5.")
-      ft[tac_managed] <- pmin(ft[tac_managed], 5)
-    }
   }
+
+
 
   #convergence diagnostics and warnings
   if (!converged) {
