@@ -460,10 +460,10 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
 
     #check convergence and update -  check if derivatives are too small
-    #if (all(dct[!is.na(ct)] < 1e-15)) {   #changed to work when effort based
-    if (all(dct[tac_managed] < 1e-15)) {
-      converged <- TRUE
-      break
+    if (any(abs(dct[tac_managed]) < 1e-8)) {
+      warning("Derivative became too small (NR unstable) Stop iteration.")
+      converged <- FALSE  # Mark as FAILED now, not converged
+      break               #exist the loop inmediately- this prevent F explosion
     }
 
     #Newton-Raphson update with damping factor
@@ -506,12 +506,16 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     #   ft[tac_managed] <- pmin(ft[tac_managed], 5)
     # }
 
-    #check convergence
-    # relative_error <- abs(error / pmax(ct, tiny))
-    # if (all(relative_error[!is.na(ct)] < tolF)) {
+
+    # check for very high F values and prevent them - only for TAC-managed
+    if (any(ft[tac_managed] > 5)) {
+      warning("F values became very large during iteration. Capping at 5.")
+      ft[tac_managed] <- pmin(ft[tac_managed], 5) #eg. pmin([6.2, 0.8], 5) = [min(6.2, 5), min(0.8, 5)]  = [5.0, 0.8]
+    }
+
 
     #changed:
-    #check convergence
+    #check convergence - now after capping
     relative_error <- abs(error / pmax(ct, tiny))
     relative_error[!tac_managed] <- 0  # Zero out for effort fleets
 
@@ -528,6 +532,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       break
     }
 
+<<<<<<< HEAD
 
     #check for very high F values and prevent them - maybe find another approach for this - or not sure if we need this, explore the outputs
     # if (any(ft > 10)) {
@@ -535,6 +540,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     #   ft <- pmin(ft, 5)
     # }
 
+=======
+>>>>>>> a9d40725a8e98a1626c4d6abab4611e435762515
   }
 
 
