@@ -319,7 +319,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
     # Calculate and debug in one step
     # Initial guess: F ≈ TAC / VulnerableBiomass
-    guess <- ct[f] / total_vuln_biomass
+    guess <- min(1, ct[f] / total_vuln_biomass)
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
                 f, ct[f], total_vuln_biomass, guess))
 
