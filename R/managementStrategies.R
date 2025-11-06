@@ -532,16 +532,6 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       break
     }
 
-<<<<<<< HEAD
-
-    #check for very high F values and prevent them - maybe find another approach for this - or not sure if we need this, explore the outputs
-    # if (any(ft > 10)) {
-    #   warning("F values became very large during iteration. Capping at 5.")
-    #   ft <- pmin(ft, 5)
-    # }
-
-=======
->>>>>>> a9d40725a8e98a1626c4d6abab4611e435762515
   }
 
 
