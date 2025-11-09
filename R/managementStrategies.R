@@ -314,33 +314,154 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
     if (total_vuln_biomass < tiny) return(tiny)
 
-    # cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
-    #             f, ct[f], total_vuln_biomass, initial_F))
 
-    # Calculate and debug in one step
-    # Initial guess: F ≈ TAC / VulnerableBiomass
-    guess <- min(1, ct[f] / total_vuln_biomass)
+    # Initial guess: F ~ TAC / VulnerableBiomass
+    # CHANGED:
+    # Removed min(1, ...) cap that prevented TAC adjustment from triggering (SEE BELOW WHY - following Martell example)
+    # BEFORE: guess <- min(1, ct[f] / total_vuln_biomass) #Calculate intitial F, but if it's greater than 1.0, cap it at 1.0
+    # NOW: Allow F to be calculated without artificial ceiling
+
+    guess <-  ct[f] / total_vuln_biomass
+
+    # Diagnostic
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
                 f, ct[f], total_vuln_biomass, guess))
 
     return(guess)
   })
 
-  ft_initial <- ft  #store initial guess before Newton-Raphson iterations for diagnostics
+  #store initial guess before Newton-Raphson iterations for diagnostics
+  #BEFORE ANY ADJUSTMENT
+  ft_initial <- ft
 
+  #Show initial guesses
+  cat("\n=== show intitial guesses ===\n")
+  for(f in 1:nfleets) {
+    if(!is.na(ct[f])) {
+      cat(sprintf("Fleet %d: TAC=%.2f, Initial F=%.4f\n",
+                  f, ct[f], ft[f]))
+    }
+  }
+
+  # ============================================================================
+  # TAC ADJUSTMENT FOR BIOLOGICAL REALISM (FOLLOWING MARTELL CODE'S IDEA)
+  # ============================================================================
+  # If initial F exceeds biological limit, reduce TAC to what's achievable at the limit
+
+  # PROBLEM: If TAC is too high for available biomass, the solver tries to
+  #          achieve it by increasing F indefinitely, hitting the biological cap
+  #          (F=3.0) and staying there, causing population collapse.
+
+  # SOLUTION: Following Martell's ADMB approach: if initial F exceeds the biological limit, we:
+  #           1. Cap F at the biological limit (F = 3.0)
+  #           2. Calculate what catch (new target) is ACHIEVABLE at this F
+  #           3. ADJUST THE TAC DOWNWARD to this achievable level
+  #           4. Solve for the adjusted (realistic) TAC
+
+  # RESULT: F converges at< = 3.0) instead of staying stuck
+  #         at the cap trying to achieve an impossible target.
+
+  # This is equivalent to Martell code (lines 117-129 in ADMB version):
+  #   if(1.-ft(i)<minsurv) {            // If survival < 5%
+  #     ft(i)=1.-minsurv;               // Cap F (exploitation rate)
+  #     ctmp(i)=ft(i)*ba*V(i)*...;      // Recalculate achievable catch
+  #   }
+  #   ct=ctmp;                          // Use adjusted TAC as target
+
+  max_F_bio <- 3.0  # this is my F cap (bio limit) - (roughly 95% exploitation, 5% survival)
+
+  for(f in 1:nfleets) {
+    if(!is.na(ct[f]) && ft[f] > max_F_bio) {  # Is 1.0 > 3.0?  NO! so this block does not work wit the cap=1 in initial guess
+     #if this block does not get executed:
+     #I will do the following example:
+      # initial_F = 800 / 200 = 4.0
+      # ft[f] = min(1, 4.0) = 1.0  # F is capped at 1.0
+      # if (ft[f] > 3.0) { # Is 1.0 > 3.0?  NO!
+      #   # This block NEVER EXECUTES
+      #   # TAC stays at 800 kg
+      #   }
+      # Then NR will start at F=1 with a target TAC (800) that is imposible to achive
+      # ANd NR will continue forever trying to achieve the 800 TAC
+      cat(sprintf("\n Fleet %d: Initial F=%.4f exceeds F biological limit (%.2f)\n",
+                  f, ft[f], max_F_bio))
+      cat(sprintf("    Original TAC: %.2f kg\n", ct[f]))
+
+      #Cap F at bio limit (like Martell's: ft(i)=1.-minsurv)
+      ft[f] <- max_F_bio
+
+      #Calculate achievable catch at F = max_F_bio using Baranov equation (like Martell's: ctmp(i)=ft(i)*ba*V(i)*...)
+      achievable_catch <- 0
+
+      for (gtg in 1:lh$gtg) {
+        for (age in 1:lh$ageClasses) {
+          for (area in 1:areas) {
+
+            # Get selectivity based on TAC type
+            if (is_multifleet) {
+              sel <- if(TAC_type == "keep") selGroup[[area]][[f]]$keep[[gtg]][age]
+              else selGroup[[area]][[f]]$removal[[gtg]][age]
+            } else {
+              sel <- if(TAC_type == "keep") selGroup[[area]]$keep[[gtg]][age]
+              else selGroup[[area]]$removal[[gtg]][age]
+            }
+
+            # Calculate biomass for this GTG-age-area combination
+            biomass <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
+
+            # Calculate Z with capped F
+            Z_approx <- M_rate + ft[f] * sel
+            Z_approx <- max(Z_approx, tiny)
+
+            # Baranov equation: calculate catch at F=max_F_bio
+            achievable_catch <- achievable_catch +
+              ft[f] * sel / Z_approx * (1 - exp(-Z_approx)) * biomass
+          }
+        }
+      }
+
+      cat(sprintf("    Achievable catch at F=%.2f: %.2f kg\n", max_F_bio, achievable_catch))
+      cat(sprintf("    Reducing TAC to %.1f%% of original\n", 100*achievable_catch/ct[f]))
+
+      # ADJUST TAC DOWNWARD to achievable level (like Martell's: ct=ctmp)
+      # This is the KEY modification - here we change the target instead of forcing high F
+      ct[f] <- achievable_catch
+
+      warning(sprintf("Fleet %d: TAC reduced to %.2f kg due to biological constraints",
+                      f, achievable_catch))
+    }
+  }
+
+  # Print adjusted TAC targets that will be used in Newton-Raphson
+
+  cat("\n=== Adjusted TAC targets (used in Newton-Raphson) ===\n")
+  for(f in 1:nfleets) {
+    if(!is.na(ct[f])) {
+      cat(sprintf("Fleet %d: TAC=%.2f, Starting F=%.4f\n",
+                  f, ct[f], ft[f]))
+    }
+  }
+
+  # ============================================================================
+  # END MARTELL AMBD CODE APPROACH)
+  # ============================================================================
+
+
+
+  # Early termination check: # If TACs or F values are negligible,
+  # no fishing occurs - skip iteration
 
   #if NA ct or ct too tiny or ft too tiny - early termination check
   if (all(ct[!is.na(ct)] <= tiny) || all(ft <= tiny)) {
     return(if (!is_multifleet && nfleets == 1) tiny else rep(tiny, nfleets))
   }
 
-  #initialize variables
-  pct <- numeric(nfleets)  # Predicted catches
-  dct <- numeric(nfleets)  # Derivatives
+  #Initialize variables
+  pct <- numeric(nfleets)  # Predicted catches (calculated each iteration)
+  dct <- numeric(nfleets)  # Derivatives: dCatch/dF (calculated each iteration)
 
   #Newton-Rapson iteration
-  converged <- FALSE
-  iteration_count <- 0
+  converged <- FALSE        # Convergence - Non convergence flag
+  iteration_count <- 0      # Track number of iterations used
 
 
 
@@ -349,23 +470,32 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
   # dct <- pct <- numeric(nfleets)  # Derivatives and predicted catches
 
   #====================here we start NR calculations=======================#
-
+  #Method: F_new = F_guess - (error / derivative)
+  #error = predicted_catch - target_catch
+  #derivative = dCatch/dF
 
   for(iter in 1:maxiterF) {
     iteration_count <- iter
 
-    #reset predicted catches and derivatives
+    # diagnostic output (first 3 iterations and every 50th)
+    if(iter <= 3 || iter %% 50 == 0) {
+      cat(sprintf("\n--- Iteration %d ---\n", iter))
+      for(f in 1:nfleets) {
+        if(!is.na(ct[f])) {
+          cat(sprintf("  Fleet %d: F=%.4f\n", f, ft[f]))
+        }
+      }
+    }
+
+    #reset predicted catches and derivatives for this iter
     pct[] <- 0
     dct[] <- 0
 
-
-    #debug block
-    if(iter == 1 || iter %% 50 == 0) {
-      cat(sprintf("  NR Iter %d: ft[1]=%.6f\n", iter, ft[1]))
-    }
-
-
     #calculate predicted catches and derivatives using fishSimGTG approach
+    # loop through all GTGs, ages, and areas to calculate:
+    # Total predicted catch for each fleet using current F values
+    # Derivative of catch with respect to F for each fleet
+
     for (gtg in 1:lh$gtg) {
       for (age in 1:lh$ageClasses) {
         for (area in 1:areas) {
@@ -398,11 +528,14 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
           #calculate biomass for this GTG-age-area combination
           biomass_gtg <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
 
+          #skip if no biomass
           if (biomass_gtg < tiny) next  #skip if no biomass
 
           #calculate fleet-specific catches and derivatives
           for (f in 1:nfleets) {
-            if (is.na(ct[f])) next  #skip effort-managed fleets
+
+            #skip effort-managed fleets (F is predetermined, not solved)
+            if (is.na(ct[f])) next
 
             #get appropriate selectivity based on TAC type
             #TAC Types:
@@ -429,6 +562,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
             # C = F*sel/Z * (1-exp(-Z)) * N * W
             catch_component <- ft[f] * sel_f / Z_gtg * (1 - exp(-Z_gtg)) * biomass_gtg
 
+            #accumulate if finite (valid calculation)
             if (is.finite(catch_component)) {
               #add to fleet totals
               pct[f] <- pct[f] + catch_component
@@ -445,6 +579,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
               derivative_component <- term1 - term2 + term3
 
+              # accumulate if finite
               if (is.finite(derivative_component)) {
                 #add to fleet totals
                 dct[f] <- dct[f] + derivative_component
@@ -455,92 +590,124 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       }#age classess
     }#gtg
 
-    #added: to work when effort based - identify TAC-managed fleets
+    #identify TAC-managed fleets
+    #added: to work when effort based - remember: effort-managed fleets (TAC = NA) use predetermined F values
     tac_managed <- !is.na(ct)
 
 
-    #check convergence and update -  check if derivatives are too small
-    if (any(abs(dct[tac_managed]) < 1e-8)) {
+    #check convergence and update and numerical issues
+    #before using derivatives, verify they're valid
+    #invalid derivatives indicate numerical instability
+
+    if (any(!is.finite(dct[tac_managed]))) {
+      warning("Derivative became infinite or NaN. Stopping.")
+      converged <- FALSE
+      break
+    }
+
+    #check if derivatives are too small (indicates flat catch-F relationship)
+    #very small derivatives can cause enormous Newton-Raphson steps
+    #Rememeber: step = (error/derivative)
+
+    if (any(abs(dct[tac_managed]) < 1e-6)) {
       warning("Derivative became too small (NR unstable) Stop iteration.")
       converged <- FALSE  # Mark as FAILED now, not converged
       break               #exist the loop inmediately- this prevent F explosion
     }
 
+
+    #Calculate error and check steps
+    error <- pct - ct      # Error: predicted catch - target catch
+
+    #check if NR step would be unreasonably large
+    #large steps indicate numerical issues (instability)
+
+    potential_steps <- abs(error[tac_managed] / dct[tac_managed])
+    if (any(potential_steps > 5, na.rm = TRUE)) {
+      warning(sprintf("Newton-Raphson step would be too large (%.2f). Stopping.",
+                      max(potential_steps, na.rm = TRUE)))
+      converged <- FALSE
+      break
+    }
+
+
+
     #Newton-Raphson update with damping factor
-    # updates ALL fleets at once (also see my excel for single fleet - sam eequation excep by 0.8)
-    # 0.8 used to stabilize convergence (take 0.8 of the derivate to update F)
-    # the 0.8 amplifies the Newton correction.
-    # this can make convergence faster if normal steps are too small
-    # the 0.8 should help to each iteration to “jump” more strongly toward the solution
-    # but the risk is it could maybe pass the solution
-    # in the end it is supposed to reduce the N iterations in newton
-    error <- pct - ct
-    #ft <- ft - error / (0.8 * dct)
+
+    # The 0.8 factor is a damping parameter that makes each step smaller
+    # This helps prevent overshooting and improves stability
+    # Formula: F_new = F_old - 0.8 × (error / derivative)
+    # The 0.8 multiplies the step size, making updates more conservative
+    # Basically it avoids huhe jumps in F
+    #OBS: before that was incorrecly applied only to the derivative (as openMSE)
+    #but that was making steps larger instead of smaller (more overshooting and probab;y less stable)
 
 
     #changed: only update TAC-managed fleets
     for(f in 1:nfleets) {
       if(tac_managed[f]) {  # Only if TAC-managed
-        ft[f] <- ft[f] - error[f] / (0.8 * dct[f])
+        #ft[f] <- ft[f] - error[f] / (0.8 * dct[f]) #incorrect damping effect
+        #ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
+        ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
       }
       #effort-managed fleets: ft[f] stays unchanged
     }
 
-
-
-
-
-    # ========== DEBUG HERE ==========
-    if(iter == 1 || iter %% 50 == 0) {
-      cat(sprintf("  After update: ft[1]=%.6f, error=%.2f, dct=%.2f\n",
-                  ft[1], error[1], dct[1]))
-    }
-    # ==========================================
-
     #ensure F values remain positive
     ft <- pmax(ft, tiny)
-    ft[tac_managed] <- pmin(ft[tac_managed], 5)
-    # # check for very high F values and prevent them - only for TAC-managed
-    # if (any(ft[tac_managed] > 5)) {
-    #   warning("F values became very large during iteration. Capping at 5.")
-    #   ft[tac_managed] <- pmin(ft[tac_managed], 5)
-    # }
 
+    #cap F at bio limit (F = 3) to prevent unrealistic fishing mortality
+    ft[tac_managed] <- pmin(ft[tac_managed], 3)
 
-    # check for very high F values and prevent them - only for TAC-managed
-    if (any(ft[tac_managed] > 5)) {
-      warning("F values became very large during iteration. Capping at 5.")
-      ft[tac_managed] <- pmin(ft[tac_managed], 5) #eg. pmin([6.2, 0.8], 5) = [min(6.2, 5), min(0.8, 5)]  = [5.0, 0.8]
+    # Warning if F approaches the cap during iterations
+    # this suggests TAC may still be too high despite adjustment
+    if (any(ft[tac_managed] > 2.5)) {
+      cat(sprintf("\n  WARNING at iter %d: F approaching biological limit\n", iter))
+      for(f in which(tac_managed & ft > 2.5)) {
+        cat(sprintf("  Fleet %d: F=%.4f (Target TAC=%.2f, Predicted=%.2f)\n",
+                    f, ft[f], ct[f], pct[f]))
+      }
+      cat(" this suggests TAC may still be too high for available biomass\n")
     }
 
-
-    #changed:
-    #check convergence - now after capping
+    #Check convergence - now after capping
     relative_error <- abs(error / pmax(ct, tiny))
     relative_error[!tac_managed] <- 0  # Zero out for effort fleets
 
     if (all(relative_error[tac_managed] < tolF)) {
-
-
       converged <- TRUE
 
       #debug
-      cat(sprintf("  CONVERGED at iter %d: F=%.6f, pct=%.2f, target=%.2f\n",
-                  iter, ft[1], pct[1], ct[1]))
+      cat(sprintf("\nCONVERGED at iteration %d\n", iter))
+      for(f in 1:nfleets) {
+        if(tac_managed[f]) {
+          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.1f%% error)\n",
+                      f, ft[f], ct[f], pct[f], 100*relative_error[f]))
+        }
+      }
       #end debug
 
       break
     }
 
-  }
-
+  } #close iter loop: End Newton-Raphson iteration loop
 
 
   #convergence diagnostics and warnings
+
   if (!converged) {
     warning(paste("Newton-Raphson did not converge after", maxiterF, "iterations."))
+
+    cat("\n CONVERGENCE FAILED\n")
+    for(f in 1:nfleets) {
+      if(tac_managed[f]) {
+        cat(sprintf("  Fleet %d: Final F=%.4f, Target=%.2f, Predicted=%.2f (%.1f%% error)\n",
+                    f, ft[f], ct[f], pct[f], 100*abs(pct[f]-ct[f])/ct[f]))
+      }
+    }
   }
 
+  # Check for large final errors (even if converged)
   final_error <- abs(pct - ct) / pmax(ct, tiny)
   if (any(final_error[!is.na(ct)] > 0.1)) {
     warning(paste("Large differences between predicted and target catches.",
