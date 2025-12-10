@@ -746,7 +746,7 @@ evalMSE<-function(inputObject){
               # NEVER combine selectivities - each fleet contributes independently
               total_fishing_mortality <- sapply(1:ageClasses, function(age) {
                 sum(sapply(1:nfleets, function(ff) {
-                  Ftotal_by_fleet[j,k,m,ff] * selHist[[m]][[ff]]$removal[[l]][age]
+                  Ftotal_by_fleet[j,k,m,ff] * selGroup[[m]][[ff]]$removal[[l]][age]
                 }))
               })
               #Note that fishing mortality accounted for in total_fishing_mortality vector, thus F_in = 1 is just a dummy input
