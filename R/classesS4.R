@@ -403,6 +403,7 @@ setClass("Multifleet",
            nfleets = "numeric",
            fleet_proportions = "numeric",
            allocation_type = "character",
+           fleet_block_hist_list = "list",
            fleet_selectivity_hist_list = "list",
            fleet_selectivity_proj_list = "list",
            fleet_historicalEffort = "array"

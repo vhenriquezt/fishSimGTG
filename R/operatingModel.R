@@ -2014,17 +2014,14 @@ lifehistoryDev<-function(TimeAreaObj, StochasticObj){
     #--------
     Steep<-NULL
     if(is(StochasticObj, "Stochastic") &&
-       length(StochasticObj@Steep) > 1 #&&
-       #StochasticObj@Steep[1] >= 0.21 &&
-       #StochasticObj@Steep[1] <= 1 &&
-       #StochasticObj@Steep[2] >= 0.21 &&
-       #StochasticObj@Steep[2] <= 1 &&
-       #StochasticObj@Steep[2] >= StochasticObj@Steep[1]
+       length(StochasticObj@Steep) > 1 &&
+       StochasticObj@Steep[1] >= 0.21 &&
+       StochasticObj@Steep[1] <= 1 &&
+       StochasticObj@Steep[2] >= 0.21 &&
+       StochasticObj@Steep[2] <= 1 &&
+       StochasticObj@Steep[2] >= StochasticObj@Steep[1]
     ) {
-      #Steep<-runif(iterations, min = StochasticObj@Steep[1], max = StochasticObj@Steep[2])
-      upper <- 1
-      lower <- 0.21
-      Steep <- rbeta(iterations, StochasticObj@Steep[1], StochasticObj@Steep[2])*(upper-lower)+lower
+      Steep<-runif(iterations, min = StochasticObj@Steep[1], max = StochasticObj@Steep[2])
     }
 
     #--------

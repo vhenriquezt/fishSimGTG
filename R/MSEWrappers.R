@@ -42,17 +42,10 @@ evalMSE<-function(inputObject){
 
   #Single fleet
   if(!is_multifleet) {
-    #Bill edit: you previous had these value defined for single fleet, but we should not need these
-    #nfleets <- 1
-    #fleet_proportions <- c(1.0)
     VB<-array(dim=c(years, iterations, areas))
     RB<-array(dim=c(years, iterations, areas))
     Ftotal<-array(dim=c(years, iterations, areas))
   }
-
-  #####
-  #Bill Edit
-  #Added VB by fleet
 
   #Multifleet 4D arrays [years, iterations, areas, fleets]
   if(is_multifleet) {
@@ -60,8 +53,6 @@ evalMSE<-function(inputObject){
     nfleets <- MultifleetObj@nfleets
     fleet_proportions <- MultifleetObj@fleet_proportions
     cat("Multifleet mode detected with", nfleets, "fleets\n")
-
-    #Bill edit: is there a need for the duplication of names below?
     Ftotal_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
     catchB_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
     catchN_by_fleet <- array(dim=c(years, iterations, areas, nfleets))
@@ -136,10 +127,14 @@ evalMSE<-function(inputObject){
 
     #Multi fleet
     if(is_multifleet){
-      selHist <- lapply(1:TimeAreaObj@areas, function(x){
+      #Bill Edit
+      selHistBlock <- lapply(1:TimeAreaObj@areas, function(x){
         lapply(1:nfleets, function(f) {
-          selWrapper(lh, TimeAreaObj,
-                      FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]])
+          bl<-NROW(MultifleetObj@fleet_block_hist_list[[f]])
+          lapply(1:bl, function(b) {
+            selWrapper(lh, TimeAreaObj,
+                      FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]][[b]])
+          })
         })
       })
       selPro <- lapply(1:TimeAreaObj@areas, function(x){
@@ -154,7 +149,9 @@ evalMSE<-function(inputObject){
       })
 
       #Note: I am using area 1 and fleet 1 for this calculation (it could be changed)
-      refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]][[1]])
+      #Bill Edit
+      indX<-sapply(1:NROW(MultifleetObj@fleet_block_hist_list[[1]]), function(x){1 %in% MultifleetObj@fleet_block_hist_list[[1]][[x]]})
+      refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHistBlock[[1]][[1]][[which(indX)[1]]])
     }
   }
 
@@ -214,11 +211,17 @@ evalMSE<-function(inputObject){
       #Multi fleet
       if(is_multifleet) {
         #Fleet-specific fishery objects directly from MultifleetObj (no stochasticity)
-        selHist<-lapply(1:TimeAreaObj@areas, function(area){
+        #Bill Edit
+        selHistBlock <- lapply(1:TimeAreaObj@areas, function(x){
           lapply(1:nfleets, function(f) {
-            selWrapper(lh, TimeAreaObj, FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]])
+            bl<-NROW(MultifleetObj@fleet_block_hist_list[[f]])
+            lapply(1:bl, function(b) {
+              selWrapper(lh, TimeAreaObj,
+                         FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]][[b]])
+            })
           })
         })
+
         selPro<-lapply(1:TimeAreaObj@areas, function(area){
           lapply(1:nfleets, function(f) {
             if(is(StrategyObj, "Strategy")){
@@ -229,7 +232,9 @@ evalMSE<-function(inputObject){
             }
           })
         })
-        refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHist[[1]][[1]]) # area 1 and fleet 1 for benchmarks (for now)
+        #Bill Edit
+        indX<-sapply(1:NROW(MultifleetObj@fleet_block_hist_list[[1]]), function(x){1 %in% MultifleetObj@fleet_block_hist_list[[1]][[x]]})
+        refCalc<-gtgYPRWrapper_Fonly(lh=lh, sel=selHistBlock[[1]][[1]][[which(indX)[1]]])
       }
 
       ref[k, ]<-as.matrix(refCalc$sim)[1,]
@@ -250,6 +255,14 @@ evalMSE<-function(inputObject){
     if(is_multifleet) {
 
       #Initial equilibrium (before movement between areas)
+      #Bill Edit
+      selHist<-lapply(1:TimeAreaObj@areas, function(area){
+        lapply(1:nfleets, function(f) {
+          indX<-sapply(1:NROW(MultifleetObj@fleet_block_hist_list[[f]]), function(x){1 %in% MultifleetObj@fleet_block_hist_list[[f]][[x]]})
+          selHistBlock[[area]][[f]][[which(indX)[1]]]
+        })
+      })
+
       is <- solveD_multifleet2(lh = lh, sel_list = selHist[[1]], doFit = TRUE, D_type = TimeAreaObj@historicalBioType,
                                D_in = Ddev[k], fleet_proportions = fleet_proportions,
                                allocation_type = MultifleetObj@allocation_type)
@@ -464,6 +477,16 @@ evalMSE<-function(inputObject){
       #---------------------------------------------------------------------------
       #9. Selgroup correct sel group based on historical or projection time period
       #---------------------------------------------------------------------------
+      #Bill Edit
+      if(is_multifleet){
+        selHist<-lapply(1:TimeAreaObj@areas, function(area){
+          lapply(1:nfleets, function(f) {
+            indX<-sapply(1:NROW(MultifleetObj@fleet_block_hist_list[[f]]), function(x){(j-1) %in% MultifleetObj@fleet_block_hist_list[[f]][[x]]})
+            selHistBlock[[area]][[f]][[which(indX)[1]]]
+          })
+        })
+      }
+
       if(controlRuleYear[j]) selGroup <- selPro
       if(!controlRuleYear[j]) selGroup <- selHist
 
@@ -874,18 +897,6 @@ evalMSE<-function(inputObject){
       allocation_type = allocation_type
     )
 
-    #Bill edit: This chunk should be moved or removed.
-    # Final verification before storage
-    #cat("=== FINAL VERIFICATION in evalMSE (iteration", k, ") ===\n")
-    #cat("final_effort_proportions: ", if(!is.null(final_effort_proportions)) round(final_effort_proportions, 4) else "NULL", "\n")
-    #cat("actual_catch_proportions: ", if(!is.null(actual_catch_proportions)) round(actual_catch_proportions, 4) else "NULL", "\n")
-
-    # if(!is.null(final_effort_proportions) && !is.null(actual_catch_proportions)) {
-    #   cat("Are they identical in final storage?", identical(final_effort_proportions, actual_catch_proportions), "\n")
-    #   cat("Max difference:", max(abs(final_effort_proportions - actual_catch_proportions)), "\n")
-    # }
-    #cat("==============================================\n")
-
     #save
     dynamics<-list(SB=SB, catchB=catchB, catchN=catchN, discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref = ref,
                  multifleet = dynamics_multifleet)
@@ -1124,10 +1135,27 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       stop(paste("Multi fleet: fleet_selectivity_hist_list must contain", nfleets, "Fishery objects"))
     }
 
-    #Historical sel - Check that each fleet slot contains a Fishery object
+    #Historical sel - check that list dimensions match blocks and fishery objects
     for(f in 1:nfleets) {
-      if(!is(MultifleetObj@fleet_selectivity_hist_list[[f]], "Fishery")) {
+      if(NROW(MultifleetObj@fleet_block_hist_list[[f]]) != NROW(MultifleetObj@fleet_selectivity_hist_list[[f]])){
+        stop(paste("Fleet", f, "historical: mismatch between number of blocks and Fishery objects"))
+      }
+    }
+
+    #Historical sel - Check that each fleet slot contains a Fishery object
+    #Bill Edit
+    for(f in 1:nfleets) {
+      if(!any(sapply(1:NROW(MultifleetObj@fleet_block_hist_list[[f]]), function(x){is(MultifleetObj@fleet_selectivity_hist_list[[f]][[x]], "Fishery")}))) {
         stop(paste("Fleet", f, "historical Fishery object is missing"))
+      }
+    }
+
+    #Historical sel - check to see if blocks contain each year in historical and only once
+    for(f in 1:nfleets) {
+      tmp<-MultifleetObj@fleet_block_hist_list[[f]]
+      #Contains entries of length equal to TimeAreaObj@historicalYears
+      if(isFALSE(NROW(unique(unlist(tmp))) == TimeAreaObj@historicalYears & min(unlist(tmp)) == 1 & max(unlist(tmp)) == TimeAreaObj@historicalYears)){
+        stop(paste("Fleet", f, "Problem with historical Fishery blocks"))
       }
     }
 
@@ -1239,12 +1267,16 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
         }
         #Setup
         lh<-LHwrapper(LifeHistoryObj_TMP, TimeAreaObj)
-        selHist <- lapply(1:TimeAreaObj@areas, function(area){
+        selHistBlock <- lapply(1:TimeAreaObj@areas, function(x){
           lapply(1:nfleets, function(f) {
-            selWrapper(lh, TimeAreaObj,
-                       FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]])
+            bl<-NROW(MultifleetObj@fleet_block_hist_list[[f]])
+            lapply(1:bl, function(b) {
+              selWrapper(lh, TimeAreaObj,
+                         FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]][[b]])
+            })
           })
         })
+
         selPro <- lapply(1:TimeAreaObj@areas, function(area){
           lapply(1:nfleets, function(f) {
             if(is(StrategyObj, "Strategy")) {
@@ -1258,13 +1290,15 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
         if(is.null(lh)) {
           stop("Multi fleet: Life history cannot be created. Check inputs. Stopped at interation", k)
         }
+        #Bill Edit
         for(x in 1:TimeAreaObj@areas){
           for(f in 1:nfleets){
-            if(is.null(selHist[[x]][[f]])){
-              stop(paste("Multi fleet: Historical selectivity cannot be created. Check inputs. Stopped at interation", k))
+            for(b in 1:NROW(MultifleetObj@fleet_block_hist_list[[f]])){
+              if(is.null(selHistBlock[[x]][[f]][[b]])){
+                stop("Multi fleet: Historical selectivity cannot be created. Check inputs.")
+              }
             }
           }
-
         }
         for(x in 1:TimeAreaObj@areas){
           for(f in 1:nfleets){
@@ -1276,10 +1310,14 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       }
     } else {
       lh<-LHwrapper(LifeHistoryObj, TimeAreaObj)
-      selHist <- lapply(1:TimeAreaObj@areas, function(area){
+      #Bill Edit
+      selHistBlock <- lapply(1:TimeAreaObj@areas, function(x){
         lapply(1:nfleets, function(f) {
-          selWrapper(lh, TimeAreaObj,
-                     FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]])
+          bl<-NROW(MultifleetObj@fleet_block_hist_list[[f]])
+          lapply(1:bl, function(b) {
+            selWrapper(lh, TimeAreaObj,
+                       FisheryObj = MultifleetObj@fleet_selectivity_hist_list[[f]][[b]])
+          })
         })
       })
       selPro <- lapply(1:TimeAreaObj@areas, function(area){
@@ -1296,10 +1334,13 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
       if(is.null(lh)) {
         stop("Multi fleet: Life history cannot be created. Check inputs.")
       }
+      #Bill Edit
       for(x in 1:TimeAreaObj@areas){
         for(f in 1:nfleets){
-          if(is.null(selHist[[x]][[f]])){
-            stop("Multi fleet: Historical selectivity cannot be created. Check inputs.")
+          for(b in 1:NROW(MultifleetObj@fleet_block_hist_list[[f]])){
+            if(is.null(selHistBlock[[x]][[f]][[b]])){
+              stop("Multi fleet: Historical selectivity cannot be created. Check inputs.")
+            }
           }
         }
       }
