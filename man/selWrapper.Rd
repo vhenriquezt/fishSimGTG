@@ -46,7 +46,7 @@ Total removals is: vul x (Ret + (1 - Ret) x D)
 
 Selectivity types: "logistic" with params vector c(length at 50\% sel, length increment to 95\% sel); "explog" exponential logistic (domed) with vector c(p1, peak, p3); "gillnetMasterNormal" master curve for mesh sel with vector(R0 relative peak L/m, var, mesh (in cm)); "gillnetMasterLognormal" master curve for mesh sel with vector (R0 relative peak L/m, var, mesh (in cm))
 
-Retention types: "full" with no params, assumes Keep = Ret; "logistic" with params vector c(length at 50\% ret, length increment to 95\% ret); "slotLimit" with params vector c(min length, max length) where catches occur betweem min and max
+Retention types: "full" with no params, assumes Keep = Ret; "logistic" with params vector c(length at 50\% ret, length increment to 95\% ret); "slotLimit" with params vector c(min length, max length) where catches occur between min and max; "protectSlotLimit" with params vector c(min length, max length) where catches occur excluding range between min and max; 'blockRet' series of blocks params c(# of blocks (3), upper block 1, upper block 2,....ret1, ret2, ret3)
 
 Total dead is: Vul x (Ret + (1-Ret)D)
 }

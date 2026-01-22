@@ -198,7 +198,7 @@ LHwrapper<-function(LifeHistoryObj, TimeAreaObj, stepsPerYear = 1, doPlot = FALS
 #'
 #'Selectivity types: "logistic" with params vector c(length at 50% sel, length increment to 95% sel); "explog" exponential logistic (domed) with vector c(p1, peak, p3); "gillnetMasterNormal" master curve for mesh sel with vector(R0 relative peak L/m, var, mesh (in cm)); "gillnetMasterLognormal" master curve for mesh sel with vector (R0 relative peak L/m, var, mesh (in cm))
 #'
-#'Retention types: "full" with no params, assumes Keep = Ret; "logistic" with params vector c(length at 50% ret, length increment to 95% ret); "slotLimit" with params vector c(min length, max length) where catches occur betweem min and max
+#'Retention types: "full" with no params, assumes Keep = Ret; "logistic" with params vector c(length at 50% ret, length increment to 95% ret); "slotLimit" with params vector c(min length, max length) where catches occur between min and max; "protectSlotLimit" with params vector c(min length, max length) where catches occur excluding range between min and max; 'blockRet' series of blocks params c(# of blocks (3), upper block 1, upper block 2,....ret1, ret2, ret3)
 #'
 #'Total dead is: Vul x (Ret + (1-Ret)D)
 #' @param lh  An object produced by LHWrapper.
@@ -367,11 +367,57 @@ selWrapper<-function(lh, TimeAreaObj, FisheryObj, doPlot = FALSE,  wd = NULL, im
     }
   }
 
+  #Protected Slot limit
+  protectSlotProb<-function(L, param, maxProb){
+    if(
+      length(param) != 2 ||
+      param[1] < 0 ||
+      param[1] >= param[2] ||
+      length(maxProb) == 0 ||
+      maxProb < 0 ||
+      maxProb > 1
+    ) {
+      NULL
+    } else {
+      tryCatch({
+        ifelse(L < param[1] | L > param[2], 1.0, 0)*maxProb
+      },
+      error = function(c) NULL,
+      warning = function(c) NULL
+      )
+    }
+  }
+
+  #Length block harvest slot
+  # param = c(3, 30, 40, 0.2, 1, 0.2)
+  blockProb<-function(L, param, maxProb){
+    if(
+      param[1] < 0 ||
+      length(param) != (param[1]*2) ||
+      is.unsorted(param[2:param[1]]) ||
+      any(param[2:param[1]] < 0) ||
+      length(maxProb) == 0 ||
+      maxProb < 0 ||
+      maxProb > 1
+    ) {
+      NULL
+    } else {
+      tryCatch({
+        vec<-c(0,param[2:param[1]])
+        ind<-param[1] + findInterval(L, vec, rightmost.closed = FALSE, left.open = FALSE)
+        param[ind]*maxProb
+      },
+      error = function(c) NULL,
+      warning = function(c) NULL
+      )
+    }
+  }
+
   sel<-list()
   if(is.null(lh) ||
      !is(FisheryObj, "Fishery") ||
      !(FisheryObj@vulType %in%  c("logistic", "explog", "explogFlex", "gillnetMasterNormal", "gillnetMasterLognormal")) ||
-     !(FisheryObj@retType %in%  c("full", "logistic", "slotLimit")) ||
+     !(FisheryObj@retType %in%  c("full", "logistic", "slotLimit", "protectSlotLimit", "blockRet")) ||
      length(FisheryObj@retMax) == 0 ||
      FisheryObj@retMax < 0 ||
      FisheryObj@retMax > 1 ||
@@ -410,6 +456,14 @@ selWrapper<-function(lh, TimeAreaObj, FisheryObj, doPlot = FALSE,  wd = NULL, im
 
     if(FisheryObj@retType == "slotLimit") {
       sel$ret<-lapply(1:lh$gtg, FUN=function(x) slotProb(L = lh$L[[x]], param = FisheryObj@retParams, maxProb = FisheryObj@retMax))
+    }
+
+    if(FisheryObj@retType == "protectSlotLimit") {
+      sel$ret<-lapply(1:lh$gtg, FUN=function(x) protectSlotProb(L = lh$L[[x]], param = FisheryObj@retParams, maxProb = FisheryObj@retMax))
+    }
+
+    if(FisheryObj@retType == "blockRet") {
+      sel$ret<-lapply(1:lh$gtg, FUN=function(x) blockProb(L = lh$L[[x]], param = FisheryObj@retParams, maxProb = FisheryObj@retMax))
     }
 
     #Do Keep, Dead discards, total removals

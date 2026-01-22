@@ -62,7 +62,8 @@ HistFisheryObj<-new("Fishery")
 HistFisheryObj@title<-"Example"
 HistFisheryObj@vulType<-"explogFlex"
 HistFisheryObj@vulParams<-c(0.05, 24.20,  0.80, 24.00)
-HistFisheryObj@retType<-"full"
+HistFisheryObj@retType<-"blockRet"
+HistFisheryObj@retParams<-c(3, 30, 40, 0.2, 1, 0)
 HistFisheryObj@retMax <- 1
 HistFisheryObj@Dmort <- 0.2
 
