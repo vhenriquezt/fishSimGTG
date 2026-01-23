@@ -2892,18 +2892,18 @@ plot_observed_catch_total <- function(simulation_result,
 # ============================================================================
 
 # Helper function for standardization
-get_last_historical_value_mod <- function(data, historical_end, metric_col = "value") {
-  # get data from the LAST historical year
-  # historical_end is the FIRST projection year, so last historical is historical_end - 1
-  last_hist_year <- historical_end - 1
-
-  last_hist_data <- data %>%
-    filter(user_year == last_hist_year) %>%
-    pull(!!sym(metric_col))
-
-  if(length(last_hist_data) == 0) return(1)
-  return(median(last_hist_data, na.rm = TRUE))
-}
+# get_last_historical_value_mod <- function(data, historical_end, metric_col = "value") {
+#   # get data from the LAST historical year
+#   # historical_end is the FIRST projection year, so last historical is historical_end - 1
+#   last_hist_year <- historical_end - 1
+#
+#   last_hist_data <- data %>%
+#     filter(user_year == last_hist_year) %>%
+#     pull(!!sym(metric_col))
+#
+#   if(length(last_hist_data) == 0) return(1)
+#   return(median(last_hist_data, na.rm = TRUE))
+# }
 
 
 #' Modified Total Catch Biomass by Fleet - PANEL VERSION
@@ -2954,9 +2954,9 @@ plot_catchB_total_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3051,8 +3051,14 @@ plot_catchB_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -3171,9 +3177,9 @@ plot_catchN_total_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3260,8 +3266,14 @@ plot_catchN_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -3367,8 +3379,14 @@ plot_SB_total_modified <- function(simulation_result,
     plot_data <- rbind(plot_data, iter_data)
   }
 
-  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-  plot_data$value <- plot_data$value / std_factor
+  plot_data <- plot_data %>%
+    group_by(iteration) %>%
+    mutate(
+      std_factor = value[user_year == (historical_end - 1)],
+      value = value / std_factor
+    ) %>%
+    ungroup() %>%
+    select(-std_factor)
 
   summary_data <- plot_data %>%
     group_by(user_year, period) %>%
@@ -3478,8 +3496,14 @@ plot_recN_modified <- function(simulation_result,
     plot_data <- rbind(plot_data, iter_data)
   }
 
-  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-  plot_data$value <- plot_data$value / std_factor
+  plot_data <- plot_data %>%
+    group_by(iteration) %>%
+    mutate(
+      std_factor = value[user_year == (historical_end - 1)],
+      value = value / std_factor
+    ) %>%
+    ungroup() %>%
+    select(-std_factor)
 
   summary_data <- plot_data %>%
     group_by(user_year, period) %>%
@@ -3594,9 +3618,9 @@ plot_discN_total_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3683,8 +3707,14 @@ plot_discN_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -3804,9 +3834,9 @@ plot_Ftotal_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3902,8 +3932,14 @@ plot_Ftotal_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -4065,9 +4101,15 @@ plot_indices_modified <- function(simulation_result,
 
   plot_data <- dplyr::bind_rows(plot_data_list)
 
-  # STANDARDIZATION: Divide by last historical year median
-  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-  plot_data$value <- plot_data$value / std_factor
+  # STANDARDIZATION:
+  plot_data <- plot_data %>%
+    group_by(panel, iteration) %>%
+    mutate(
+      std_factor = value[user_year == (historical_end - 1)],
+      value = value / std_factor
+    ) %>%
+    ungroup() %>%
+    select(-std_factor)
 
   #calculate statistics
   summary_data <- plot_data %>%
@@ -4410,13 +4452,18 @@ plot_TAC_total_modified <- function(simulation_result,
     total_iterations <- dim(catchB_array)[2]
     nfleets <- dim(catchB_array)[4]
 
-    # Calculate standardization factors from catch (last historical year) for EACH FLEET
-    catch_std_factors <- numeric(nfleets)
+    # Calculate standardization factors from catch (last historical year) for EACH FLEET and iteration
+    catch_std_df <- data.frame()
 
     for(fleet in 1:nfleets) {
       catchB_fleet <- apply(catchB_array[, , , fleet], c(1, 2), sum, na.rm = TRUE)
-      last_hist_catch <- catchB_fleet[historical_end, ]
-      catch_std_factors[fleet] <- median(last_hist_catch, na.rm = TRUE)
+      last_hist_catch <- catchB_fleet[historical_end, ]#vector of length total_iterations
+      fleet_df <- data.frame(
+        fleet = fleet,
+        iteration = 1:total_iterations,
+        std_factor = last_hist_catch
+      )
+      catch_std_df <- rbind(catch_std_df, fleet_df)
     }
 
     # Prepare TAC plot data (sum across areas for each fleet)
@@ -4428,7 +4475,7 @@ plot_TAC_total_modified <- function(simulation_result,
         fleet_label = paste("Fleet", fleet),
         period = ifelse(year <= historical_end, "Historical", "Projection")
       ) %>%
-      left_join(data.frame(fleet = 1:nfleets, std_factor = catch_std_factors), by = "fleet") %>%
+      left_join(catch_std_df, by = c("fleet", "iteration")) %>%
       mutate(value = TAC / std_factor) %>%
       filter(period == "Projection")
 
@@ -4514,15 +4561,19 @@ plot_TAC_total_modified <- function(simulation_result,
     catchB_array <- dynamics$catchB
     catchB_total <- apply(catchB_array, c(1, 2), sum, na.rm = TRUE)
 
-    last_hist_catch <- catchB_total[historical_end, ]
-    catch_std_factor <- median(last_hist_catch, na.rm = TRUE)
+    last_hist_catch <- catchB_total[historical_end, ]#vector of length total_iterations
+    catch_std_df <- data.frame(
+      iteration = 1:length(last_hist_catch),
+      std_factor = last_hist_catch
+    )
 
     plot_data <- tac_data %>%
       group_by(year, iteration) %>%
       summarise(TAC = sum(TAC, na.rm = TRUE), .groups = "drop") %>%
+      left_join(catch_std_df, by = "iteration") %>%
       mutate(
         user_year = year - 1,
-        value = TAC / catch_std_factor,
+        value = TAC / std_factor,
         period = ifelse(year <= historical_end, "Historical", "Projection")
       ) %>%
       filter(period == "Projection")
