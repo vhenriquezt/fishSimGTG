@@ -396,10 +396,10 @@ create_population_plot <- function(plot_data, metric, show_median, show_quantile
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
-      q40 = quantile(value, 0.40, na.rm = TRUE),
-      q60 = quantile(value, 0.60, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -425,14 +425,14 @@ create_population_plot <- function(plot_data, metric, show_median, show_quantile
 
   #quantile ribbon
   if(show_quantiles) {
-    # Outer: 25th-75th percentiles (lighter)
+    # Outer: 95% CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q25, ymax = q75),
+                         aes(x = user_year, ymin = q025, ymax = q975),
                          fill = main_color, alpha = 0.25)
 
-    # Inner: 40th-60th percentiles (darker)
+    # Inner: 50% CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q40, ymax = q60),
+                         aes(x = user_year, ymin = q25, ymax = q75),
                          fill = main_color, alpha = 0.4)
   }
 
@@ -1939,10 +1939,10 @@ create_TAC_plot_single <- function(tac_data, areas, show_median, show_quantiles,
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
-      q40 = quantile(value, 0.40, na.rm = TRUE),
-      q60 = quantile(value, 0.60, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -1958,14 +1958,14 @@ create_TAC_plot_single <- function(tac_data, areas, show_median, show_quantiles,
   }
 
   if(show_quantiles) {
-    # Outer: 25th-75th percentiles (lighter)
+    # Outer: 95CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q25, ymax = q75),
+                         aes(x = user_year, ymin = q025, ymax = q975),
                          fill = main_color, alpha = 0.25)
 
-    # Inner: 40th-60th percentiles (darker)
+    # Inner: 50CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q40, ymax = q60),
+                         aes(x = user_year, ymin = q25, ymax = q75),
                          fill = main_color, alpha = 0.4)
   }
 
@@ -2966,10 +2966,10 @@ plot_catchB_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
-        q40 = quantile(value, 0.40, na.rm = TRUE),
-        q60 = quantile(value, 0.60, na.rm = TRUE),
         .groups = "drop"
       )
 
@@ -2994,14 +2994,14 @@ plot_catchB_total_modified <- function(simulation_result,
     }
 
     if(show_quantiles) {
-      # Outer: 25th-75th percentiles (lighter)
+      # Outer: CI 95
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
                            alpha = 0.25)
 
-      # Inner: 40th-60th percentiles (darker)
+      # Inner: CI 50
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q40, ymax = q60, fill = fleet_label),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.4)
     }
 
@@ -3189,6 +3189,8 @@ plot_catchN_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
         .groups = "drop"
@@ -3216,8 +3218,13 @@ plot_catchN_total_modified <- function(simulation_result,
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
+                           alpha = 0.25)
+      p <- p + geom_ribbon(data = summary_data,
                            aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
-                           alpha = 0.3)
+                           alpha = 0.4)
+
+
     }
 
     if(show_median) {
@@ -3392,10 +3399,10 @@ plot_SB_total_modified <- function(simulation_result,
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
-      q40 = quantile(value, 0.40, na.rm = TRUE),  # ADDING MORE QUANTILES
-      q60 = quantile(value, 0.60, na.rm = TRUE),  # ADDING MORE QUANTILES
       .groups = "drop"
     )
 
@@ -3418,14 +3425,14 @@ plot_SB_total_modified <- function(simulation_result,
   }
 
   if(show_quantiles) {
-    # Outer: 25th-75th percentiles (lighter)
+    # Outer: 95CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q25, ymax = q75),
+                         aes(x = user_year, ymin = q025, ymax = q975),
                          fill = main_color, alpha = 0.25)
 
-    # Inner: 40th-60th percentiles (darker)
+    # Inner: 50CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q40, ymax = q60),
+                         aes(x = user_year, ymin = q25, ymax = q75),
                          fill = main_color, alpha = 0.4)
   }
 
@@ -3509,6 +3516,8 @@ plot_recN_modified <- function(simulation_result,
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
       .groups = "drop"
@@ -3534,8 +3543,11 @@ plot_recN_modified <- function(simulation_result,
 
   if(show_quantiles) {
     p <- p + geom_ribbon(data = summary_data,
+                         aes(x = user_year, ymin = q025, ymax = q975),
+                         fill = main_color, alpha = 0.25)
+    p <- p + geom_ribbon(data = summary_data,
                          aes(x = user_year, ymin = q25, ymax = q75),
-                         fill = main_color, alpha = 0.3)
+                         fill = main_color, alpha = 0.4)
   }
 
   if(show_median) {
@@ -3630,6 +3642,8 @@ plot_discN_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
         .groups = "drop"
@@ -3657,8 +3671,11 @@ plot_discN_total_modified <- function(simulation_result,
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
+                           alpha = 0.25)
+      p <- p + geom_ribbon(data = summary_data,
                            aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
-                           alpha = 0.3)
+                           alpha = 0.4)
     }
 
     if(show_median) {
@@ -3846,10 +3863,10 @@ plot_Ftotal_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
-        q40 = quantile(value, 0.40, na.rm = TRUE),
-        q60 = quantile(value, 0.60, na.rm = TRUE),
         .groups = "drop"
       )
 
@@ -3874,14 +3891,14 @@ plot_Ftotal_modified <- function(simulation_result,
     }
 
     if(show_quantiles) {
-      # Outer: 25th-75th percentiles (lighter)
+      # Outer: 95CI
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
                            alpha = 0.25)
 
-      # Inner: 40th-60th percentiles (darker)
+      # Inner: 50CI
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q40, ymax = q60, fill = fleet_label),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.4)
     }
 
@@ -4116,6 +4133,8 @@ plot_indices_modified <- function(simulation_result,
     group_by(user_year, panel, index_name, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
       n_obs = n(),
@@ -4138,7 +4157,7 @@ plot_indices_modified <- function(simulation_result,
                         alpha = line_alpha, size = point_size * 0.7, color = "lightblue")
   }
 
-  # quantile ranges
+  # quantile ranges - plotting only CI 50%
   if(show_quantiles) {
     p <- p + geom_pointrange(data = summary_data,
                              aes(x = user_year, y = median_value,
@@ -4487,10 +4506,10 @@ plot_TAC_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
-        q40 = quantile(value, 0.40, na.rm = TRUE),
-        q60 = quantile(value, 0.60, na.rm = TRUE),
         .groups = "drop"
       )
 
@@ -4515,14 +4534,14 @@ plot_TAC_total_modified <- function(simulation_result,
     }
 
     if(show_quantiles) {
-      # Outer: 25th-75th percentiles (lighter)
+      # Outer: CI 95
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
                            alpha = 0.25)
 
-      # Inner: 40th-60th percentiles (darker)
+      # Inner: CI 50
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q40, ymax = q60, fill = fleet_label),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.4)
     }
 
