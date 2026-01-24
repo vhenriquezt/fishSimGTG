@@ -396,10 +396,10 @@ create_population_plot <- function(plot_data, metric, show_median, show_quantile
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
-      q40 = quantile(value, 0.40, na.rm = TRUE),
-      q60 = quantile(value, 0.60, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -425,14 +425,14 @@ create_population_plot <- function(plot_data, metric, show_median, show_quantile
 
   #quantile ribbon
   if(show_quantiles) {
-    # Outer: 25th-75th percentiles (lighter)
+    # Outer: 95% CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q25, ymax = q75),
+                         aes(x = user_year, ymin = q025, ymax = q975),
                          fill = main_color, alpha = 0.25)
 
-    # Inner: 40th-60th percentiles (darker)
+    # Inner: 50% CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q40, ymax = q60),
+                         aes(x = user_year, ymin = q25, ymax = q75),
                          fill = main_color, alpha = 0.4)
   }
 
@@ -1939,10 +1939,10 @@ create_TAC_plot_single <- function(tac_data, areas, show_median, show_quantiles,
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
-      q40 = quantile(value, 0.40, na.rm = TRUE),
-      q60 = quantile(value, 0.60, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -1958,14 +1958,14 @@ create_TAC_plot_single <- function(tac_data, areas, show_median, show_quantiles,
   }
 
   if(show_quantiles) {
-    # Outer: 25th-75th percentiles (lighter)
+    # Outer: 95CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q25, ymax = q75),
+                         aes(x = user_year, ymin = q025, ymax = q975),
                          fill = main_color, alpha = 0.25)
 
-    # Inner: 40th-60th percentiles (darker)
+    # Inner: 50CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q40, ymax = q60),
+                         aes(x = user_year, ymin = q25, ymax = q75),
                          fill = main_color, alpha = 0.4)
   }
 
@@ -2892,18 +2892,18 @@ plot_observed_catch_total <- function(simulation_result,
 # ============================================================================
 
 # Helper function for standardization
-get_last_historical_value_mod <- function(data, historical_end, metric_col = "value") {
-  # get data from the LAST historical year
-  # historical_end is the FIRST projection year, so last historical is historical_end - 1
-  last_hist_year <- historical_end - 1
-
-  last_hist_data <- data %>%
-    filter(user_year == last_hist_year) %>%
-    pull(!!sym(metric_col))
-
-  if(length(last_hist_data) == 0) return(1)
-  return(median(last_hist_data, na.rm = TRUE))
-}
+# get_last_historical_value_mod <- function(data, historical_end, metric_col = "value") {
+#   # get data from the LAST historical year
+#   # historical_end is the FIRST projection year, so last historical is historical_end - 1
+#   last_hist_year <- historical_end - 1
+#
+#   last_hist_data <- data %>%
+#     filter(user_year == last_hist_year) %>%
+#     pull(!!sym(metric_col))
+#
+#   if(length(last_hist_data) == 0) return(1)
+#   return(median(last_hist_data, na.rm = TRUE))
+# }
 
 
 #' Modified Total Catch Biomass by Fleet - PANEL VERSION
@@ -2954,9 +2954,9 @@ plot_catchB_total_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -2966,10 +2966,10 @@ plot_catchB_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
-        q40 = quantile(value, 0.40, na.rm = TRUE),
-        q60 = quantile(value, 0.60, na.rm = TRUE),
         .groups = "drop"
       )
 
@@ -2994,14 +2994,14 @@ plot_catchB_total_modified <- function(simulation_result,
     }
 
     if(show_quantiles) {
-      # Outer: 25th-75th percentiles (lighter)
+      # Outer: CI 95
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
                            alpha = 0.25)
 
-      # Inner: 40th-60th percentiles (darker)
+      # Inner: CI 50
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q40, ymax = q60, fill = fleet_label),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.4)
     }
 
@@ -3051,8 +3051,14 @@ plot_catchB_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -3171,9 +3177,9 @@ plot_catchN_total_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3183,6 +3189,8 @@ plot_catchN_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
         .groups = "drop"
@@ -3210,8 +3218,13 @@ plot_catchN_total_modified <- function(simulation_result,
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
+                           alpha = 0.25)
+      p <- p + geom_ribbon(data = summary_data,
                            aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
-                           alpha = 0.3)
+                           alpha = 0.4)
+
+
     }
 
     if(show_median) {
@@ -3260,8 +3273,14 @@ plot_catchN_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -3367,17 +3386,23 @@ plot_SB_total_modified <- function(simulation_result,
     plot_data <- rbind(plot_data, iter_data)
   }
 
-  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-  plot_data$value <- plot_data$value / std_factor
+  plot_data <- plot_data %>%
+    group_by(iteration) %>%
+    mutate(
+      std_factor = value[user_year == (historical_end - 1)],
+      value = value / std_factor
+    ) %>%
+    ungroup() %>%
+    select(-std_factor)
 
   summary_data <- plot_data %>%
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
-      q40 = quantile(value, 0.40, na.rm = TRUE),  # ADDING MORE QUANTILES
-      q60 = quantile(value, 0.60, na.rm = TRUE),  # ADDING MORE QUANTILES
       .groups = "drop"
     )
 
@@ -3400,14 +3425,14 @@ plot_SB_total_modified <- function(simulation_result,
   }
 
   if(show_quantiles) {
-    # Outer: 25th-75th percentiles (lighter)
+    # Outer: 95CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q25, ymax = q75),
+                         aes(x = user_year, ymin = q025, ymax = q975),
                          fill = main_color, alpha = 0.25)
 
-    # Inner: 40th-60th percentiles (darker)
+    # Inner: 50CI
     p <- p + geom_ribbon(data = summary_data,
-                         aes(x = user_year, ymin = q40, ymax = q60),
+                         aes(x = user_year, ymin = q25, ymax = q75),
                          fill = main_color, alpha = 0.4)
   }
 
@@ -3478,13 +3503,21 @@ plot_recN_modified <- function(simulation_result,
     plot_data <- rbind(plot_data, iter_data)
   }
 
-  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-  plot_data$value <- plot_data$value / std_factor
+  plot_data <- plot_data %>%
+    group_by(iteration) %>%
+    mutate(
+      std_factor = value[user_year == (historical_end - 1)],
+      value = value / std_factor
+    ) %>%
+    ungroup() %>%
+    select(-std_factor)
 
   summary_data <- plot_data %>%
     group_by(user_year, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
       .groups = "drop"
@@ -3510,8 +3543,11 @@ plot_recN_modified <- function(simulation_result,
 
   if(show_quantiles) {
     p <- p + geom_ribbon(data = summary_data,
+                         aes(x = user_year, ymin = q025, ymax = q975),
+                         fill = main_color, alpha = 0.25)
+    p <- p + geom_ribbon(data = summary_data,
                          aes(x = user_year, ymin = q25, ymax = q75),
-                         fill = main_color, alpha = 0.3)
+                         fill = main_color, alpha = 0.4)
   }
 
   if(show_median) {
@@ -3594,9 +3630,9 @@ plot_discN_total_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3606,6 +3642,8 @@ plot_discN_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
         .groups = "drop"
@@ -3633,8 +3671,11 @@ plot_discN_total_modified <- function(simulation_result,
 
     if(show_quantiles) {
       p <- p + geom_ribbon(data = summary_data,
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
+                           alpha = 0.25)
+      p <- p + geom_ribbon(data = summary_data,
                            aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
-                           alpha = 0.3)
+                           alpha = 0.4)
     }
 
     if(show_median) {
@@ -3683,8 +3724,14 @@ plot_discN_total_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -3804,9 +3851,9 @@ plot_Ftotal_modified <- function(simulation_result,
 
     # Standardize EACH FLEET by its own last historical year
     plot_data <- plot_data %>%
-      group_by(fleet) %>%
+      group_by(fleet, iteration) %>%
       mutate(
-        std_factor = median(value[user_year == (historical_end - 1)], na.rm = TRUE),
+        std_factor = value[user_year == (historical_end - 1)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3816,10 +3863,10 @@ plot_Ftotal_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
-        q40 = quantile(value, 0.40, na.rm = TRUE),
-        q60 = quantile(value, 0.60, na.rm = TRUE),
         .groups = "drop"
       )
 
@@ -3844,14 +3891,14 @@ plot_Ftotal_modified <- function(simulation_result,
     }
 
     if(show_quantiles) {
-      # Outer: 25th-75th percentiles (lighter)
+      # Outer: 95CI
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
                            alpha = 0.25)
 
-      # Inner: 40th-60th percentiles (darker)
+      # Inner: 50CI
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q40, ymax = q60, fill = fleet_label),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.4)
     }
 
@@ -3902,8 +3949,14 @@ plot_Ftotal_modified <- function(simulation_result,
       plot_data <- rbind(plot_data, iter_data)
     }
 
-    std_factor <- median(plot_data$value[plot_data$user_year == (historical_end - 1)], na.rm = TRUE)
-    plot_data$value <- plot_data$value / std_factor
+    plot_data <- plot_data %>%
+      group_by(iteration) %>%
+      mutate(
+        std_factor = value[user_year == (historical_end - 1)],
+        value = value / std_factor
+      ) %>%
+      ungroup() %>%
+      select(-std_factor)
 
     summary_data <- plot_data %>%
       group_by(user_year, period) %>%
@@ -4065,15 +4118,23 @@ plot_indices_modified <- function(simulation_result,
 
   plot_data <- dplyr::bind_rows(plot_data_list)
 
-  # STANDARDIZATION: Divide by last historical year median
-  std_factor <- get_last_historical_value_mod(plot_data, historical_end)
-  plot_data$value <- plot_data$value / std_factor
+  # STANDARDIZATION:
+  plot_data <- plot_data %>%
+    group_by(panel, iteration) %>%
+    mutate(
+      std_factor = value[user_year == (historical_end - 1)],
+      value = value / std_factor
+    ) %>%
+    ungroup() %>%
+    select(-std_factor)
 
   #calculate statistics
   summary_data <- plot_data %>%
     group_by(user_year, panel, index_name, period) %>%
     summarise(
       median_value = median(value, na.rm = TRUE),
+      q025 = quantile(value, 0.025, na.rm = TRUE),
+      q975 = quantile(value, 0.975, na.rm = TRUE),
       q25 = quantile(value, 0.25, na.rm = TRUE),
       q75 = quantile(value, 0.75, na.rm = TRUE),
       n_obs = n(),
@@ -4096,7 +4157,7 @@ plot_indices_modified <- function(simulation_result,
                         alpha = line_alpha, size = point_size * 0.7, color = "lightblue")
   }
 
-  # quantile ranges
+  # quantile ranges - plotting only CI 50%
   if(show_quantiles) {
     p <- p + geom_pointrange(data = summary_data,
                              aes(x = user_year, y = median_value,
@@ -4410,13 +4471,18 @@ plot_TAC_total_modified <- function(simulation_result,
     total_iterations <- dim(catchB_array)[2]
     nfleets <- dim(catchB_array)[4]
 
-    # Calculate standardization factors from catch (last historical year) for EACH FLEET
-    catch_std_factors <- numeric(nfleets)
+    # Calculate standardization factors from catch (last historical year) for EACH FLEET and iteration
+    catch_std_df <- data.frame()
 
     for(fleet in 1:nfleets) {
       catchB_fleet <- apply(catchB_array[, , , fleet], c(1, 2), sum, na.rm = TRUE)
-      last_hist_catch <- catchB_fleet[historical_end, ]
-      catch_std_factors[fleet] <- median(last_hist_catch, na.rm = TRUE)
+      last_hist_catch <- catchB_fleet[historical_end, ]#vector of length total_iterations
+      fleet_df <- data.frame(
+        fleet = fleet,
+        iteration = 1:total_iterations,
+        std_factor = last_hist_catch
+      )
+      catch_std_df <- rbind(catch_std_df, fleet_df)
     }
 
     # Prepare TAC plot data (sum across areas for each fleet)
@@ -4428,7 +4494,7 @@ plot_TAC_total_modified <- function(simulation_result,
         fleet_label = paste("Fleet", fleet),
         period = ifelse(year <= historical_end, "Historical", "Projection")
       ) %>%
-      left_join(data.frame(fleet = 1:nfleets, std_factor = catch_std_factors), by = "fleet") %>%
+      left_join(catch_std_df, by = c("fleet", "iteration")) %>%
       mutate(value = TAC / std_factor) %>%
       filter(period == "Projection")
 
@@ -4440,10 +4506,10 @@ plot_TAC_total_modified <- function(simulation_result,
       group_by(user_year, fleet, fleet_label, period) %>%
       summarise(
         median_value = median(value, na.rm = TRUE),
+        q025 = quantile(value, 0.025, na.rm = TRUE),
+        q975 = quantile(value, 0.975, na.rm = TRUE),
         q25 = quantile(value, 0.25, na.rm = TRUE),
         q75 = quantile(value, 0.75, na.rm = TRUE),
-        q40 = quantile(value, 0.40, na.rm = TRUE),
-        q60 = quantile(value, 0.60, na.rm = TRUE),
         .groups = "drop"
       )
 
@@ -4468,14 +4534,14 @@ plot_TAC_total_modified <- function(simulation_result,
     }
 
     if(show_quantiles) {
-      # Outer: 25th-75th percentiles (lighter)
+      # Outer: CI 95
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
+                           aes(x = user_year, ymin = q025, ymax = q975, fill = fleet_label),
                            alpha = 0.25)
 
-      # Inner: 40th-60th percentiles (darker)
+      # Inner: CI 50
       p <- p + geom_ribbon(data = summary_data,
-                           aes(x = user_year, ymin = q40, ymax = q60, fill = fleet_label),
+                           aes(x = user_year, ymin = q25, ymax = q75, fill = fleet_label),
                            alpha = 0.4)
     }
 
@@ -4514,15 +4580,19 @@ plot_TAC_total_modified <- function(simulation_result,
     catchB_array <- dynamics$catchB
     catchB_total <- apply(catchB_array, c(1, 2), sum, na.rm = TRUE)
 
-    last_hist_catch <- catchB_total[historical_end, ]
-    catch_std_factor <- median(last_hist_catch, na.rm = TRUE)
+    last_hist_catch <- catchB_total[historical_end, ]#vector of length total_iterations
+    catch_std_df <- data.frame(
+      iteration = 1:length(last_hist_catch),
+      std_factor = last_hist_catch
+    )
 
     plot_data <- tac_data %>%
       group_by(year, iteration) %>%
       summarise(TAC = sum(TAC, na.rm = TRUE), .groups = "drop") %>%
+      left_join(catch_std_df, by = "iteration") %>%
       mutate(
         user_year = year - 1,
-        value = TAC / catch_std_factor,
+        value = TAC / std_factor,
         period = ifelse(year <= historical_end, "Historical", "Projection")
       ) %>%
       filter(period == "Projection")
