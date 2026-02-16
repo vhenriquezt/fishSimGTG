@@ -972,16 +972,6 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
   for(iter in 1:maxiterF) {
     iteration_count <- iter
 
-    # diagnostic output (first 3 iterations and every 50th)
-    if(iter <= 3 || iter %% 50 == 0) {
-      cat(sprintf("\n--- Iteration %d ---\n", iter))
-      for(f in 1:nfleets) {
-        if(!is.na(ct[f])) {
-          cat(sprintf("  Fleet %d: F=%.4f\n", f, ft[f]))
-        }
-      }
-    }
-
     #reset predicted catches and derivatives for this iter
     pct[] <- 0
     dct[] <- 0
@@ -1024,7 +1014,7 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
           biomass_gtg <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
 
           #skip if no biomass
-          if (biomass_gtg < tiny) next  #skip if no biomass
+          #if (biomass_gtg < tiny) next  #skip if no biomass
 
           #calculate fleet-specific catches and derivatives
           for (f in 1:nfleets) {
@@ -1169,6 +1159,16 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
       cat(" this suggests TAC may still be too high for available biomass\n")
     }
 
+    # diagnostic output (first 3 iterations and every 50th)
+    if(iter <= 5 || iter %% 50 == 0) {
+      cat(sprintf("\n--- Iteration %d ---\n", iter))
+      for(f in 1:nfleets) {
+        if(!is.na(ct[f])) {
+          cat(sprintf("  Fleet %d: F=%.4f dct=%.4f\n", f, ft[f], dct[f]))
+        }
+      }
+    }
+
     #Check convergence - now after capping
     check_error <- error / ct
     relative_error <- abs(error / pmax(ct, tiny))
@@ -1182,7 +1182,7 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
       for(f in 1:nfleets) {
         if(tac_managed[f]) {
           cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.16f%% error) (%.16f%% dct)\n",
-                      f, ft[f], ct[f], pct[f], 100*check_error[f], dct[f]))
+                      f, ft[f], ct[f], pct[f], 100*check_error[f]))
         }
       }
       #end debug
