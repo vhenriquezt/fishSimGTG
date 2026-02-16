@@ -689,8 +689,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       cat(sprintf("\nCONVERGED at iteration %d\n", iter))
       for(f in 1:nfleets) {
         if(tac_managed[f]) {
-          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.16f%% error)\n",
-                      f, ft[f], ct[f], pct[f], 100*check_error[f]))
+          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.16f%% error) (%.16f%% dct)\n",
+                      f, ft[f], ct[f], pct[f], 100*check_error[f], dct[f]))
         }
       }
       #end debug
