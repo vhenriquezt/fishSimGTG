@@ -576,13 +576,13 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
               one_minus_exp <- 1 - exp_neg_Z
 
               #the three derivative terms - see my excel
-              #term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
-              #term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * sel_f
-              #term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z * sel_f * biomass_gtg
-
               term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
-              term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * removal_sel
-              term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z  * biomass_gtg * removal_sel
+              term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * sel_f
+              term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z * sel_f * biomass_gtg
+
+              #term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
+              #term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * removal_sel
+              #term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z  * biomass_gtg * removal_sel
 
               derivative_component <- term1 - term2 + term3
 
@@ -654,8 +654,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     for(f in 1:nfleets) {
       if(tac_managed[f]) {  # Only if TAC-managed
         #ft[f] <- ft[f] - error[f] / (0.8 * dct[f]) #incorrect damping effect
-        ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
-        #ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
+        #ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
+        ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
       }
       #effort-managed fleets: ft[f] stays unchanged
     }
@@ -690,7 +690,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       for(f in 1:nfleets) {
         if(tac_managed[f]) {
           cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.16f%% error)\n",
-                      f, ft[f], ct[f], pct[f], check_error[f]))
+                      f, ft[f], ct[f], pct[f], 100*check_error[f]))
         }
       }
       #end debug
