@@ -321,8 +321,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     # BEFORE: guess <- min(1, ct[f] / total_vuln_biomass) #Calculate intitial F, but if it's greater than 1.0, cap it at 1.0
     # NOW: Allow F to be calculated without artificial ceiling
 
-    #guess <-  ct[f] / total_vuln_biomass
-    guess <-  -log(1 - ct[f] / total_vuln_biomass)
+    guess <-  ct[f] / total_vuln_biomass
+    #guess <-  -log(1 - ct[f] / total_vuln_biomass)
 
     # Diagnostic
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
@@ -574,13 +574,13 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
               one_minus_exp <- 1 - exp_neg_Z
 
               #the three derivative terms - see my excel
-              #term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
-              #term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * sel_f
-              #term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z * sel_f * biomass_gtg
-
               term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
-              term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * removal_sel
-              term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z  * biomass_gtg * removal_sel
+              term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * sel_f
+              term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z * sel_f * biomass_gtg
+
+              #term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
+              #term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * removal_sel
+              #term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z  * biomass_gtg * removal_sel
 
               derivative_component <- term1 - term2 + term3
 
@@ -652,8 +652,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     for(f in 1:nfleets) {
       if(tac_managed[f]) {  # Only if TAC-managed
         #ft[f] <- ft[f] - error[f] / (0.8 * dct[f]) #incorrect damping effect
-        ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
-        #ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
+        #ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
+        ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
       }
       #effort-managed fleets: ft[f] stays unchanged
     }
