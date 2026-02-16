@@ -1026,6 +1026,12 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
             #TAC Types:
             #"keep" = landed catch
             #"removals" = total mortality (including dead discards)
+            if (is_multifleet) {
+              removal_sel <- selGroup[[area]][[f]]$removal[[gtg]][age]
+            } else {
+              removal_sel <- selGroup[[area]]$removal[[gtg]][age]
+            }
+
 
             #keep Selectivity: matches selGroup[[m]]$keep[[l]] for retained catch
             if (TAC_type == "keep") {
@@ -1037,9 +1043,9 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
             } else {  # removals
               #removal Selectivity: matches selGroup[[m]]$removal[[l]] for total removals
               if (is_multifleet) {
-                sel_f <- selGroup[[area]][[f]]$removal[[gtg]][age]
+                sel_f <- removal_sel
               } else {
-                sel_f <- selGroup[[area]]$removal[[gtg]][age]
+                sel_f <- removal_sel
               }
             }
 
@@ -1237,4 +1243,130 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
     return(ft)
   }
 
+}
+
+solveTAC_to_F_Multivariate <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
+                                       effort_F_by_fleet, is_multifleet, areas, nfleets,
+                                       TAC_type = "keep", control = NULL) {
+
+  # --- 1. SETUP & CONTROL ---
+  maxiterF <- 300
+  tolF <- 1e-4
+  tiny <- 1e-15
+  max_F_bio <- 3.0
+  damping <- 0.8
+
+  if(!is.null(control)) {
+    if (!is.null(control$maxiterF)) maxiterF <- as.integer(control$maxiterF)
+    if (!is.null(control$tolF)) tolF <- control$tolF
+  }
+
+  tac_managed <- !is.na(TAC_targets)
+  ct <- TAC_targets
+
+  # --- 2. VECTORIZATION: PRE-CALCULATE POPULATION CELLS ---
+  # Collapse GTG, Age, and Area into a single vector of available biomass
+  pop_biomass <- unlist(lapply(1:lh$gtg, function(g) {
+    as.vector(N[[g]][, j, ] * lh$W[[g]])
+  }))
+
+  # Removal selectivity matrix [Cells x Fleets] - used for Total Z
+  rem_sel_mat <- sapply(1:nfleets, function(f) {
+    unlist(lapply(1:areas, function(a) {
+      if(is_multifleet) selGroup[[a]][[f]]$removal else selGroup[[a]]$removal
+    }))
+  })
+
+  # Target selectivity matrix [Cells x Fleets] - used for Predicted Catch
+  target_sel_mat <- sapply(1:nfleets, function(f) {
+    unlist(lapply(1:areas, function(a) {
+      if(TAC_type == "keep") {
+        if(is_multifleet) selGroup[[a]][[f]]$keep else selGroup[[a]]$keep
+      } else {
+        if(is_multifleet) selGroup[[a]][[f]]$removal else selGroup[[a]]$removal
+      }
+    }))
+  })
+
+  # --- 3. INITIAL GUESS & MARTELL ADJUSTMENT ---
+  # Initial F guess based on simplified exploitation
+  ft <- sapply(1:nfleets, function(f) {
+    if(!tac_managed[f]) return(effort_F_by_fleet[f])
+    vuln_bio <- sum(pop_biomass * rem_sel_mat[,f])
+    if(vuln_bio < tiny) return(tiny)
+    -log(1 - min(0.95, ct[f] / vuln_bio))
+  })
+
+  # Pre-adjustment: If initial F is impossible, cap it and lower the TAC target
+  for(f in which(tac_managed)) {
+    if(ft[f] > max_F_bio) {
+      ft[f] <- max_F_bio
+      # Calculate achievable catch at F_bio
+      temp_total_F <- rem_sel_mat %*% ft
+      temp_Z <- M_rate + temp_total_F
+      temp_U <- (1 - exp(-temp_Z)) / temp_Z
+      ct[f] <- sum(ft[f] * target_sel_mat[,f] * temp_U * pop_biomass)
+      warning(sprintf("Fleet %d: TAC reduced to %.2f due to bio-limit", f, ct[f]))
+    }
+  }
+
+  # --- 4. NEWTON-RAPHSON MULTIVARIATE LOOP ---
+  converged <- FALSE
+
+  for(iter in 1:maxiterF) {
+    # Calculate current state
+    total_F_vec <- rem_sel_mat %*% ft
+    Z_vec <- pmax(M_rate + total_F_vec, tiny)
+    exp_Z <- exp(-Z_vec)
+    U_vec <- (1 - exp_Z) / Z_vec
+
+    # Predicted catches
+    pct <- colSums(ft * t(target_sel_mat) * rep(U_vec * pop_biomass, each=nfleets))
+    error <- pct - ct
+
+    # Check convergence
+    rel_error <- abs(error[tac_managed] / pmax(ct[tac_managed], tiny))
+    if (all(rel_error < tolF)) {
+      converged <- TRUE
+      break
+    }
+
+    # --- JACOBIAN CONSTRUCTION ---
+    J <- matrix(0, nfleets, nfleets)
+    for (i in which(tac_managed)) {
+      for (k in 1:nfleets) {
+        if (i == k) {
+          # Diagonal: Self-impact
+          t1 <- target_sel_mat[,i] * U_vec * pop_biomass
+          t2 <- ft[i] * target_sel_mat[,i] * (U_vec / Z_vec) * pop_biomass * rem_sel_mat[,i]
+          t3 <- ft[i] * target_sel_mat[,i] * (exp_Z / Z_vec) * pop_biomass * rem_sel_mat[,i]
+          J[i, k] <- sum(t1 - t2 + t3)
+        } else {
+          # Off-diagonal: Competition (Fleet k affects Fleet i's catch)
+          t_off2 <- ft[i] * target_sel_mat[,i] * (U_vec / Z_vec) * pop_biomass * rem_sel_mat[,k]
+          t_off3 <- ft[i] * target_sel_mat[,i] * (exp_Z / Z_vec) * pop_biomass * rem_sel_mat[,k]
+          J[i, k] <- sum(-t_off2 + t_off3)
+        }
+      }
+    }
+
+    # Solve system: J * step = error
+    J_sub <- J[tac_managed, tac_managed, drop=FALSE]
+    err_sub <- error[tac_managed]
+
+    # Step calculation with damping
+    step <- try(solve(J_sub, err_sub), silent=TRUE)
+    if(inherits(step, "try-error")) {
+      # Fallback to univariate if Jacobian is singular
+      step <- err_sub / diag(J_sub)
+    }
+
+    # Update and constrain
+    ft[tac_managed] <- pmax(tiny, pmin(max_F_bio, ft[tac_managed] - damping * step))
+  }
+
+  # --- 5. RETURN ---
+  attr(ft, "converged") <- converged
+  attr(ft, "iter") <- iter
+  return(ft)
 }
