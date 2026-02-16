@@ -1164,7 +1164,7 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
       cat(sprintf("\n--- Iteration %d ---\n", iter))
       for(f in 1:nfleets) {
         if(!is.na(ct[f])) {
-          cat(sprintf("  Fleet %d: F=%.4f dct=%.4f\n", f, ft[f], dct[f]))
+          cat(sprintf("  Fleet %d: F=%.4f dct=%.4f (%.16f%% error)\n", f, ft[f], 100*check_error[f], dct[f]))
         }
       }
     }
@@ -1181,7 +1181,7 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
       cat(sprintf("\nCONVERGED at iteration %d\n", iter))
       for(f in 1:nfleets) {
         if(tac_managed[f]) {
-          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.16f%% error) (%.16f%% dct)\n",
+          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.16f%% error)\n",
                       f, ft[f], ct[f], pct[f], 100*check_error[f]))
         }
       }
