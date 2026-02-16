@@ -323,7 +323,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
     #guess <-  ct[f] / total_vuln_biomass
     guess <-  -log(1 - ct[f] / total_vuln_biomass)
-    guess <- 2.4
+
     # Diagnostic
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
                 f, ct[f], total_vuln_biomass, guess))
@@ -627,13 +627,13 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     #check if NR step would be unreasonably large
     #large steps indicate numerical issues (instability)
 
-    # potential_steps <- abs(error[tac_managed] / dct[tac_managed])
-    # if (any(potential_steps > 5, na.rm = TRUE)) {
-    #   warning(sprintf("Newton-Raphson step would be too large (%.2f). Stopping.",
-    #                   max(potential_steps, na.rm = TRUE)))
-    #   converged <- FALSE
-    #   break
-    # }
+    potential_steps <- abs(error[tac_managed] / dct[tac_managed])
+    if (any(potential_steps > 5, na.rm = TRUE)) {
+      warning(sprintf("Newton-Raphson step would be too large (%.2f). Stopping.",
+                      max(potential_steps, na.rm = TRUE)))
+      converged <- FALSE
+      break
+    }
 
 
 
