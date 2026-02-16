@@ -530,7 +530,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
           biomass_gtg <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
 
           #skip if no biomass
-          if (biomass_gtg < tiny) next  #skip if no biomass
+          #if (biomass_gtg < tiny) next  #skip if no biomass
 
           #calculate fleet-specific catches and derivatives
           for (f in 1:nfleets) {
@@ -676,7 +676,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     }
 
     #Check convergence - now after capping
-    relative_error <- abs(error / pmax(ct, tiny))
+    #relative_error <- abs(error / pmax(ct, tiny))
+    relative_error <- error / pmax(ct, tiny)
     relative_error[!tac_managed] <- 0  # Zero out for effort fleets
 
     if (all(relative_error[tac_managed] < tolF)) {
@@ -686,7 +687,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       cat(sprintf("\nCONVERGED at iteration %d\n", iter))
       for(f in 1:nfleets) {
         if(tac_managed[f]) {
-          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.1f%% error)\n",
+          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.8f%% error)\n",
                       f, ft[f], ct[f], pct[f], 100*relative_error[f]))
         }
       }
