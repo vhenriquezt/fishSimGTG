@@ -321,8 +321,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     # BEFORE: guess <- min(1, ct[f] / total_vuln_biomass) #Calculate intitial F, but if it's greater than 1.0, cap it at 1.0
     # NOW: Allow F to be calculated without artificial ceiling
 
-    guess <-  ct[f] / total_vuln_biomass
-    #guess <-  -log(1 - ct[f] / total_vuln_biomass)
+    #guess <-  ct[f] / total_vuln_biomass
+    guess <-  -log(1 - ct[f] / total_vuln_biomass)
 
     # Diagnostic
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
@@ -530,7 +530,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
           biomass_gtg <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
 
           #skip if no biomass
-          #if (biomass_gtg < tiny) next  #skip if no biomass
+          if (biomass_gtg < tiny) next  #skip if no biomass
 
           #calculate fleet-specific catches and derivatives
           for (f in 1:nfleets) {
