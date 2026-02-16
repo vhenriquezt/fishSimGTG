@@ -676,8 +676,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     }
 
     #Check convergence - now after capping
-    #relative_error <- abs(error / pmax(ct, tiny))
-    relative_error <- error / pmax(ct, tiny)
+    check_error <- error / ct
+    relative_error <- abs(error / pmax(ct, tiny))
     relative_error[!tac_managed] <- 0  # Zero out for effort fleets
 
     if (all(relative_error[tac_managed] < tolF)) {
@@ -688,7 +688,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       for(f in 1:nfleets) {
         if(tac_managed[f]) {
           cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.8f%% error)\n",
-                      f, ft[f], ct[f], pct[f], 100*relative_error[f]))
+                      f, ft[f], ct[f], pct[f], check_error[f]))
         }
       }
       #end debug
