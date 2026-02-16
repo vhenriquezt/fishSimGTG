@@ -321,8 +321,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     # BEFORE: guess <- min(1, ct[f] / total_vuln_biomass) #Calculate intitial F, but if it's greater than 1.0, cap it at 1.0
     # NOW: Allow F to be calculated without artificial ceiling
 
-    #guess <-  ct[f] / total_vuln_biomass
-    guess <-  -log(1 - ct[f] / total_vuln_biomass)
+    guess <-  ct[f] / total_vuln_biomass
+    #guess <-  -log(1 - ct[f] / total_vuln_biomass)
 
     # Diagnostic
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
@@ -371,66 +371,66 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
   max_F_bio <- 3.0  # this is my F cap (bio limit) - (roughly 95% exploitation, 5% survival)
 
-  for(f in 1:nfleets) {
-    if(!is.na(ct[f]) && ft[f] > max_F_bio) {  # Is 1.0 > 3.0?  NO! so this block does not work wit the cap=1 in initial guess
-     #if this block does not get executed:
-     #I will do the following example:
-      # initial_F = 800 / 200 = 4.0
-      # ft[f] = min(1, 4.0) = 1.0  # F is capped at 1.0
-      # if (ft[f] > 3.0) { # Is 1.0 > 3.0?  NO!
-      #   # This block NEVER EXECUTES
-      #   # TAC stays at 800 kg
-      #   }
-      # Then NR will start at F=1 with a target TAC (800) that is imposible to achive
-      # ANd NR will continue forever trying to achieve the 800 TAC
-      cat(sprintf("\n Fleet %d: Initial F=%.4f exceeds F biological limit (%.2f)\n",
-                  f, ft[f], max_F_bio))
-      cat(sprintf("    Original TAC: %.2f kg\n", ct[f]))
-
-      #Cap F at bio limit (like Martell's: ft(i)=1.-minsurv)
-      ft[f] <- max_F_bio
-
-      #Calculate achievable catch at F = max_F_bio using Baranov equation (like Martell's: ctmp(i)=ft(i)*ba*V(i)*...)
-      achievable_catch <- 0
-
-      for (gtg in 1:lh$gtg) {
-        for (age in 1:lh$ageClasses) {
-          for (area in 1:areas) {
-
-            # Get selectivity based on TAC type
-            if (is_multifleet) {
-              sel <- if(TAC_type == "keep") selGroup[[area]][[f]]$keep[[gtg]][age]
-              else selGroup[[area]][[f]]$removal[[gtg]][age]
-            } else {
-              sel <- if(TAC_type == "keep") selGroup[[area]]$keep[[gtg]][age]
-              else selGroup[[area]]$removal[[gtg]][age]
-            }
-
-            # Calculate biomass for this GTG-age-area combination
-            biomass <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
-
-            # Calculate Z with capped F
-            Z_approx <- M_rate + ft[f] * sel
-            Z_approx <- max(Z_approx, tiny)
-
-            # Baranov equation: calculate catch at F=max_F_bio
-            achievable_catch <- achievable_catch +
-              ft[f] * sel / Z_approx * (1 - exp(-Z_approx)) * biomass
-          }
-        }
-      }
-
-      cat(sprintf("    Achievable catch at F=%.2f: %.2f kg\n", max_F_bio, achievable_catch))
-      cat(sprintf("    Reducing TAC to %.1f%% of original\n", 100*achievable_catch/ct[f]))
-
-      # ADJUST TAC DOWNWARD to achievable level (like Martell's: ct=ctmp)
-      # This is the KEY modification - here we change the target instead of forcing high F
-      ct[f] <- achievable_catch
-
-      warning(sprintf("Fleet %d: TAC reduced to %.2f kg due to biological constraints",
-                      f, achievable_catch))
-    }
-  }
+  # for(f in 1:nfleets) {
+  #   if(!is.na(ct[f]) && ft[f] > max_F_bio) {  # Is 1.0 > 3.0?  NO! so this block does not work wit the cap=1 in initial guess
+  #    #if this block does not get executed:
+  #    #I will do the following example:
+  #     # initial_F = 800 / 200 = 4.0
+  #     # ft[f] = min(1, 4.0) = 1.0  # F is capped at 1.0
+  #     # if (ft[f] > 3.0) { # Is 1.0 > 3.0?  NO!
+  #     #   # This block NEVER EXECUTES
+  #     #   # TAC stays at 800 kg
+  #     #   }
+  #     # Then NR will start at F=1 with a target TAC (800) that is imposible to achive
+  #     # ANd NR will continue forever trying to achieve the 800 TAC
+  #     cat(sprintf("\n Fleet %d: Initial F=%.4f exceeds F biological limit (%.2f)\n",
+  #                 f, ft[f], max_F_bio))
+  #     cat(sprintf("    Original TAC: %.2f kg\n", ct[f]))
+  #
+  #     #Cap F at bio limit (like Martell's: ft(i)=1.-minsurv)
+  #     ft[f] <- max_F_bio
+  #
+  #     #Calculate achievable catch at F = max_F_bio using Baranov equation (like Martell's: ctmp(i)=ft(i)*ba*V(i)*...)
+  #     achievable_catch <- 0
+  #
+  #     for (gtg in 1:lh$gtg) {
+  #       for (age in 1:lh$ageClasses) {
+  #         for (area in 1:areas) {
+  #
+  #           # Get selectivity based on TAC type
+  #           if (is_multifleet) {
+  #             sel <- if(TAC_type == "keep") selGroup[[area]][[f]]$keep[[gtg]][age]
+  #             else selGroup[[area]][[f]]$removal[[gtg]][age]
+  #           } else {
+  #             sel <- if(TAC_type == "keep") selGroup[[area]]$keep[[gtg]][age]
+  #             else selGroup[[area]]$removal[[gtg]][age]
+  #           }
+  #
+  #           # Calculate biomass for this GTG-age-area combination
+  #           biomass <- N[[gtg]][age, j, area] * lh$W[[gtg]][age]
+  #
+  #           # Calculate Z with capped F
+  #           Z_approx <- M_rate + ft[f] * sel
+  #           Z_approx <- max(Z_approx, tiny)
+  #
+  #           # Baranov equation: calculate catch at F=max_F_bio
+  #           achievable_catch <- achievable_catch +
+  #             ft[f] * sel / Z_approx * (1 - exp(-Z_approx)) * biomass
+  #         }
+  #       }
+  #     }
+  #
+  #     cat(sprintf("    Achievable catch at F=%.2f: %.2f kg\n", max_F_bio, achievable_catch))
+  #     cat(sprintf("    Reducing TAC to %.1f%% of original\n", 100*achievable_catch/ct[f]))
+  #
+  #     # ADJUST TAC DOWNWARD to achievable level (like Martell's: ct=ctmp)
+  #     # This is the KEY modification - here we change the target instead of forcing high F
+  #     ct[f] <- achievable_catch
+  #
+  #     warning(sprintf("Fleet %d: TAC reduced to %.2f kg due to biological constraints",
+  #                     f, achievable_catch))
+  #   }
+  # }
 
   # Print adjusted TAC targets that will be used in Newton-Raphson
 
@@ -648,8 +648,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     for(f in 1:nfleets) {
       if(tac_managed[f]) {  # Only if TAC-managed
         #ft[f] <- ft[f] - error[f] / (0.8 * dct[f]) #incorrect damping effect
-        ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
-        #ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
+        #ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
+        ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
       }
       #effort-managed fleets: ft[f] stays unchanged
     }
