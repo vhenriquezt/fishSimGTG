@@ -647,8 +647,8 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     #changed: only update TAC-managed fleets
     for(f in 1:nfleets) {
       if(tac_managed[f]) {  # Only if TAC-managed
-        ft[f] <- ft[f] - error[f] / (0.8 * dct[f]) #incorrect damping effect
-        #ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
+        #ft[f] <- ft[f] - error[f] / (0.8 * dct[f]) #incorrect damping effect
+        ft[f] <- ft[f] - error[f] / dct[f]         #removing damping effect
         #ft[f] <- ft[f] - 0.8*(error[f] / dct[f])    #placing damping correctly to effectivelity control the step
       }
       #effort-managed fleets: ft[f] stays unchanged
