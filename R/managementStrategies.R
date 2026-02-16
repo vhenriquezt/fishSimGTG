@@ -574,13 +574,13 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
               one_minus_exp <- 1 - exp_neg_Z
 
               #the three derivative terms - see my excel
-              term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
-              term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * sel_f
-              term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z * sel_f * biomass_gtg
-
               #term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
-              #term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * removal_sel
-              #term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z  * biomass_gtg * removal_sel
+              #term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * sel_f
+              #term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z * sel_f * biomass_gtg
+
+              term1 <- sel_f / Z_gtg * one_minus_exp * biomass_gtg
+              term2 <- ft[f] * sel_f / (Z_gtg^2) * one_minus_exp * biomass_gtg * removal_sel
+              term3 <- ft[f] * sel_f / Z_gtg * exp_neg_Z  * biomass_gtg * removal_sel
 
               derivative_component <- term1 - term2 + term3
 
