@@ -323,7 +323,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
 
     #guess <-  ct[f] / total_vuln_biomass
     guess <-  -log(1 - ct[f] / total_vuln_biomass)
-
+    guess <- 2.4
     # Diagnostic
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
                 f, ct[f], total_vuln_biomass, guess))
@@ -687,7 +687,7 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
       cat(sprintf("\nCONVERGED at iteration %d\n", iter))
       for(f in 1:nfleets) {
         if(tac_managed[f]) {
-          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.8f%% error)\n",
+          cat(sprintf("  Fleet %d: F=%.4f, Target=%.2f, Predicted=%.2f (%.16f%% error)\n",
                       f, ft[f], ct[f], pct[f], check_error[f]))
         }
       }
