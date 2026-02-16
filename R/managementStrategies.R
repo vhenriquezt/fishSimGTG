@@ -1159,6 +1159,11 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
       cat(" this suggests TAC may still be too high for available biomass\n")
     }
 
+    #Check convergence - now after capping
+    check_error <- error / ct
+    relative_error <- abs(error / pmax(ct, tiny))
+    relative_error[!tac_managed] <- 0  # Zero out for effort fleets
+
     # diagnostic output (first 3 iterations and every 50th)
     if(iter <= 5 || iter %% 50 == 0) {
       cat(sprintf("\n--- Iteration %d ---\n", iter))
@@ -1168,11 +1173,6 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
         }
       }
     }
-
-    #Check convergence - now after capping
-    check_error <- error / ct
-    relative_error <- abs(error / pmax(ct, tiny))
-    relative_error[!tac_managed] <- 0  # Zero out for effort fleets
 
     if (all(relative_error[tac_managed] < tolF)) {
       converged <- TRUE
