@@ -1169,7 +1169,7 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
       cat(sprintf("\n--- Iteration %d ---\n", iter))
       for(f in 1:nfleets) {
         if(!is.na(ct[f])) {
-          cat(sprintf("  Fleet %d: F=%.4f dct=%.4f (%.16f%% error)\n", f, ft[f], 100*check_error[f], dct[f]))
+          cat(sprintf("  Fleet %d: F=%.4f dct=%.4f (%.16f%% error)\n", f, ft[f], dct[f], 100*check_error[f]))
         }
       }
     }
