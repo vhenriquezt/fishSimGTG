@@ -322,7 +322,9 @@ solveTAC_to_F_fishSimGTG <- function(j, k, TAC_targets, N, lh, selGroup, M_rate,
     # NOW: Allow F to be calculated without artificial ceiling
 
     #guess <-  ct[f] / total_vuln_biomass
-    guess <-  -log(1 - ct[f] / total_vuln_biomass)
+
+    stdev <- 0.2
+    guess <-  -log(1 - ct[f] / total_vuln_biomass)*exp(rnorm(1,0,stdev)-stdev*stdev/2)
 
     # Diagnostic
     cat(sprintf("SOLVER: Fleet %d, TAC=%.2f, VulnBiomass=%.2f, Initial_F=%.6f\n",
