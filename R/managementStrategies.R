@@ -1307,7 +1307,7 @@ solveTAC_to_F_Multivariate <- function(j, k, area, nfleets, N, lh, selGroup, Tim
     if(ft[f] > max_F_bio) {
       ft[f] <- max_F_bio
       temp_total_F <- as.vector(rem_sel_mat %*% ft)
-      temp_Z <- pmax(M_rate + temp_total_F, tiny)
+      temp_Z <- pmax(lh$LifeHistory@M + temp_total_F, tiny)
       temp_U <- (1 - exp(-temp_Z)) / temp_Z
       ct[f] <- sum(ft[f] * target_sel_mat[,f] * (temp_U * B_flat))
       warning(sprintf("Fleet %d: TAC reduced to %.2f (biomass constraint)", f, ct[f]))
@@ -1322,7 +1322,7 @@ solveTAC_to_F_Multivariate <- function(j, k, area, nfleets, N, lh, selGroup, Tim
 
     # 4.1 Update State
     total_F_vec <- as.vector(rem_sel_mat %*% ft)
-    Z_vec       <- pmax(M_rate + total_F_vec, tiny)
+    Z_vec       <- pmax(lh$LifeHistory@M + total_F_vec, tiny)
     exp_Z       <- exp(-Z_vec)
     U_vec       <- (1 - exp_Z) / Z_vec   # Baranov Fraction
     dU_dZ       <- (exp_Z / Z_vec) - (U_vec / Z_vec) # Derivative of Baranov Fraction
