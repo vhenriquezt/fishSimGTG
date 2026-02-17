@@ -1261,6 +1261,10 @@ solveTAC_to_F_Multivariate <- function(j, k, area, nfleets, N, lh, selGroup, Tim
     if (!is.null(control$tolF))     tolF <- control$tolF
   }
 
+  TAC_targets =  decisionAnnual$TAC[decisionAnnual$year == j &
+                                      decisionAnnual$iteration == k &
+                                      decisionAnnual$area == area]
+
   tac_managed <- !is.na(TAC_targets)
   ct <- TAC_targets
 
