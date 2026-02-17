@@ -1245,44 +1245,40 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
 
 }
 
-
 solveTAC_to_F_Multivariate <- function(j, k, area, nfleets, N, lh, selGroup, TimeAreaObj,
-                                       decisionAnnual, effort_F_by_fleet, is_multifleet,
-                                       TAC_type = "keep", control = NULL) {
+                                         decisionAnnual, effort_F_by_fleet, is_multifleet,
+                                         TAC_type = "keep", control = NULL) {
 
-  # --- 1. SETUP & CONTROL ---
-  maxiterF <- 300
-  tolF <- 1e-4
-  tiny <- 1e-15
-  max_F_bio <- 3.0
-  damping <- 0.8
+  # --- 1. SETUP & CONTROL PARAMETERS ---
+  maxiterF  <- 300
+  tolF      <- 1e-4
+  tiny      <- 1e-15
+  max_F_bio <- 3.0    # Biological F cap (approx 95% exploitation)
+  damping   <- 0.8    # Step length damping to prevent overshooting
 
   if(!is.null(control)) {
     if (!is.null(control$maxiterF)) maxiterF <- as.integer(control$maxiterF)
-    if (!is.null(control$tolF)) tolF <- control$tolF
+    if (!is.null(control$tolF))     tolF <- control$tolF
   }
-
-  TAC_targets =  decisionAnnual$TAC[decisionAnnual$year == j &
-                                    decisionAnnual$iteration == k &
-                                    decisionAnnual$area == area]
 
   tac_managed <- !is.na(TAC_targets)
   ct <- TAC_targets
 
-  # --- 2. VECTORIZATION: PRE-CALCULATE POPULATION CELLS ---
-  # Collapse GTG and Age into a single vector of available biomass
+  # --- 2. VECTORIZATION: FLATTEN POPULATION DATA ---
+  # Collapse GTG, Age, and Area into flat vectors for high-speed broadcasting
   pop_biomass <- unlist(lapply(1:lh$gtg, function(g) {
     as.vector(N[[g]][, j, area] * lh$W[[g]])
   }))
+  B_flat <- as.vector(pop_biomass)
 
-  # Removal selectivity matrix [Cells x Fleets] - used for Total Z
+  # Removal selectivity matrix [Cells x Fleets] for Total Mortality (Z)
   rem_sel_mat <- sapply(1:nfleets, function(f) {
     unlist(lapply(area, function(a) {
       if(is_multifleet) selGroup[[a]][[f]]$removal else selGroup[[a]]$removal
     }))
   })
 
-  # Target selectivity matrix [Cells x Fleets] - used for Predicted Catch
+  # Target selectivity matrix [Cells x Fleets] for Catch Calculations
   target_sel_mat <- sapply(1:nfleets, function(f) {
     unlist(lapply(area, function(a) {
       if(TAC_type == "keep") {
@@ -1293,107 +1289,94 @@ solveTAC_to_F_Multivariate <- function(j, k, area, nfleets, N, lh, selGroup, Tim
     }))
   })
 
-  # --- 3. INITIAL GUESS & MARTELL ADJUSTMENT ---
-  # Initial F guess based on simplified exploitation
+  # --- 3. INITIAL GUESS & MARTELL PRE-ADJUSTMENT ---
   ft <- sapply(1:nfleets, function(f) {
     if(!tac_managed[f]) return(effort_F_by_fleet[f])
-    vuln_bio <- sum(pop_biomass * rem_sel_mat[,f])
+    vuln_bio <- sum(B_flat * rem_sel_mat[,f])
     if(vuln_bio < tiny) return(tiny)
-    -log(1 - min(0.95, ct[f] / vuln_bio))
+    # Start with a safe log-transform guess
+    -log(1 - min(0.9, ct[f] / vuln_bio))
   })
 
-  # Pre-adjustment: If initial F is impossible, cap it and lower the TAC target
+  # Martell Logic: If TAC is impossible, adjust target downward before solving
   for(f in which(tac_managed)) {
     if(ft[f] > max_F_bio) {
       ft[f] <- max_F_bio
-      # Calculate achievable catch at F_bio
-      temp_total_F <- rem_sel_mat %*% ft
-      temp_Z <- lh@M + temp_total_F
+      temp_total_F <- as.vector(rem_sel_mat %*% ft)
+      temp_Z <- pmax(M_rate + temp_total_F, tiny)
       temp_U <- (1 - exp(-temp_Z)) / temp_Z
-      ct[f] <- sum(ft[f] * target_sel_mat[,f] * temp_U * pop_biomass)
-      warning(sprintf("Fleet %d: TAC reduced to %.2f due to bio-limit", f, ct[f]))
+      ct[f] <- sum(ft[f] * target_sel_mat[,f] * (temp_U * B_flat))
+      warning(sprintf("Fleet %d: TAC reduced to %.2f (biomass constraint)", f, ct[f]))
     }
   }
 
-  # --- 4. NEWTON-RAPHSON MULTIVARIATE LOOP ---
+  # --- 4. MULTIVARIATE NEWTON-RAPHSON LOOP ---
   converged <- FALSE
+  ft_initial <- ft
 
   for(iter in 1:maxiterF) {
-    # 1. Calculate Current State (Flattening into vectors immediately)
-    total_F_vec <- as.vector(rem_sel_mat %*% ft)
-    Z_vec       <- pmax(lh$LifeHistory@M + total_F_vec, tiny)
-    exp_Z       <- exp(-Z_vec)
-    U_vec       <- (1 - exp_Z) / Z_vec # Baranov Fraction
 
-    # 2. Predicted Catches (Using vectorized broadcasting)
-    # We flatten pop_biomass and U_vec to ensure they multiply across fleet columns
-    B_flat <- as.vector(pop_biomass)
+    # 4.1 Update State
+    total_F_vec <- as.vector(rem_sel_mat %*% ft)
+    Z_vec       <- pmax(M_rate + total_F_vec, tiny)
+    exp_Z       <- exp(-Z_vec)
+    U_vec       <- (1 - exp_Z) / Z_vec   # Baranov Fraction
+    dU_dZ       <- (exp_Z / Z_vec) - (U_vec / Z_vec) # Derivative of Baranov Fraction
+
+    # 4.2 Predicted Catch (Vectorized Broadcasting)
+    # target_sel_mat [Cells x Fleets] * (U_vec * B_flat) [Cells]
     pct <- colSums(target_sel_mat * (U_vec * B_flat)) * ft
     error <- pct - ct
 
-    # Check convergence
+    # 4.3 Convergence Check
     rel_error <- abs(error[tac_managed] / pmax(ct[tac_managed], tiny))
     if (all(rel_error < tolF)) {
       converged <- TRUE
       break
     }
 
-    # --- JACOBIAN CONSTRUCTION ---
-    # 3. Jacobian Construction
+    # 4.4 Jacobian Construction [Fleets x Fleets]
     J <- matrix(0, nfleets, nfleets)
-
-    # Common derivative term: d(Baranov)/dZ
-    # This captures the "diminishing returns" of fishing harder
-    dU_dZ <- (exp_Z / Z_vec) - (U_vec / Z_vec)
-
     for (i in which(tac_managed)) {
       for (k in 1:nfleets) {
         if (i == k) {
-          # DIAGONAL: Impact of Fleet i on its own catch
-          # Derivative of [ F_i * s_i * U * B ] w.r.t F_i
+          # Diagonal: d(Catch_i)/d(F_i)
           term_self <- target_sel_mat[, i] * B_flat * (U_vec + ft[i] * rem_sel_mat[, i] * dU_dZ)
           J[i, k] <- sum(term_self)
         } else {
-          # OFF-DIAGONAL: Impact of Fleet k on Fleet i's catch (Competition)
-          # Derivative of [ F_i * s_i * U * B ] w.r.t F_k (affects U via Z)
+          # Off-diagonal: d(Catch_i)/d(F_k) - The Competition Term
           term_comp <- ft[i] * target_sel_mat[, i] * B_flat * (rem_sel_mat[, k] * dU_dZ)
           J[i, k] <- sum(term_comp)
         }
       }
     }
 
-    #--- DIAGNOSTIC PRINT-OUT (Every 5th iteration) ---
-    if (iter == 1 || iter %% 5 == 0) {
-      cat(sprintf("\n--- Iteration %d ---\n", iter))
-      for (i in which(tac_managed)) {
-        cat(sprintf("Fleet %d: Current F = %.4f | Target = %.2f | Pred = %.2f | Err = %.2f%%\n",
-                    i, ft[i], ct[i], pct[i], 100 * (pct[i] - ct[i]) / ct[i]))
-
-        # Display Jacobian values for this fleet
-        diag_val <- J[i, i]
-        comp_val <- sum(J[i, -i]) # Sum of competition effects from other fleets
-        cat(sprintf("  -> Jacobian: Diagonal (Self) = %.2f | Off-Diag (Competition) = %.2f\n",
-                    diag_val, comp_val))
-      }
+    # 4.5 Diagnostics (Every 10 iterations)
+    if (iter == 1 || iter %% 10 == 0) {
+      cat(sprintf("\nIter %d | Max Rel Error: %.2f%%\n", iter, 100 * max(rel_error)))
     }
 
-    # 4. Update Step
+    # 4.6 Update Step (System of Equations)
     J_sub   <- J[tac_managed, tac_managed, drop = FALSE]
     err_sub <- error[tac_managed]
 
-    # Solve J * delta = error
     delta <- try(solve(J_sub, err_sub), silent = TRUE)
     if (inherits(delta, "try-error")) {
-      # Fallback to univariate if the matrix is singular (biomass is too low)
-      delta <- err_sub / diag(J_sub)
+      delta <- err_sub / diag(J_sub) # Univariate fallback if J is singular
     }
 
     # Apply update with damping and biological caps
     ft[tac_managed] <- pmax(tiny, pmin(max_F_bio, ft[tac_managed] - damping * delta))
   }
 
-  # --- 5. RETURN ---
-  attr(ft, "converged") <- converged
-  attr(ft, "iter") <- iter
+  # --- 5. FINALIZE & ATTRIBUTES ---
+  if (!converged) warning("Newton-Raphson failed to converge within max iterations.")
+
+  attr(ft, "converged")       <- converged
+  attr(ft, "iterations")      <- iter
+  attr(ft, "predicted_catch") <- pct
+  attr(ft, "target_catch")    <- ct
+  attr(ft, "initial_guess")   <- ft_initial
+
   return(ft)
 }
