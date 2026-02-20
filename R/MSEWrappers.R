@@ -1665,6 +1665,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
 
     #Optional diagnostic outputs
     N<-mse$N
+    Z<-mse$Z
     catchNage<-mse$catchNage
   }
 
@@ -1674,12 +1675,12 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
 
   #Single fleet
   if(!is_multifleet){
-    dynamics<-list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, Ftotal=Ftotal, discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref=ref, N=N, catchNage=catchNage)
+    dynamics<-list(SB=SB, VB=VB, RB=RB, catchB=catchB, catchN=catchN, Ftotal=Ftotal, discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref=ref, N=N, Z=Z, catchNage=catchNage)
   }
 
   #Single fleet
   if(is_multifleet){
-    dynamics<-list(SB=SB, catchB=catchB, catchN=catchN, discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref=ref, N=N, catchNage=catchNage)
+    dynamics<-list(SB=SB, catchB=catchB, catchN=catchN, discB=discB, discN=discN, SPR=SPR, relSB=relSB, recN=recN, ref=ref, N=N, Z=Z, catchNage=catchNage)
     dynamics$multifleet <- list(
       Ftotal_by_fleet = Ftotal_by_fleet,
       catchB_by_fleet = catchB_by_fleet,
