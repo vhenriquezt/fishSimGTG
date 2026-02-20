@@ -1498,6 +1498,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
 
       #Optional diagnostic outputs
       N<-mseParallel[[1]]$N
+      Z<-mseParallel[[1]]$Z
       catchNage<-mseParallel[[1]]$catchNage
 
       for (i in 2:cores){
@@ -1585,6 +1586,7 @@ runProjection<-function(LifeHistoryObj, TimeAreaObj, HistFisheryObj, ProFisheryO
 
     #Optional diagnostic outputs
     N<-mseParallel[[1]]$N
+    Z<-mseParallel[[1]]$Z
     catchNage<-mseParallel[[1]]$catchNage
 
 
