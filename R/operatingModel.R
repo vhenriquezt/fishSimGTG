@@ -523,7 +523,11 @@ solveD<-function(lh, sel, doFit = FALSE, F_in = NULL, D_type = NULL, D_in = NULL
       SPR<- SB / Wbar # Equilibrium spawning biomass per recuit (fished)/ Equilibrium spawning biomass per recuit (unfished)
       D<-(4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1)
       if(D_type == "relB") return((D-D_in)^2)
-      if(D_type == "SPR") return((SPR-D_in)^2)
+      #if(D_type == "SPR") return((SPR-D_in)^2)
+      if(D_type == "SPR"){
+        Dtarget<-max(0.01, (4*lh$LifeHistory@Steep*D_in+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1))
+        return((D-Dtarget)^2) # Target SPR
+      }
     }
 
     #---------------
@@ -559,7 +563,7 @@ solveD<-function(lh, sel, doFit = FALSE, F_in = NULL, D_type = NULL, D_in = NULL
     YPR<-sum(sapply(1:lh$gtg, FUN=function(x) sum(lh$W[[x]]*Feq/stepsPerYear*sel$keep[[x]]/(Feq/stepsPerYear*sel$removal[[x]] + lh$LifeHistory@M/stepsPerYear)*(1-exp(-Feq/stepsPerYear*sel$removal[[x]]-lh$LifeHistory@M/stepsPerYear))*N[[x]])))
     SB<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
     SPR<-SB / Wbar
-    D<-max(1e-16, (4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1))
+    D<-(4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1)
 
     #------------------------------
     #Scale stock size and catches
@@ -812,7 +816,11 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
       D<-(4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1)
       #squared error for optimization
       if(D_type == "relB") return((D-D_in)^2) # Target relative biomass
-      if(D_type == "SPR") return((SPR-D_in)^2) # Target SPR
+      #if(D_type == "SPR") return((SPR-D_in)^2) # Target SPR
+      if(D_type == "SPR"){
+        Dtarget<-max(0.01, (4*lh$LifeHistory@Steep*D_in+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1))
+        return((D-Dtarget)^2) # Target SPR
+      }
     }
 
     #---------------
@@ -934,7 +942,7 @@ solveD_multifleet<-function(lh, sel_list, doFit = FALSE, F_in = NULL, D_type = N
 
     SB<-sum(sapply(1:lh$gtg, FUN=function(x) sum((N[[x]]*lh$mat[[x]]*lh$W[[x]])[2:totalSteps])))
     SPR<-SB / Wbar
-    D<-max(1e-16, (4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1))
+    D<-(4*lh$LifeHistory@Steep*SPR+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1)
 
     # get totals
     YPR <- sum(YPR_by_fleet)
@@ -1434,12 +1442,10 @@ solveD_multifleet2<-function(lh, sel_list, doFit = FALSE, F_in = NULL,
         #squared error for optimization
         if(D_type == "relB") return((D-D_in)^2) # Target relative biomass
         #if(D_type == "SPR") return((SPR-D_in)^2) # Target SPR
-
         if(D_type == "SPR"){
           Dtarget<-max(0.01, (4*lh$LifeHistory@Steep*D_in+lh$LifeHistory@Steep-1)/(5*lh$LifeHistory@Steep-1))
           return((D-Dtarget)^2) # Target SPR
         }
-
       }
 
       #---------------
