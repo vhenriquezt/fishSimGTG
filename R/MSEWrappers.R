@@ -253,7 +253,7 @@ evalMSE<-function(inputObject){
       is <- solveD_multifleet2(lh = lh, sel_list = selHist[[1]], doFit = TRUE, D_type = TimeAreaObj@historicalBioType,
                                D_in = Ddev[k], fleet_proportions = fleet_proportions,
                                allocation_type = MultifleetObj@allocation_type)
-      print(is)
+
       #Store the final proportions to report after runProjection()
       if(is$allocation_type == "effort") final_effort_proportions[k,] <- is$final_effort_proportions
       if(is$allocation_type == "catch"){

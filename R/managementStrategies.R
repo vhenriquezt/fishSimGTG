@@ -1247,7 +1247,7 @@ solveTAC_to_F_fishSimGTG2 <- function(j, k, TAC_targets, N, lh, selGroup, M_rate
 
 solveTAC_to_F_Multivariate <- function(j, k, area, nfleets, N, lh, selGroup, TimeAreaObj,
                                          decisionAnnual, effort_F_by_fleet, is_multifleet,
-                                         TAC_type = "keep", control = NULL) {
+                                         TAC_type = "keep", control = NULL, verbose = FALSE) {
 
   # --- 1. SETUP & CONTROL PARAMETERS ---
   maxiterF  <- 300
@@ -1356,8 +1356,10 @@ solveTAC_to_F_Multivariate <- function(j, k, area, nfleets, N, lh, selGroup, Tim
     }
 
     # 4.5 Diagnostics (Every 10 iterations)
-    if (iter == 1 || iter %% 10 == 0) {
-      cat(sprintf("\nIter %d | Max Rel Error: %.2f%%\n", iter, 100 * max(rel_error)))
+    if(verbose){
+      if (iter == 1 || iter %% 10 == 0) {
+        cat(sprintf("\nIter %d | Max Rel Error: %.2f%%\n", iter, 100 * max(rel_error)))
+      }
     }
 
     # 4.6 Update Step (System of Equations)
