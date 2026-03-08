@@ -1743,11 +1743,26 @@ recDev<-function(LifeHistoryObj, TimeAreaObj, StochasticObj, StrategyObj = NULL)
     return(NULL)
   } else {
 
+    #Book keeping
+    years <- 1 + TimeAreaObj@historicalYears + ifelse(is(StrategyObj, "Strategy")  && length(StrategyObj@projectionYears) > 0, StrategyObj@projectionYears, 0)
+    iterations <- floor(TimeAreaObj@iterations)
+    Rmult<-array(1:1, dim=c(years, iterations))
+
+    #------
+    #Manual recManual
+    #------
+    if(is(StochasticObj, "Stochastic") &&
+       dim(StochasticObj@recManual)[1] == years &&
+       dim(StochasticObj@recManual)[2] == iterations
+    ) {
+      Rmult <- StochasticObj@recManual
+      return(list(Rmult=Rmult))
+    }
+
 
     #--------
     #recSD
     #--------
-    iterations <- floor(TimeAreaObj@iterations)
     recSD <- rep(LifeHistoryObj@recSD, iterations)
     if(is(StochasticObj, "Stochastic") &&
        length(StochasticObj@recSD) > 1 &&
@@ -1774,9 +1789,6 @@ recDev<-function(LifeHistoryObj, TimeAreaObj, StochasticObj, StrategyObj = NULL)
       recRho<-runif(iterations, min = StochasticObj@recRho[1], max = StochasticObj@recRho[2])
     }
 
-
-    years <- 1 + TimeAreaObj@historicalYears + ifelse(is(StrategyObj, "Strategy")  && length(StrategyObj@projectionYears) > 0, StrategyObj@projectionYears, 0)
-    Rmult<-array(1:1, dim=c(years, iterations))
     for (k in 1:iterations){
       eps<-w<-rnorm(years,0,recSD[k])
       for (i in 2:NROW(eps)){
