@@ -2956,7 +2956,7 @@ plot_catchB_total_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(fleet, iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3054,7 +3054,7 @@ plot_catchB_total_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3179,7 +3179,7 @@ plot_catchN_total_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(fleet, iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3276,7 +3276,7 @@ plot_catchN_total_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3389,7 +3389,7 @@ plot_SB_total_modified <- function(simulation_result,
   plot_data <- plot_data %>%
     group_by(iteration) %>%
     mutate(
-      std_factor = value[user_year == (historical_end - 1)],
+      std_factor = value[user_year == (historical_end - 2)],
       value = value / std_factor
     ) %>%
     ungroup() %>%
@@ -3506,7 +3506,7 @@ plot_recN_modified <- function(simulation_result,
   plot_data <- plot_data %>%
     group_by(iteration) %>%
     mutate(
-      std_factor = value[user_year == (historical_end - 1)],
+      std_factor = value[user_year == (historical_end - 2)],
       value = value / std_factor
     ) %>%
     ungroup() %>%
@@ -3632,7 +3632,7 @@ plot_discN_total_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(fleet, iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3727,7 +3727,7 @@ plot_discN_total_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3853,7 +3853,7 @@ plot_Ftotal_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(fleet, iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -3952,7 +3952,7 @@ plot_Ftotal_modified <- function(simulation_result,
     plot_data <- plot_data %>%
       group_by(iteration) %>%
       mutate(
-        std_factor = value[user_year == (historical_end - 1)],
+        std_factor = value[user_year == (historical_end - 2)],
         value = value / std_factor
       ) %>%
       ungroup() %>%
@@ -4122,7 +4122,7 @@ plot_indices_modified <- function(simulation_result,
   plot_data <- plot_data %>%
     group_by(panel, iteration) %>%
     mutate(
-      std_factor = value[user_year == (historical_end - 1)],
+      std_factor = value[user_year == (historical_end - 2)],
       value = value / std_factor
     ) %>%
     ungroup() %>%
