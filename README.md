@@ -5,4 +5,4 @@ FishSimGTG is an R package that conducts numerical modeling of fish populations,
 
 ## User Guide
 
-The full user guide for this package is available [here](https://natureanalytics-ca.github.io/fishSimGTG/)
+The full user guide for this package is available [here](https://natureanalytics-ca.github.io/fishSimDoc/)

@@ -213,7 +213,6 @@ constantCatchStrategy<-function(phase, dataObject){
 #' @param dataObject The needed inputs to the management procedure
 #' @export
 
-# need an example here, removed to create documentation
 solveFfromTAC <- function(dataObject){
   #Unpack dataObject
   for(r in 1:NROW(dataObject)) assign(names(dataObject)[r], dataObject[[r]])

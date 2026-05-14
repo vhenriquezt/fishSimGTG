@@ -4,7 +4,7 @@
 #Example
 #---------------
 devtools::load_all()
-#library(fishSimGTG)
+library(fishSimGTG)
 #library(here)
 
 #----------------------------
@@ -44,7 +44,7 @@ TimeAreaObj@gtg = 13
 TimeAreaObj@gtgCV = 0.3
 TimeAreaObj@areas = 2
 TimeAreaObj@recArea = c(0.99, 0.01)
-TimeAreaObj@iterations = 3
+TimeAreaObj@iterations = 20
 TimeAreaObj@historicalYears = 50
 TimeAreaObj@historicalBio = 0.5
 TimeAreaObj@historicalBioType = "relB"
@@ -92,7 +92,7 @@ selWrapper(lh = lhOut, TimeAreaObj, FisheryObj = HistFisheryObj, doPlot = TRUE, 
 runProjection(LifeHistoryObj = LifeHistoryObj,
               TimeAreaObj = TimeAreaObj,
               HistFisheryObj = HistFisheryObj,
-              wd = here(),
+              wd = here::here(),
               fileName = "HistoricalDy",
               doPlot = TRUE,
               titleStrategy = "HistoricalDy"
