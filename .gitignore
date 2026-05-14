@@ -1,2 +1,30 @@
 .Rproj.user
 .Rhistory
+
+# Local working files / outputs / scratch
+.RData
+.Rproj
+*.Rproj
+
+# Untracked test outputs and scratch plots
+catchB_total_by_fleet_panels_modified.jpeg
+catchN_total_by_fleet_panels_modified.jpeg
+discN_total_by_fleet_panels_modified.jpeg
+indices_CPUE_2_modified.jpeg
+indices_Survey_1_modified.jpeg
+LC_Fishery_Fleet1.png
+LC_Fishery_Fleet2.png
+recN_modified.jpeg
+SPR_population.jpeg
+
+# Local test RDS files
+test_OM1_BG.rds
+test_multi_indexratio_length_MP.rds
+test_multifleet_islope_length_MP.rds
+
+# Local summary / notes scripts
+Main-modifications-summary.R
+Selectivity-modifications-summary.R
+
+# Local Test/ scratch folder
+Test/
